@@ -12,6 +12,12 @@ class Checkpoint extends Model
     /** @use HasFactory<CheckpointFactory> */
     use HasFactory;
 
+    public const STATUSES = [
+        'passed',
+        'current',
+        'upcoming',
+    ];
+
     protected $fillable = [
         'shipment_id',
         'sequence',

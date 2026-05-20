@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\CheckpointController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\ManagerController;
@@ -16,6 +17,8 @@ Route::get('/shipments', [ShipmentController::class, 'index']);
 Route::post('/shipments', [ShipmentController::class, 'store']);
 Route::get('/shipments/{shipment}', [ShipmentController::class, 'show']);
 Route::patch('/shipments/{shipment}/status', [ShipmentController::class, 'updateStatus']);
+Route::post('/shipments/{shipment}/checkpoints', [CheckpointController::class, 'store']);
+Route::patch('/checkpoints/{checkpoint}', [CheckpointController::class, 'update']);
 Route::get('/tracking', [TrackingController::class, 'index']);
 Route::get('/managers', [ManagerController::class, 'index']);
 Route::get('/finance', [FinanceController::class, 'index']);
