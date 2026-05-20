@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, Search, Send, X } from 'lucide-react';
-import { shipments, clients, managers, type CheckPoint } from '../data/mock';
+import { clients, managers, type CheckPoint, type Shipment } from '../data/mock';
+import { getTrackingData } from '../api';
 
 const statusColors: Record<string, string> = {
   planned: '#F59E0B',
@@ -176,7 +177,7 @@ function progressPercent(checkpoints: CheckPoint[]) {
   return Math.min(100, Math.round(((passed + current) / checkpoints.length) * 100));
 }
 
-function WorldMap({ selected }: { selected: typeof shipments[number] }) {
+function WorldMap({ selected }: { selected: Shipment }) {
   const routePath = createRoutePath(selected.checkpoints);
   const routeColor = selected.status === 'delayed' ? '#DC2626' : typeColor[selected.type];
 
@@ -273,10 +274,21 @@ function WorldMap({ selected }: { selected: typeof shipments[number] }) {
 }
 
 export default function Tracking() {
-  const [allShipments, setAllShipments] = useState(shipments.map((shipment) => ({ ...shipment, checkpoints: [...shipment.checkpoints] })));
+  const [loading, setLoading] = useState(true);
+  const [allShipments, setAllShipments] = useState<Shipment[]>([]);
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState(allShipments[1]);
+  const [selected, setSelected] = useState<Shipment | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  useEffect(() => {
+    getTrackingData()
+      .then(({ shipments: data }) => {
+        const mapped = data.map((s) => ({ ...s, checkpoints: [...s.checkpoints] }));
+        setAllShipments(mapped);
+        setSelected(mapped[1] ?? mapped[0] ?? null);
+      })
+      .finally(() => setLoading(false));
+  }, []);
   const [newPoint, setNewPoint] = useState<NewPoint>(emptyPoint);
   const [citySearch, setCitySearch] = useState('');
   const [insertAfter, setInsertAfter] = useState<number>(-1);
@@ -292,6 +304,22 @@ export default function Tracking() {
     city.city.toLowerCase().includes(citySearch.toLowerCase())
     || city.country.toLowerCase().includes(citySearch.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <div style={{ padding: '20px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
+        <div style={{
+          width: 18, height: 18, borderRadius: '50%',
+          border: '2.5px solid #E2E8F0', borderTopColor: '#2563EB',
+          animation: 'spin 0.7s linear infinite',
+        }} />
+        Загрузка...
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  if (!selected) return null;
 
   const client = clients.find((item) => item.id === selected.clientId);
   const manager = managers.find((item) => item.id === selected.managerId);
@@ -314,10 +342,11 @@ export default function Tracking() {
       if (shipment.id !== selected.id) return shipment;
       const checkpoints = [...shipment.checkpoints];
       checkpoints.splice(insertAfter === -1 ? checkpoints.length : insertAfter + 1, 0, checkpoint);
-      return { ...shipment, checkpoints };
+      return { ...shipment, checkpoints } as Shipment;
     }));
 
     setSelected((current) => {
+      if (!current) return current;
       const checkpoints = [...current.checkpoints];
       checkpoints.splice(insertAfter === -1 ? checkpoints.length : insertAfter + 1, 0, checkpoint);
       return { ...current, checkpoints };
