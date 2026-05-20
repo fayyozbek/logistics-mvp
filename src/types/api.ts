@@ -61,6 +61,25 @@ export interface CreateShipmentCheckpointPayload {
   note?: string;
 }
 
+export interface AddShipmentCheckpointPayload extends CreateShipmentCheckpointPayload {
+  insertAfter?: number;
+  arrivedAt?: string;
+}
+
+export interface UpdateCheckpointPayload {
+  city?: string;
+  country?: string;
+  address?: string;
+  plannedAt?: string;
+  arrivedAt?: string;
+  status?: CheckPoint['status'];
+  note?: string;
+}
+
+export interface CheckpointResponse {
+  checkpoint: CheckPoint;
+}
+
 export interface CreateShipmentPayload {
   clientId: number;
   managerId?: number;

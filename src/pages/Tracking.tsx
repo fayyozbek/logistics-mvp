@@ -1,7 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, Search, Send, X } from 'lucide-react';
 import { clients, managers, type CheckPoint, type Shipment } from '../data/mock';
-import { getTrackingData } from '../api';
+import { addShipmentCheckpoint, ApiError, getTrackingData, updateCheckpoint } from '../api';
+
+const checkpointFieldLabels: Record<string, string> = {
+  city: 'Город',
+  country: 'Страна',
+  address: 'Адрес',
+  plannedAt: 'Плановое время',
+  status: 'Статус',
+  note: 'Примечание',
+};
+
+function formatFieldErrors(errors: Record<string, string[]>): string[] {
+  return Object.entries(errors).flatMap(([field, messages]) =>
+    messages.map((message) => {
+      const label = checkpointFieldLabels[field] ?? field;
+      return `${label}: ${message}`;
+    }),
+  );
+}
+
+function toPlannedAt(value: string): string {
+  if (!value) {
+    return new Date().toISOString().slice(0, 16).replace('T', ' ');
+  }
+  return value.includes('T') ? value.replace('T', ' ') : value;
+}
 
 const statusColors: Record<string, string> = {
   planned: '#F59E0B',
@@ -279,6 +304,21 @@ export default function Tracking() {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Shipment | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [checkpointUpdatingId, setCheckpointUpdatingId] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [checkpointErrors, setCheckpointErrors] = useState<string[]>([]);
+  const [newPoint, setNewPoint] = useState<NewPoint>(emptyPoint);
+  const [citySearch, setCitySearch] = useState('');
+  const [insertAfter, setInsertAfter] = useState<number>(-1);
+
+  const refreshTracking = async (keepSelectedId?: string) => {
+    const { shipments: data } = await getTrackingData();
+    const mapped = data.map((s) => ({ ...s, checkpoints: [...s.checkpoints] }));
+    setAllShipments(mapped);
+    const selectedId = keepSelectedId ?? selected?.id;
+    setSelected(mapped.find((s) => s.id === selectedId) ?? mapped[0] ?? null);
+  };
 
   useEffect(() => {
     getTrackingData()
@@ -289,9 +329,6 @@ export default function Tracking() {
       })
       .finally(() => setLoading(false));
   }, []);
-  const [newPoint, setNewPoint] = useState<NewPoint>(emptyPoint);
-  const [citySearch, setCitySearch] = useState('');
-  const [insertAfter, setInsertAfter] = useState<number>(-1);
 
   const results = useMemo(() => allShipments.filter((shipment) =>
     !query
@@ -325,41 +362,96 @@ export default function Tracking() {
   const manager = managers.find((item) => item.id === selected.managerId);
   const progress = progressPercent(selected.checkpoints);
 
-  const handleAddPoint = () => {
-    if (!newPoint.city || !newPoint.address) return;
+  const handleAddPoint = async () => {
+    if (!selected || !newPoint.city || !newPoint.address) return;
 
-    const checkpoint: CheckPoint = {
-      id: `cp-${Date.now()}`,
-      city: newPoint.city,
-      country: newPoint.country,
-      address: newPoint.address,
-      plannedAt: newPoint.plannedAt || new Date().toISOString().slice(0, 16).replace('T', ' '),
-      note: newPoint.note || undefined,
-      status: newPoint.status,
-    };
+    setSubmitting(true);
+    setCheckpointErrors([]);
+    setSuccessMessage('');
 
-    setAllShipments((current) => current.map((shipment) => {
-      if (shipment.id !== selected.id) return shipment;
-      const checkpoints = [...shipment.checkpoints];
-      checkpoints.splice(insertAfter === -1 ? checkpoints.length : insertAfter + 1, 0, checkpoint);
-      return { ...shipment, checkpoints } as Shipment;
-    }));
+    try {
+      await addShipmentCheckpoint(selected.id, {
+        city: newPoint.city.trim(),
+        country: newPoint.country.trim() || undefined,
+        address: newPoint.address.trim(),
+        plannedAt: toPlannedAt(newPoint.plannedAt),
+        status: newPoint.status,
+        note: newPoint.note.trim() || undefined,
+        insertAfter,
+      });
+      await refreshTracking(selected.id);
+      setSuccessMessage(`Точка ${newPoint.city} добавлена в маршрут ${selected.trackingNumber}`);
+      setShowAddModal(false);
+      setNewPoint(emptyPoint);
+      setCitySearch('');
+      setInsertAfter(-1);
+    } catch (error) {
+      if (error instanceof ApiError && error.validationErrors) {
+        setCheckpointErrors(formatFieldErrors(error.validationErrors));
+      } else if (error instanceof ApiError) {
+        setCheckpointErrors([error.message]);
+      } else {
+        setCheckpointErrors(['Не удалось добавить точку. Проверьте подключение к API.']);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-    setSelected((current) => {
-      if (!current) return current;
-      const checkpoints = [...current.checkpoints];
-      checkpoints.splice(insertAfter === -1 ? checkpoints.length : insertAfter + 1, 0, checkpoint);
-      return { ...current, checkpoints };
-    });
+  const handleCheckpointStatusChange = async (checkpointId: string, status: CheckPoint['status']) => {
+    if (!selected) return;
 
-    setShowAddModal(false);
-    setNewPoint(emptyPoint);
-    setCitySearch('');
-    setInsertAfter(-1);
+    setCheckpointUpdatingId(checkpointId);
+    setCheckpointErrors([]);
+    setSuccessMessage('');
+
+    try {
+      await updateCheckpoint(checkpointId, { status });
+      await refreshTracking(selected.id);
+      setSuccessMessage('Статус точки маршрута обновлён');
+    } catch (error) {
+      if (error instanceof ApiError && error.validationErrors) {
+        setCheckpointErrors(formatFieldErrors(error.validationErrors));
+      } else if (error instanceof ApiError) {
+        setCheckpointErrors([error.message]);
+      } else {
+        setCheckpointErrors(['Не удалось обновить точку. Проверьте подключение к API.']);
+      }
+    } finally {
+      setCheckpointUpdatingId(null);
+    }
   };
 
   return (
     <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16, background: '#EEF0FB', minHeight: '100%' }}>
+      {successMessage && (
+        <div style={{
+          padding: '12px 16px',
+          borderRadius: 10,
+          background: '#F0FDF4',
+          border: '1px solid #BBF7D0',
+          color: '#15803D',
+          fontSize: 13,
+          fontWeight: 700,
+        }}>
+          {successMessage}
+        </div>
+      )}
+
+      {checkpointErrors.length > 0 && (
+        <div style={{
+          padding: '12px 16px',
+          borderRadius: 10,
+          background: '#FEF2F2',
+          border: '1px solid #FECACA',
+          color: '#B91C1C',
+          fontSize: 13,
+          fontWeight: 600,
+        }}>
+          {checkpointErrors.map((error) => <div key={error}>{error}</div>)}
+        </div>
+      )}
+
       <div style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', border: '1px solid #E6EAF5', display: 'flex', gap: 10 }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, background: '#F8FAFC', borderRadius: 12, padding: '10px 13px', border: '1px solid #E2E8F0' }}>
           <Search size={16} color="#94A3B8" />
@@ -471,7 +563,12 @@ export default function Tracking() {
                 </div>
               </div>
               <button
-                onClick={() => setShowAddModal(true)}
+                type="button"
+                onClick={() => {
+                  setCheckpointErrors([]);
+                  setSuccessMessage('');
+                  setShowAddModal(true);
+                }}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 13, cursor: 'pointer' }}
               >
                 <Plus size={15} />
@@ -537,9 +634,25 @@ export default function Tracking() {
                     <div style={{ paddingBottom: 20 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ fontSize: 14, color: '#111827', fontWeight: 950 }}>{checkpoint.city}, {checkpoint.country}</div>
-                        <span style={{ padding: '3px 8px', borderRadius: 999, background: isPassed ? '#D1FAE5' : isCurrent ? '#DBEAFE' : '#F1F5F9', color: isPassed ? '#047857' : isCurrent ? '#1D4ED8' : '#64748B', fontSize: 10, fontWeight: 900 }}>
-                          {isPassed ? 'Пройдена' : isCurrent ? 'Текущая' : 'Плановая'}
-                        </span>
+                        <select
+                          value={checkpoint.status}
+                          disabled={checkpointUpdatingId === checkpoint.id}
+                          onChange={(event) => void handleCheckpointStatusChange(checkpoint.id, event.target.value as CheckPoint['status'])}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: 999,
+                            border: 'none',
+                            background: isPassed ? '#D1FAE5' : isCurrent ? '#DBEAFE' : '#F1F5F9',
+                            color: isPassed ? '#047857' : isCurrent ? '#1D4ED8' : '#64748B',
+                            fontSize: 10,
+                            fontWeight: 900,
+                            cursor: checkpointUpdatingId === checkpoint.id ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          <option value="upcoming">Плановая</option>
+                          <option value="current">Текущая</option>
+                          <option value="passed">Пройдена</option>
+                        </select>
                       </div>
                       <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>{checkpoint.address}</div>
                       {checkpoint.note && (
@@ -578,7 +691,12 @@ export default function Tracking() {
             </div>
 
             <button
-              onClick={() => setShowAddModal(true)}
+              type="button"
+              onClick={() => {
+                setCheckpointErrors([]);
+                setSuccessMessage('');
+                setShowAddModal(true);
+              }}
               style={{ width: '100%', marginTop: 4, padding: '14px 16px', borderRadius: 14, border: '2px dashed #BFDBFE', background: '#F0F7FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontWeight: 900, cursor: 'pointer' }}
             >
               <Plus size={16} />
@@ -596,8 +714,23 @@ export default function Tracking() {
                 <div style={{ fontSize: 21, color: '#111827', fontWeight: 950, letterSpacing: -0.4 }}>Добавить точку маршрута</div>
                 <div style={{ fontSize: 13, color: '#94A3B8', marginTop: 6 }}>Груз: <strong style={{ color: '#2563EB' }}>{selected.trackingNumber}</strong> · {selected.origin} → {selected.destination}</div>
               </div>
-              <button onClick={() => setShowAddModal(false)} style={{ width: 38, height: 38, borderRadius: 12, border: 'none', background: '#F8FAFC', color: '#64748B', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={19} /></button>
+              <button type="button" onClick={() => !submitting && setShowAddModal(false)} disabled={submitting} style={{ width: 38, height: 38, borderRadius: 12, border: 'none', background: '#F8FAFC', color: '#64748B', cursor: submitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={19} /></button>
             </div>
+
+            {checkpointErrors.length > 0 && (
+              <div style={{
+                margin: '0 30px',
+                padding: '12px 16px',
+                borderRadius: 10,
+                background: '#FEF2F2',
+                border: '1px solid #FECACA',
+                color: '#B91C1C',
+                fontSize: 13,
+                fontWeight: 600,
+              }}>
+                {checkpointErrors.map((error) => <div key={error}>{error}</div>)}
+              </div>
+            )}
 
             <div style={{ padding: '22px 30px 26px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -687,8 +820,36 @@ export default function Tracking() {
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 4 }}>
-                <button onClick={() => setShowAddModal(false)} style={{ minWidth: 138, padding: '13px 22px', border: '1px solid #E2E8F0', background: '#fff', borderRadius: 14, fontWeight: 900, color: '#64748B', cursor: 'pointer', fontSize: 14 }}>Отмена</button>
-                <button onClick={handleAddPoint} disabled={!newPoint.city || !newPoint.address} style={{ minWidth: 230, padding: '13px 22px', border: 'none', background: newPoint.city && newPoint.address ? '#2563EB' : '#E2E8F0', color: newPoint.city && newPoint.address ? '#fff' : '#94A3B8', borderRadius: 14, fontWeight: 950, cursor: newPoint.city && newPoint.address ? 'pointer' : 'not-allowed', fontSize: 14 }}>+ Добавить точку в маршрут</button>
+                <button type="button" onClick={() => !submitting && setShowAddModal(false)} disabled={submitting} style={{ minWidth: 138, padding: '13px 22px', border: '1px solid #E2E8F0', background: '#fff', borderRadius: 14, fontWeight: 900, color: '#64748B', cursor: submitting ? 'not-allowed' : 'pointer', fontSize: 14 }}>Отмена</button>
+                <button
+                  type="button"
+                  onClick={() => void handleAddPoint()}
+                  disabled={submitting || !newPoint.city || !newPoint.address}
+                  style={{
+                    minWidth: 230,
+                    padding: '13px 22px',
+                    border: 'none',
+                    background: submitting || !newPoint.city || !newPoint.address ? '#E2E8F0' : '#2563EB',
+                    color: submitting || !newPoint.city || !newPoint.address ? '#94A3B8' : '#fff',
+                    borderRadius: 14,
+                    fontWeight: 950,
+                    cursor: submitting || !newPoint.city || !newPoint.address ? 'not-allowed' : 'pointer',
+                    fontSize: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                >
+                  {submitting && (
+                    <span style={{
+                      width: 14, height: 14, borderRadius: '50%',
+                      border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
+                      animation: 'spin 0.7s linear infinite', display: 'inline-block',
+                    }} />
+                  )}
+                  {submitting ? 'Сохранение...' : '+ Добавить точку в маршрут'}
+                </button>
               </div>
             </div>
           </div>

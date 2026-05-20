@@ -1,4 +1,6 @@
 import type {
+  AddShipmentCheckpointPayload,
+  CheckpointResponse,
   CreateShipmentPayload,
   DashboardData,
   FinanceResponse,
@@ -7,6 +9,7 @@ import type {
   ShipmentsResponse,
   TelegramSettingsResponse,
   TrackingResponse,
+  UpdateCheckpointPayload,
   UpdateShipmentStatusPayload,
 } from '../types/api';
 import { ApiError, isApiConfigured, patchJson, postJson, requestWithMockFallback } from './client';
@@ -71,4 +74,32 @@ export function updateShipmentStatus(
 
   const encodedId = encodeURIComponent(id);
   return patchJson<ShipmentResponse>(`/shipments/${encodedId}/status`, payload);
+}
+
+export function addShipmentCheckpoint(
+  shipmentId: string,
+  payload: AddShipmentCheckpointPayload,
+): Promise<CheckpointResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Добавление точек маршрута доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  const encodedId = encodeURIComponent(shipmentId);
+  return postJson<CheckpointResponse>(`/shipments/${encodedId}/checkpoints`, payload);
+}
+
+export function updateCheckpoint(
+  checkpointId: string,
+  payload: UpdateCheckpointPayload,
+): Promise<CheckpointResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Обновление точек маршрута доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  const encodedId = encodeURIComponent(checkpointId);
+  return patchJson<CheckpointResponse>(`/checkpoints/${encodedId}`, payload);
 }
