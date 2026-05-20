@@ -10,6 +10,8 @@ import type {
   ShipmentResponse,
   ShipmentsResponse,
   TelegramSettingsResponse,
+  UpdateTelegramSettingsPayload,
+  UpdateTelegramSettingsResponse,
   TrackingResponse,
   UpdateCheckpointPayload,
   UpdateShipmentStatusPayload,
@@ -66,6 +68,18 @@ export function updateFinanceStatus(
 
 export function getTelegramSettings(): Promise<TelegramSettingsResponse> {
   return requestWithMockFallback('/telegram/settings', getTelegramSettingsMock);
+}
+
+export function updateTelegramSettings(
+  payload: UpdateTelegramSettingsPayload,
+): Promise<UpdateTelegramSettingsResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Обновление настроек Telegram доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  return patchJson<UpdateTelegramSettingsResponse>('/telegram/settings', payload);
 }
 
 export function createShipment(payload: CreateShipmentPayload): Promise<ShipmentResponse> {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { managers, clients, type Shipment } from '../data/mock';
-import { getTelegramSettings } from '../api';
+import { ApiError, getTelegramSettings, updateTelegramSettings } from '../api';
+import type { TelegramEventFlags } from '../types/api';
 
 const notifTypes = [
   { id: 'departure', label: 'Отправление груза', desc: 'Уведомление при создании и отправке', default: true },
@@ -12,6 +13,22 @@ const notifTypes = [
   { id: 'docs', label: 'Документы', desc: 'Запрос или загрузка документов', default: false },
 ];
 
+const settingsFieldLabels: Record<string, string> = {
+  chatId: 'Chat ID',
+  connected: 'Подключение',
+  botToken: 'Bot Token',
+  eventFlags: 'Типы уведомлений',
+};
+
+function formatFieldErrors(errors: Record<string, string[]>): string[] {
+  return Object.entries(errors).flatMap(([field, messages]) =>
+    messages.map((message) => {
+      const label = settingsFieldLabels[field] ?? field;
+      return `${label}: ${message}`;
+    }),
+  );
+}
+
 const mockLogs = [
   { id: 1, time: '19 мая, 15:42', shipment: 'LGX-2026-0498', type: 'checkpoint', text: '✈ Груз прибыл в аэропорт Стамбул (IST). Транзит.', manager: 'Дина Сейткали', status: 'sent' },
   { id: 2, time: '19 мая, 14:10', shipment: 'LGX-2026-0512', type: 'delay', text: '⚠️ Задержка! LGX-2026-0387 ожидает документов в Актобе.', manager: 'Алексей Морозов', status: 'sent' },
@@ -20,17 +37,27 @@ const mockLogs = [
   { id: 5, time: '16 мая, 22:00', shipment: 'LGX-2026-0561', type: 'departure', text: '🛫 Новый груз LGX-2026-0561 создан. Алматы → Дубай.', manager: 'Дина Сейткали', status: 'sent' },
 ];
 
+function buildEventFlags(toggles: Record<string, boolean>): TelegramEventFlags {
+  return Object.fromEntries(
+    notifTypes.map((type) => [type.id, toggles[type.id] ?? type.default]),
+  ) as TelegramEventFlags;
+}
+
 export default function Telegram() {
   const [loading, setLoading] = useState(true);
   const [tgShipments, setTgShipments] = useState<Shipment[]>([]);
-  const [token, setToken] = useState('7321058940:AAHxyz_DEMO_TOKEN_logistix_bot');
-  const [chatId, setChatId] = useState('-1001234567890');
+  const [token, setToken] = useState('');
+  const [tokenTouched, setTokenTouched] = useState(false);
+  const [chatId, setChatId] = useState('');
   const [connected, setConnected] = useState(true);
   const [toggles, setToggles] = useState(
     Object.fromEntries(notifTypes.map(n => [n.id, n.default]))
   );
   const [testMsg, setTestMsg] = useState('');
   const [testSent, setTestSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [settingsErrors, setSettingsErrors] = useState<string[]>([]);
 
   useEffect(() => {
     getTelegramSettings()
@@ -53,6 +80,78 @@ export default function Telegram() {
       .finally(() => setLoading(false));
   }, []);
 
+  const buildPayload = (overrides?: {
+    connected?: boolean;
+    chatId?: string;
+    toggles?: Record<string, boolean>;
+    includeToken?: boolean;
+  }) => {
+    const nextConnected = overrides?.connected ?? connected;
+    const nextChatId = overrides?.chatId ?? chatId;
+    const nextToggles = overrides?.toggles ?? toggles;
+
+    const payload: {
+      chatId: string;
+      connected: boolean;
+      eventFlags: TelegramEventFlags;
+      botToken?: string;
+    } = {
+      chatId: nextChatId,
+      connected: nextConnected,
+      eventFlags: buildEventFlags(nextToggles),
+    };
+
+    if ((overrides?.includeToken ?? tokenTouched) && token && !token.includes('•')) {
+      payload.botToken = token;
+    }
+
+    return payload;
+  };
+
+  const applySettingsResponse = (settings: { chatId: string | null; connected: boolean; eventFlags: TelegramEventFlags }) => {
+    if (settings.chatId) setChatId(settings.chatId);
+    setConnected(settings.connected);
+    const flags = settings.eventFlags as Record<string, boolean | undefined>;
+    if (flags && Object.keys(flags).length > 0) {
+      setToggles(prev => ({
+        ...prev,
+        ...Object.fromEntries(
+          Object.entries(flags).filter(([, v]) => v !== undefined).map(([k, v]) => [k, v as boolean])
+        ),
+      }));
+    }
+    setTokenTouched(false);
+    setToken('');
+  };
+
+  const handleSaveSettings = async (overrides?: Parameters<typeof buildPayload>[0]) => {
+    setSubmitting(true);
+    setSettingsErrors([]);
+    setSuccessMessage('');
+
+    try {
+      const { settings } = await updateTelegramSettings(buildPayload(overrides));
+      applySettingsResponse(settings);
+      setSuccessMessage('Настройки Telegram сохранены');
+    } catch (error) {
+      if (error instanceof ApiError && error.validationErrors) {
+        setSettingsErrors(formatFieldErrors(error.validationErrors));
+      } else if (error instanceof ApiError) {
+        setSettingsErrors([error.message]);
+      } else {
+        setSettingsErrors(['Не удалось сохранить настройки. Проверьте подключение к API.']);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleToggleConnection = () => {
+    const nextConnected = !connected;
+    setConnected(nextConnected);
+    void handleSaveSettings({ connected: nextConnected });
+  };
+
   if (loading) {
     return (
       <div style={{ padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
@@ -69,6 +168,33 @@ export default function Telegram() {
 
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {successMessage && (
+        <div style={{
+          padding: '12px 16px',
+          borderRadius: 10,
+          background: '#F0FDF4',
+          border: '1px solid #BBF7D0',
+          color: '#15803D',
+          fontSize: 13,
+          fontWeight: 700,
+        }}>
+          {successMessage}
+        </div>
+      )}
+
+      {settingsErrors.length > 0 && (
+        <div style={{
+          padding: '12px 16px',
+          borderRadius: 10,
+          background: '#FEF2F2',
+          border: '1px solid #FECACA',
+          color: '#B91C1C',
+          fontSize: 13,
+          fontWeight: 600,
+        }}>
+          {settingsErrors.map((error) => <div key={error}>{error}</div>)}
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         {/* Bot Config */}
@@ -92,7 +218,12 @@ export default function Telegram() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   value={token}
-                  onChange={e => setToken(e.target.value)}
+                  onChange={(e) => {
+                    setToken(e.target.value);
+                    setTokenTouched(true);
+                  }}
+                  placeholder="Введите новый токен (оставьте пустым, чтобы не менять)"
+                  disabled={submitting}
                   style={{ flex: 1, padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, fontFamily: 'monospace', color: '#0F172A', background: '#F8FAFC', outline: 'none' }}
                 />
               </div>
@@ -103,18 +234,47 @@ export default function Telegram() {
                 value={chatId}
                 onChange={e => setChatId(e.target.value)}
                 placeholder="-100xxxxxxxxxxxxx"
+                disabled={submitting}
                 style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, fontFamily: 'monospace', color: '#0F172A', background: '#F8FAFC', outline: 'none' }}
               />
               <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4 }}>Укажите ID чата, группы или канала для уведомлений</div>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button
-                onClick={() => setConnected(!connected)}
-                style={{ flex: 1, padding: '9px', background: connected ? '#FEF2F2' : '#3B82F6', color: connected ? '#EF4444' : '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
+                type="button"
+                disabled={submitting}
+                onClick={handleToggleConnection}
+                style={{ flex: 1, padding: '9px', background: connected ? '#FEF2F2' : '#3B82F6', color: connected ? '#EF4444' : '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: submitting ? 'not-allowed' : 'pointer' }}>
                 {connected ? 'Отключить бота' : 'Подключить бота'}
               </button>
-              <button style={{ flex: 1, padding: '9px', background: '#F1F5F9', color: '#64748B', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
-                Проверить соединение
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => void handleSaveSettings()}
+                style={{
+                  flex: 1,
+                  padding: '9px',
+                  background: submitting ? '#94A3B8' : '#0088cc',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  fontSize: 12,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                }}
+              >
+                {submitting && (
+                  <span style={{
+                    width: 12, height: 12, borderRadius: '50%',
+                    border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
+                    animation: 'spin 0.7s linear infinite', display: 'inline-block',
+                  }} />
+                )}
+                {submitting ? 'Сохранение...' : 'Сохранить настройки'}
               </button>
             </div>
           </div>
@@ -130,12 +290,13 @@ export default function Telegram() {
                 style={{ flex: 1, padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, color: '#0F172A', background: '#F8FAFC', outline: 'none' }}
               />
               <button
+                type="button"
                 onClick={() => { setTestSent(true); setTimeout(() => setTestSent(false), 3000); }}
                 style={{ padding: '9px 16px', background: '#0088cc', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
                 Отправить
               </button>
             </div>
-            {testSent && <div style={{ fontSize: 11, color: '#10B981', marginTop: 6 }}>✓ Сообщение отправлено в Telegram</div>}
+            {testSent && <div style={{ fontSize: 11, color: '#10B981', marginTop: 6 }}>✓ Сообщение отправлено (демо, без реального API)</div>}
           </div>
         </div>
 
@@ -150,9 +311,15 @@ export default function Telegram() {
                   <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>{n.desc}</div>
                 </div>
                 <button
-                  onClick={() => setToggles(prev => ({ ...prev, [n.id]: !prev[n.id] }))}
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => {
+                    const nextToggles = { ...toggles, [n.id]: !toggles[n.id] };
+                    setToggles(nextToggles);
+                    void handleSaveSettings({ toggles: nextToggles });
+                  }}
                   style={{
-                    width: 42, height: 22, borderRadius: 12, border: 'none', cursor: 'pointer',
+                    width: 42, height: 22, borderRadius: 12, border: 'none', cursor: submitting ? 'not-allowed' : 'pointer',
                     background: toggles[n.id] ? '#3B82F6' : '#E2E8F0',
                     position: 'relative', transition: 'background 0.2s', flexShrink: 0,
                   }}>

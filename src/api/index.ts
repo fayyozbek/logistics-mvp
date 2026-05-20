@@ -12,4 +12,5 @@ export {
   updateCheckpoint,
   updateFinanceStatus,
   updateShipmentStatus,
+  updateTelegramSettings,
 } from './logistics';

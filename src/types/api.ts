@@ -147,3 +147,14 @@ export interface TelegramSettingsResponse {
   settings: TelegramSettings | null;
   shipments: Shipment[];
 }
+
+export interface UpdateTelegramSettingsPayload {
+  botToken?: string;
+  chatId?: string;
+  connected?: boolean;
+  eventFlags?: TelegramEventFlags;
+}
+
+export interface UpdateTelegramSettingsResponse {
+  settings: TelegramSettings;
+}

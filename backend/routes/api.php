@@ -24,3 +24,4 @@ Route::get('/managers', [ManagerController::class, 'index']);
 Route::get('/finance', [FinanceController::class, 'index']);
 Route::patch('/finance/{financeRecord}/status', [FinanceController::class, 'updateStatus']);
 Route::get('/telegram/settings', [TelegramSettingController::class, 'show']);
+Route::patch('/telegram/settings', [TelegramSettingController::class, 'update']);
