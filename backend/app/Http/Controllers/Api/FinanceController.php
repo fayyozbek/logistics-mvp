@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpdateFinanceStatusRequest;
 use App\Http\Resources\ClientResource;
 use App\Http\Resources\FinanceRecordResource;
 use App\Models\Client;
@@ -27,6 +28,19 @@ class FinanceController extends Controller
             'clients' => ClientResource::collection(
                 Client::query()->orderBy('company')->get()
             )->resolve(),
+        ]);
+    }
+
+    public function updateStatus(UpdateFinanceStatusRequest $request, FinanceRecord $financeRecord): JsonResponse
+    {
+        $financeRecord->update([
+            'status' => $request->validated('status'),
+        ]);
+
+        $financeRecord->load('client');
+
+        return response()->json([
+            'financeRecord' => (new FinanceRecordResource($financeRecord))->resolve(),
         ]);
     }
 }

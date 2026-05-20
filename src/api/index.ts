@@ -10,5 +10,6 @@ export {
   getTelegramSettings,
   getTrackingData,
   updateCheckpoint,
+  updateFinanceStatus,
   updateShipmentStatus,
 } from './logistics';

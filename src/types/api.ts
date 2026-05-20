@@ -117,6 +117,14 @@ export interface FinanceResponse {
   clients: Client[];
 }
 
+export interface UpdateFinanceStatusPayload {
+  status: FinanceRecord['status'];
+}
+
+export interface FinanceRecordResponse {
+  financeRecord: FinanceRecord;
+}
+
 export interface TelegramEventFlags {
   departure?: boolean;
   checkpoint?: boolean;

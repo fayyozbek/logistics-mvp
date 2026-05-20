@@ -3,7 +3,9 @@ import type {
   CheckpointResponse,
   CreateShipmentPayload,
   DashboardData,
+  FinanceRecordResponse,
   FinanceResponse,
+  UpdateFinanceStatusPayload,
   ManagersResponse,
   ShipmentResponse,
   ShipmentsResponse,
@@ -46,6 +48,20 @@ export function getManagers(): Promise<ManagersResponse> {
 
 export function getFinance(): Promise<FinanceResponse> {
   return requestWithMockFallback('/finance', getFinanceMock);
+}
+
+export function updateFinanceStatus(
+  id: string,
+  payload: UpdateFinanceStatusPayload,
+): Promise<FinanceRecordResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Обновление статуса счёта доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  const encodedId = encodeURIComponent(id);
+  return patchJson<FinanceRecordResponse>(`/finance/${encodedId}/status`, payload);
 }
 
 export function getTelegramSettings(): Promise<TelegramSettingsResponse> {

@@ -22,4 +22,5 @@ Route::patch('/checkpoints/{checkpoint}', [CheckpointController::class, 'update'
 Route::get('/tracking', [TrackingController::class, 'index']);
 Route::get('/managers', [ManagerController::class, 'index']);
 Route::get('/finance', [FinanceController::class, 'index']);
+Route::patch('/finance/{financeRecord}/status', [FinanceController::class, 'updateStatus']);
 Route::get('/telegram/settings', [TelegramSettingController::class, 'show']);

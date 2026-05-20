@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { type Client, type FinanceRecord } from '../data/mock';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { getFinance } from '../api';
+import { ApiError, getFinance, updateFinanceStatus } from '../api';
 
 const statusConfig = {
   paid: { label: 'Оплачен', color: '#10B981', bg: '#F0FDF4' },
@@ -10,12 +10,28 @@ const statusConfig = {
   overdue: { label: 'Просрочен', color: '#EF4444', bg: '#FEF2F2' },
 };
 
+const statusFieldLabels: Record<string, string> = {
+  status: 'Статус',
+};
+
+function formatFieldErrors(errors: Record<string, string[]>): string[] {
+  return Object.entries(errors).flatMap(([field, messages]) =>
+    messages.map((message) => {
+      const label = statusFieldLabels[field] ?? field;
+      return `${label}: ${message}`;
+    }),
+  );
+}
+
 export default function Finance() {
   const [loading, setLoading] = useState(true);
   const [financeRecords, setFinanceRecords] = useState<FinanceRecord[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all');
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [statusErrors, setStatusErrors] = useState<string[]>([]);
 
   useEffect(() => {
     getFinance()
@@ -42,6 +58,34 @@ export default function Finance() {
     };
   }).filter(c => c.total > 0);
 
+  const applyFinanceRecordUpdate = (updated: FinanceRecord) => {
+    setFinanceRecords((records) => records.map((record) => (
+      record.id === updated.id ? updated : record
+    )));
+  };
+
+  const handleStatusUpdate = async (recordId: string, status: FinanceRecord['status']) => {
+    setUpdatingId(recordId);
+    setStatusErrors([]);
+    setSuccessMessage('');
+
+    try {
+      const { financeRecord } = await updateFinanceStatus(recordId, { status });
+      applyFinanceRecordUpdate(financeRecord);
+      setSuccessMessage(`Статус счёта обновлён: ${statusConfig[financeRecord.status].label}`);
+    } catch (error) {
+      if (error instanceof ApiError && error.validationErrors) {
+        setStatusErrors(formatFieldErrors(error.validationErrors));
+      } else if (error instanceof ApiError) {
+        setStatusErrors([error.message]);
+      } else {
+        setStatusErrors(['Не удалось обновить статус. Проверьте подключение к API.']);
+      }
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
@@ -58,6 +102,34 @@ export default function Finance() {
 
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {successMessage && (
+        <div style={{
+          padding: '12px 16px',
+          borderRadius: 10,
+          background: '#F0FDF4',
+          border: '1px solid #BBF7D0',
+          color: '#15803D',
+          fontSize: 13,
+          fontWeight: 700,
+        }}>
+          {successMessage}
+        </div>
+      )}
+
+      {statusErrors.length > 0 && (
+        <div style={{
+          padding: '12px 16px',
+          borderRadius: 10,
+          background: '#FEF2F2',
+          border: '1px solid #FECACA',
+          color: '#B91C1C',
+          fontSize: 13,
+          fontWeight: 600,
+        }}>
+          {statusErrors.map((error) => <div key={error}>{error}</div>)}
+        </div>
+      )}
+
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {[
@@ -81,7 +153,7 @@ export default function Finance() {
             <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Счета и платежи</div>
             <div style={{ display: 'flex', gap: 4, background: '#F8FAFC', borderRadius: 8, padding: 3, border: '1px solid #E2E8F0' }}>
               {[['all', 'Все'], ['paid', 'Оплачен'], ['partial', 'Частично'], ['unpaid', 'Не оплачен'], ['overdue', 'Просрочен']].map(([v, l]) => (
-                <button key={v} onClick={() => setFilter(v)}
+                <button key={v} type="button" onClick={() => setFilter(v)}
                   style={{
                     padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 500,
                     background: filter === v ? '#3B82F6' : 'transparent',
@@ -103,6 +175,7 @@ export default function Finance() {
                 const client = clients.find(c => c.id === f.clientId);
                 const s = statusConfig[f.status];
                 const debt = f.totalAmount - f.paidAmount;
+                const isUpdating = updatingId === f.id;
                 return (
                   <Fragment key={f.id}>
                     <tr
@@ -128,7 +201,7 @@ export default function Finance() {
                     {selected === f.id && (
                       <tr key={`${f.id}-detail`} style={{ background: '#F8FAFC' }}>
                         <td colSpan={8} style={{ padding: '12px 20px' }}>
-                          <div style={{ display: 'flex', gap: 20 }}>
+                          <div style={{ display: 'flex', gap: 20 }} onClick={(event) => event.stopPropagation()}>
                             <div>
                               <div style={{ fontSize: 11, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>Состав счёта</div>
                               {f.items.map(item => (
@@ -147,12 +220,60 @@ export default function Finance() {
                               <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4 }}>
                                 {Math.round(f.paidAmount / f.totalAmount * 100)}% оплачено · ${(f.totalAmount - f.paidAmount).toLocaleString()} остаток
                               </div>
+                              <div style={{ marginTop: 10 }}>
+                                <div style={{ fontSize: 10, color: '#64748B', fontWeight: 700, marginBottom: 4 }}>Статус счёта</div>
+                                <select
+                                  value={f.status}
+                                  disabled={isUpdating}
+                                  onChange={(event) => void handleStatusUpdate(f.id, event.target.value as FinanceRecord['status'])}
+                                  style={{
+                                    padding: '5px 10px',
+                                    borderRadius: 8,
+                                    border: '1px solid #E2E8F0',
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    background: '#fff',
+                                    color: '#0F172A',
+                                    cursor: isUpdating ? 'not-allowed' : 'pointer',
+                                  }}
+                                >
+                                  {(Object.keys(statusConfig) as FinanceRecord['status'][]).map((status) => (
+                                    <option key={status} value={status}>{statusConfig[status].label}</option>
+                                  ))}
+                                </select>
+                              </div>
                             </div>
-                            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                              <button style={{ padding: '6px 14px', background: '#F0FDF4', color: '#10B981', border: '1px solid #D1FAE5', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-                                Отметить оплаченным
-                              </button>
-                              <button style={{ padding: '6px 14px', background: '#EFF6FF', color: '#3B82F6', border: '1px solid #BFDBFE', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                              {f.status !== 'paid' && (
+                                <button
+                                  type="button"
+                                  disabled={isUpdating}
+                                  onClick={() => void handleStatusUpdate(f.id, 'paid')}
+                                  style={{
+                                    padding: '6px 14px',
+                                    background: '#F0FDF4',
+                                    color: '#10B981',
+                                    border: '1px solid #D1FAE5',
+                                    borderRadius: 7,
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    cursor: isUpdating ? 'not-allowed' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                  }}
+                                >
+                                  {isUpdating && (
+                                    <span style={{
+                                      width: 12, height: 12, borderRadius: '50%',
+                                      border: '2px solid rgba(16,185,129,0.3)', borderTopColor: '#10B981',
+                                      animation: 'spin 0.7s linear infinite', display: 'inline-block',
+                                    }} />
+                                  )}
+                                  {isUpdating ? 'Сохранение...' : 'Отметить оплаченным'}
+                                </button>
+                              )}
+                              <button type="button" style={{ padding: '6px 14px', background: '#EFF6FF', color: '#3B82F6', border: '1px solid #BFDBFE', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                                 Скачать PDF
                               </button>
                             </div>

@@ -12,6 +12,13 @@ class FinanceRecord extends Model
     /** @use HasFactory<FinanceRecordFactory> */
     use HasFactory;
 
+    public const STATUSES = [
+        'paid',
+        'partial',
+        'unpaid',
+        'overdue',
+    ];
+
     protected $fillable = [
         'shipment_id',
         'client_id',
