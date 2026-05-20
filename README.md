@@ -12,20 +12,20 @@ npm run build
 
 Dev server: [http://localhost:5173](http://localhost:5173)
 
-Optional API (pages still use mocks until wired):
+Connect to the backend API:
 
 ```bash
-cp .env.example .env
-# VITE_API_BASE_URL=http://localhost:8000/api
+cp .env.example .env        # contains VITE_API_BASE_URL=http://localhost:8000/api
+npm run dev
 ```
 
-Data access: `src/api/` (`getShipments()`, etc.). If `VITE_API_BASE_URL` is unset or the API is unreachable, responses fall back to `src/data/mock.ts`.
+All pages (Dashboard, Shipments, Tracking, Managers, Finance, Telegram) load data via `src/api/`. If `VITE_API_BASE_URL` is unset or the backend is unreachable, every request automatically falls back to `src/data/mock.ts` — the app always works offline.
 
 See `AGENTS.md` and `docs/` for agent rules and implementation plan.
 
 ## Backend API
 
-Laravel API lives in `backend/`. Not wired to the frontend yet.
+Laravel API lives in `backend/`. Connected to the frontend via the adapter in `src/api/`.
 
 ```bash
 cd backend
