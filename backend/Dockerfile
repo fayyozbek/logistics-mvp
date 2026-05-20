@@ -42,19 +42,22 @@ RUN composer install \
 # 2. Application source
 COPY . .
 
-# 3. Optimise autoload after app classes are present; discover packages (no migrations/seeds).
-# APP_KEY is not generated in the image — set it in Render environment variables.
-RUN composer dump-autoload --optimize --no-interaction \
-    && APP_KEY=base64:YnVpbGRPQkxZQVlLRVk= APP_ENV=production php artisan package:discover --ansi
-
+# 3. Create Laravel runtime directories (git does not track empty dirs).
+#    Must happen before package:discover so bootstrap/cache is writable.
 RUN mkdir -p \
+        bootstrap/cache \
         storage/logs \
+        storage/framework/cache/data \
         storage/framework/sessions \
         storage/framework/views \
-        storage/framework/cache/data \
-        bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache \
+    && chmod -R 775 bootstrap/cache storage \
     && chmod +x start.sh
+
+# 4. Optimise autoload + discover packages.
+#    APP_KEY is not generated here — supply it via Render environment variables.
+RUN composer dump-autoload --optimize --no-interaction \
+    && APP_KEY=base64:YnVpbGRPQkxZQVlLRVk= APP_ENV=production \
+       php artisan package:discover --ansi
 
 EXPOSE 8000
 
