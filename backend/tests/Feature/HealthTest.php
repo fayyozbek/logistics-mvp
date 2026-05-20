@@ -8,14 +8,18 @@ class HealthTest extends TestCase
 {
     public function test_api_health_endpoint_returns_ok(): void
     {
-        $response = $this->getJson('/api/health');
-
-        $response
+        $this->getJson('/api/health')
             ->assertOk()
-            ->assertJson([
-                'status' => 'ok',
-                'service' => 'logistix-api',
-            ])
-            ->assertJsonStructure(['timestamp']);
+            ->assertExactJson(['status' => 'ok']);
+    }
+
+    public function test_api_health_allows_frontend_origin(): void
+    {
+        $origin = config('cors.allowed_origins')[0] ?? 'http://localhost:5173';
+
+        $this->withHeader('Origin', $origin)
+            ->getJson('/api/health')
+            ->assertOk()
+            ->assertHeader('Access-Control-Allow-Origin', $origin);
     }
 }
