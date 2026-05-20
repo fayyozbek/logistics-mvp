@@ -30,24 +30,22 @@ ENV COMPOSER_ALLOW_SUPERUSER=1 \
 
 WORKDIR /var/www
 
-# Dependency layer (cached unless composer.json / composer.lock change)
+# 1. Dependencies (vendor/autoload.php created here)
 COPY composer.json composer.lock ./
 RUN composer install \
         --no-dev \
         --no-scripts \
-        --no-autoloader \
-        --prefer-dist
+        --prefer-dist \
+        --no-interaction \
+        --optimize-autoloader
 
-# Application source
+# 2. Application source
 COPY . .
 
-# Optimise autoloader and discover packages (no migrations/seeds at build time).
-# Minimal .env only for artisan bootstrap during package:discover.
-RUN printf "APP_KEY=\nDB_CONNECTION=sqlite\n" > .env \
-    && php artisan key:generate --force \
-    && composer dump-autoload --optimize \
-    && php artisan package:discover --ansi \
-    && rm -f .env
+# 3. Optimise autoload after app classes are present; discover packages (no migrations/seeds).
+# APP_KEY is not generated in the image — set it in Render environment variables.
+RUN composer dump-autoload --optimize --no-interaction \
+    && APP_KEY=base64:YnVpbGRPQkxZQVlLRVk= APP_ENV=production php artisan package:discover --ansi
 
 RUN mkdir -p \
         storage/logs \

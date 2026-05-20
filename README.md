@@ -104,7 +104,7 @@ In the Web Service → **Environment** tab, add:
 | `APP_NAME` | `Logistics` |
 | `APP_ENV` | `production` |
 | `APP_DEBUG` | `false` |
-| `APP_KEY` | *(generate below)* |
+| `APP_KEY` | *(required — generate locally, see Step 4; not created in Docker build)* |
 | `APP_URL` | `https://your-service.onrender.com` |
 | `FRONTEND_URL` | `https://your-app.vercel.app` |
 | `DATABASE_URL` | *(Internal Database URL from Step 1)* |

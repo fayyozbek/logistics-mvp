@@ -9,6 +9,9 @@ Web Service. The image is `php:8.4-cli-bookworm` (Symfony 8 in `composer.lock` r
 PHP >= 8.4) with extensions: `mbstring`, `bcmath`, `intl`, `opcache`, `pdo`,
 `pdo_pgsql`, `pgsql`, `zip`, `pcntl`.
 
+The Docker build does **not** run `php artisan key:generate`. Set `APP_KEY` in
+Render environment variables before deploy (see root README Step 4).
+
 Render Free has no Shell access. At startup, `start.sh` optionally runs:
 
 - `RUN_MIGRATIONS=true` → `php artisan migrate --force`
