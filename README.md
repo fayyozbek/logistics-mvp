@@ -12,6 +12,15 @@ npm run build
 
 Dev server: [http://localhost:5173](http://localhost:5173)
 
+Optional API (pages still use mocks until wired):
+
+```bash
+cp .env.example .env
+# VITE_API_BASE_URL=http://localhost:8000/api
+```
+
+Data access: `src/api/` (`getShipments()`, etc.). If `VITE_API_BASE_URL` is unset or the API is unreachable, responses fall back to `src/data/mock.ts`.
+
 See `AGENTS.md` and `docs/` for agent rules and implementation plan.
 
 ## Backend API
