@@ -4,13 +4,13 @@ B2B logistics admin UI (React/Vite) with a Laravel API in `backend/`.
 
 ---
 
-## Quick start
+## Quick start (local)
 
 ### 1 — Frontend
 
 ```bash
 npm install
-cp .env.example .env        # sets VITE_API_BASE_URL=http://127.0.0.1:8000/api
+cp .env.example .env        # then edit VITE_API_BASE_URL
 VITE_API_BASE_URL=http://127.0.0.1:8000/api npm run dev -- --host localhost --port 5173
 ```
 
@@ -26,6 +26,8 @@ Open **http://localhost:5173** in a browser.
 ```bash
 cd backend
 cp .env.example .env
+# Edit .env: set APP_ENV=local, APP_DEBUG=true, DB_CONNECTION=sqlite,
+#            comment out DATABASE_URL, set FRONTEND_URL=http://localhost:5173
 composer install
 php artisan key:generate
 php artisan migrate --seed          # create tables and load demo data
@@ -47,21 +49,117 @@ cd backend && php artisan test
 
 ---
 
-## CORS caveat
+## CORS caveat (local)
 
 `php artisan serve` binds to **127.0.0.1:8000**. The browser treats
 `localhost` and `127.0.0.1` as different origins, so CORS rules matter:
 
 | Origin | Works with backend? |
 |--------|---------------------|
-| `http://localhost:5173` | **Yes** — CORS allows this origin |
+| `http://localhost:5173` | **Yes** — always allowed by CORS config |
 | `http://127.0.0.1:5173` | No — blocked by CORS |
 
-Always start the Vite dev server with `--host localhost` (not `--host 127.0.0.1`):
+Always start the Vite dev server with `--host localhost`:
 
 ```bash
 VITE_API_BASE_URL=http://127.0.0.1:8000/api npm run dev -- --host localhost --port 5173
 ```
+
+---
+
+## Deployment (Render free tier + Vercel)
+
+> **Free-tier caveats before you start**
+> - Render Free Web Services **spin down after 15 minutes of inactivity**
+>   and take ~30 s to wake on the next request.
+> - Render Free Postgres databases **expire after 30 days** and are then
+>   deleted. Export data before the expiry date if needed.
+
+### Step 1 — Create Render Free Postgres
+
+1. Go to [render.com](https://render.com) → **New → PostgreSQL**.
+2. Name: `logistix-db`, Plan: **Free**.
+3. After creation, copy the **Internal Database URL** (used inside Render)
+   — it looks like `postgres://user:pass@dpg-xxx.oregon-postgres.render.com/logistix`.
+
+### Step 2 — Create Render Web Service for the backend
+
+1. **New → Web Service** → connect your GitHub repo.
+2. **Root Directory**: `backend`
+3. **Runtime**: `PHP` (select the available PHP version, e.g. 8.3)
+4. **Build Command**:
+   ```bash
+   composer install --no-dev --optimize-autoloader && php artisan config:cache && php artisan route:cache
+   ```
+5. **Start Command**:
+   ```bash
+   php artisan serve --host 0.0.0.0 --port $PORT
+   ```
+6. **Plan**: Free.
+
+### Step 3 — Set Render environment variables
+
+In the Web Service → **Environment** tab, add:
+
+| Key | Value |
+|-----|-------|
+| `APP_NAME` | `Logistics` |
+| `APP_ENV` | `production` |
+| `APP_DEBUG` | `false` |
+| `APP_KEY` | *(generate below)* |
+| `APP_URL` | `https://your-service.onrender.com` |
+| `FRONTEND_URL` | `https://your-app.vercel.app` |
+| `DATABASE_URL` | *(Internal Database URL from Step 1)* |
+| `DB_CONNECTION` | `pgsql` |
+| `DB_SSLMODE` | `require` |
+| `LOG_CHANNEL` | `stack` |
+| `SESSION_DRIVER` | `cookie` |
+| `QUEUE_CONNECTION` | `sync` |
+| `CACHE_STORE` | `array` |
+
+### Step 4 — Generate APP_KEY
+
+Run locally and copy the output value:
+
+```bash
+cd backend && php artisan key:generate --show
+```
+
+Paste the result as the `APP_KEY` environment variable on Render.
+
+### Step 5 — Run migrations and seed
+
+After the first successful deploy, open the **Shell** tab on Render and run:
+
+```bash
+php artisan migrate --seed --force
+```
+
+### Step 6 — Deploy frontend to Vercel
+
+1. Import the repo root into [vercel.com](https://vercel.com).
+2. **Framework Preset**: Vite.
+3. **Build Command**: `npm run build`
+4. **Output Directory**: `dist`
+
+### Step 7 — Set VITE_API_BASE_URL in Vercel
+
+In Vercel → **Settings → Environment Variables**, add:
+
+| Key | Value |
+|-----|-------|
+| `VITE_API_BASE_URL` | `https://your-service.onrender.com/api` |
+
+Trigger a redeploy after saving.
+
+### Step 8 — Verify
+
+```bash
+curl https://your-service.onrender.com/api/health
+# → {"status":"ok"}
+```
+
+Open your Vercel URL — the app should load live data from the Render API.
 
 ---
 
@@ -97,5 +195,6 @@ VITE_API_BASE_URL=http://127.0.0.1:8000/api npm run dev -- --host localhost --po
 | `docs/` | Project documentation |
 | `.env.example` | Frontend environment template |
 | `backend/.env.example` | Backend environment template |
+| `render.yaml` | Render Postgres database blueprint |
 
 See `AGENTS.md` and `docs/IMPLEMENTATION_PLAN.md` for agent rules and delivery plan.

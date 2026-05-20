@@ -1,0 +1,14 @@
+# Render Blueprint — Logistix MVP
+#
+# This file provisions the Render Free Postgres database automatically.
+# The Laravel Web Service must be created manually in the Render dashboard
+# because Render blueprints do not yet support a native PHP runtime.
+#
+# See README.md > Deployment for the full step-by-step guide.
+
+databases:
+  - name: logistix-db
+    databaseName: logistix
+    user: logistix
+    plan: free
+    region: oregon   # free-tier region; change to frankfurt/singapore if closer
