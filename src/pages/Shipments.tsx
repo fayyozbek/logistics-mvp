@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { shipments, clients, managers, type Shipment } from '../data/mock';
+import { useEffect, useState } from 'react';
+import { clients, managers, type Shipment } from '../data/mock';
+import { getShipments } from '../api';
 
 const statusColors: Record<string, string> = {
   planned: '#F59E0B', in_transit: '#3B82F6', at_checkpoint: '#8B5CF6', delivered: '#10B981', delayed: '#EF4444',
@@ -94,14 +95,36 @@ const stepLabels = ['Создан', 'В пути', 'На пункте', 'Дос�
 const stepKeys = ['planned', 'in_transit', 'at_checkpoint', 'delivered'];
 
 export default function Shipments() {
+  const [loading, setLoading] = useState(true);
+  const [shipments, setShipments] = useState<Shipment[]>([]);
   const [filter, setFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [selected, setSelected] = useState<Shipment | null>(null);
+
+  useEffect(() => {
+    getShipments()
+      .then(({ shipments: data }) => setShipments(data))
+      .finally(() => setLoading(false));
+  }, []);
 
   const filtered = shipments.filter(s =>
     (filter === 'all' || s.status === filter) &&
     (typeFilter === 'all' || s.type === typeFilter)
   );
+
+  if (loading) {
+    return (
+      <div style={{ padding: '20px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
+        <div style={{
+          width: 18, height: 18, borderRadius: '50%',
+          border: '2.5px solid #E2E8F0', borderTopColor: '#3B82F6',
+          animation: 'spin 0.7s linear infinite',
+        }} />
+        Загрузка...
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
