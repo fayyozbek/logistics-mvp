@@ -1,6 +1,6 @@
-FROM php:8.3-cli-bookworm
+FROM php:8.4-cli-bookworm
 
-# System libraries for PHP extensions (Laravel 13 + PostgreSQL)
+# System libraries for PHP extensions (Laravel 13 + Symfony 8 + PostgreSQL)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         unzip \
         git \
@@ -15,9 +15,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         bcmath \
         intl \
         mbstring \
+        opcache \
         pcntl \
         pdo \
         pdo_pgsql \
+        pgsql \
         zip \
     && rm -rf /var/lib/apt/lists/*
 

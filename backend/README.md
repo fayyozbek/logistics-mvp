@@ -5,9 +5,9 @@ JSON API for the React/Vite logistics UI in the repository root.
 See the [root README](../README.md) for full local setup, deployment, and CORS notes.
 
 The `Dockerfile` and `start.sh` in this directory are used by Render's Docker
-Web Service. The image is `php:8.3-cli-bookworm` with extensions required by
-Laravel 13 and PostgreSQL: `mbstring`, `bcmath`, `intl`, `pdo`, `pdo_pgsql`,
-`zip`, `pcntl`.
+Web Service. The image is `php:8.4-cli-bookworm` (Symfony 8 in `composer.lock` requires
+PHP >= 8.4) with extensions: `mbstring`, `bcmath`, `intl`, `opcache`, `pdo`,
+`pdo_pgsql`, `pgsql`, `zip`, `pcntl`.
 
 Render Free has no Shell access. At startup, `start.sh` optionally runs:
 
