@@ -21,6 +21,12 @@ function formatFieldErrors(errors: Record<string, string[]>): string[] {
   );
 }
 
+function pluralPoints(n: number): string {
+  if (n % 10 === 1 && n % 100 !== 11) return `${n} точка`;
+  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return `${n} точки`;
+  return `${n} точек`;
+}
+
 function toPlannedAt(value: string): string {
   if (!value) {
     return new Date().toISOString().slice(0, 16).replace('T', ' ');
@@ -534,7 +540,7 @@ export default function Tracking() {
 
                 <div style={{ marginTop: 12, position: 'relative', zIndex: 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <span style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800 }}>{shipment.checkpoints.length} точек</span>
+                    <span style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800 }}>{pluralPoints(shipment.checkpoints.length)}</span>
                     <span style={{ fontSize: 10, color, fontWeight: 900 }}>{shipmentProgress}%</span>
                   </div>
                   <div style={{ height: 7, background: '#EEF2F7', borderRadius: 999, overflow: 'hidden' }}>
@@ -614,7 +620,7 @@ export default function Tracking() {
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <span style={{ padding: '6px 10px', borderRadius: 999, background: '#E0F2FE', color: '#0369A1', fontSize: 11, fontWeight: 900 }}>{selected.checkpoints.filter((point) => point.status !== 'upcoming').length} TG-пушей</span>
-                <span style={{ padding: '6px 10px', borderRadius: 999, background: '#F1F5F9', color: '#64748B', fontSize: 11, fontWeight: 900 }}>{selected.checkpoints.length} точки</span>
+                <span style={{ padding: '6px 10px', borderRadius: 999, background: '#F1F5F9', color: '#64748B', fontSize: 11, fontWeight: 900 }}>{pluralPoints(selected.checkpoints.length)}</span>
               </div>
             </div>
 

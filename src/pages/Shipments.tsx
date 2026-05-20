@@ -159,6 +159,12 @@ function formatFieldErrors(errors: Record<string, string[]>): string[] {
   );
 }
 
+function pluralPoints(n: number): string {
+  if (n % 10 === 1 && n % 100 !== 11) return `${n} точка`;
+  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return `${n} точки`;
+  return `${n} точек`;
+}
+
 export default function Shipments() {
   const [loading, setLoading] = useState(true);
   const [shipments, setShipments] = useState<Shipment[]>([]);
@@ -649,7 +655,7 @@ export default function Shipments() {
 
             {/* Route timeline */}
             <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 12 }}>
-              Маршрут · {selected.checkpoints.length} точки
+              Маршрут · {pluralPoints(selected.checkpoints.length)}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {selected.checkpoints.map((cp, i) => (

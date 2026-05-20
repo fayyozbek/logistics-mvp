@@ -21,7 +21,7 @@ export default function Settings() {
             </div>
           ))}
         </div>
-        <button style={{ marginTop: 16, padding: '10px 24px', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+        <button disabled title="Сохранение настроек через API будет доступно в следующей версии" style={{ marginTop: 16, padding: '10px 24px', background: '#94A3B8', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'not-allowed', opacity: 0.7 }}>
           Сохранить изменения
         </button>
       </div>

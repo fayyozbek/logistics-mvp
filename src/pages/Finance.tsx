@@ -273,7 +273,7 @@ export default function Finance() {
                                   {isUpdating ? 'Сохранение...' : 'Отметить оплаченным'}
                                 </button>
                               )}
-                              <button type="button" style={{ padding: '6px 14px', background: '#EFF6FF', color: '#3B82F6', border: '1px solid #BFDBFE', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                              <button type="button" disabled title="Формирование PDF-документов будет доступно в следующей версии" style={{ padding: '6px 14px', background: '#F8FAFC', color: '#94A3B8', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'not-allowed', opacity: 0.7 }}>
                                 Скачать PDF
                               </button>
                             </div>

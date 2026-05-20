@@ -92,7 +92,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 12px 0' }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 700 }}>АД</div>
           <div>
-            <div style={{ color: '#E2E8F0', fontSize: 12, fontWeight: 600 }}>Адмін</div>
+            <div style={{ color: '#E2E8F0', fontSize: 12, fontWeight: 600 }}>Админ</div>
             <div style={{ color: '#64748B', fontSize: 10 }}>Суперадмин</div>
           </div>
         </div>
