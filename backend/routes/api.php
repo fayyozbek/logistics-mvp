@@ -13,6 +13,7 @@ Route::get('/health', HealthController::class);
 
 Route::get('/dashboard', [DashboardController::class, 'index']);
 Route::get('/shipments', [ShipmentController::class, 'index']);
+Route::post('/shipments', [ShipmentController::class, 'store']);
 Route::get('/shipments/{shipment}', [ShipmentController::class, 'show']);
 Route::get('/tracking', [TrackingController::class, 'index']);
 Route::get('/managers', [ManagerController::class, 'index']);
