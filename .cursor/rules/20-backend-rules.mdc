@@ -1,0 +1,31 @@
+---
+description: Laravel backend rules (inactive until backend/ exists)
+globs: backend/**/*
+alwaysApply: false
+---
+
+# Backend rules (planned)
+
+> **Status**: `backend/` does not exist yet. These rules apply only when backend work is explicitly requested.
+
+## When allowed to start
+
+- Frontend audit and stabilization are complete (per project plan).
+- Task explicitly requests backend scaffolding or API work.
+
+## Planned stack
+
+- Laravel API under `backend/`
+- Integrate with existing React UI incrementally; replace mocks page by page where possible.
+
+## Until backend exists
+
+- **Do not** create `backend/`, Docker compose for API, or database migrations.
+- **Do not** wire production API URLs in the frontend.
+- **Do not** run backend tests (nothing to run).
+
+## When backend exists
+
+- Follow Laravel conventions in `backend/`.
+- Run backend test suite only after `backend/` is present and task requires it.
+- Coordinate API contracts with frontend mocks to minimize UI churn.

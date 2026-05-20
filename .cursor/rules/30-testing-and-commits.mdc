@@ -1,0 +1,37 @@
+---
+description: Build verification, testing, and git commit policy
+alwaysApply: true
+---
+
+# Testing and commits
+
+## Frontend verification
+
+After any frontend code change:
+
+```bash
+npm run build
+```
+
+Task is not complete if the build fails.
+
+## Backend verification
+
+- Run backend tests **only after** `backend/` exists and the task covers backend work.
+- Do not block frontend-only tasks on missing backend tooling.
+
+## Git
+
+- **Never commit**: `node_modules/`, `dist/`, `.env`, or other ignored artifacts (see `.gitignore`).
+- **Commit only when**:
+  1. User explicitly requests a commit, and
+  2. `npm run build` passes (for frontend changes).
+- Use clear, scoped commit messages (e.g. `fix:`, `feat:`, `docs:`).
+
+## Lint
+
+- Run `npm run lint` when the task touches ESLint-covered files or when lint failures are reported.
+
+## Agent output
+
+Return concise summaries: changed files, summary, commands run, commit hash if any, assumptions/risks.

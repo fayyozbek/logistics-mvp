@@ -1,0 +1,34 @@
+---
+description: Scope limits, forbidden actions, and task boundaries
+alwaysApply: true
+---
+
+# Scope control
+
+## Allowed without extra approval
+
+- Edits within task-listed files (usually `src/**`, docs, or rules).
+- Bug fixes and small feature completions that match stakeholder UI.
+- Mock data updates in `src/data/`.
+
+## Forbidden unless task explicitly allows
+
+| Action | Reason |
+|--------|--------|
+| Copy/move UI to another repo or folder | This repo is the main base |
+| Create `reference/` or `client-logistics-ui/` | Duplicate codebase |
+| Full redesign / new theme | Breaks source of truth |
+| Add `backend/` or Laravel | Phased plan — frontend first |
+| Change `package.json` / lockfile | Dependency risk; needs approval |
+| Commit `node_modules` or `dist` | Repo hygiene |
+
+## Task discipline
+
+1. Implement only what the task describes.
+2. No drive-by refactors, formatting sweeps, or unrelated file edits.
+3. If scope is unclear, ask before expanding.
+4. Prefer the smallest change that satisfies acceptance criteria.
+
+## Docs-only tasks
+
+When the task limits changes to `AGENTS.md`, `docs/`, or `.cursor/rules/`, do not modify `src/`, `package.json`, or `vite.config.ts`.

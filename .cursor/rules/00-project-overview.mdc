@@ -1,0 +1,16 @@
+---
+description: Logistics UI project identity and global constraints
+alwaysApply: true
+---
+
+# Project overview
+
+- **Main project**: This repository root is the sole implementation base for the logistics UI.
+- **Source of truth**: Stakeholder-provided React/Vite prototype in `src/`.
+- **In-place work**: Improve and complete the UI here; do not copy it elsewhere.
+- **Forbidden**: `reference/`, `client-logistics-ui/`, or any parallel UI tree.
+- **Visuals**: Preserve existing layout, navigation, and styling unless the task explicitly approves a visual change.
+- **Backend**: Laravel in `backend/` is planned but **not started**. Do not add backend until explicitly requested.
+- **Data**: Use mock data (`src/data/`) until API integration is approved.
+
+See `AGENTS.md` and `docs/PROJECT_CONTEXT.md` for full context.
