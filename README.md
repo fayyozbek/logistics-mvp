@@ -72,6 +72,9 @@ VITE_API_BASE_URL=http://127.0.0.1:8000/api npm run dev -- --host localhost --po
 > **Free-tier caveats before you start**
 > - Render Free Web Services **spin down after 15 minutes of inactivity**
 >   and take ~30 s to wake on the next request.
+> - Render Free Web Services **do not provide Shell access** — migrations and
+>   seeders must run via `start.sh` at container startup (see `RUN_MIGRATIONS`
+>   and `RUN_SEEDERS` below).
 > - Render Free Postgres databases **expire after 30 days** and are then
 >   deleted. Export data before the expiry date if needed.
 
@@ -111,6 +114,17 @@ In the Web Service → **Environment** tab, add:
 | `SESSION_DRIVER` | `cookie` |
 | `QUEUE_CONNECTION` | `sync` |
 | `CACHE_STORE` | `array` |
+| `RUN_MIGRATIONS` | `true` |
+| `RUN_SEEDERS` | `true` |
+
+`start.sh` runs on every container boot (Render Free has no Shell):
+
+- `RUN_MIGRATIONS=true` → `php artisan migrate --force` (safe to repeat)
+- `RUN_SEEDERS=true` → `php artisan db:seed --force`
+
+After the first successful deploy and demo seed, set **`RUN_SEEDERS=false`**
+on Render to avoid duplicate demo data on later wake-ups (seeders are not
+idempotent). Keep `RUN_MIGRATIONS=true` so new migrations apply automatically.
 
 ### Step 4 — Generate APP_KEY
 
@@ -122,13 +136,14 @@ cd backend && php artisan key:generate --show
 
 Paste the result as the `APP_KEY` environment variable on Render.
 
-### Step 5 — Run migrations and seed
+### Step 5 — First deploy (migrations + seed on startup)
 
-After the first successful deploy, open the **Shell** tab on Render and run:
+Deploy the Web Service. On the first boot, `start.sh` applies migrations and
+loads demo data when `RUN_MIGRATIONS=true` and `RUN_SEEDERS=true`. No Shell
+step is required.
 
-```bash
-php artisan migrate --seed --force
-```
+When demo data is confirmed in the UI, set `RUN_SEEDERS=false` in Render
+environment variables and redeploy.
 
 ### Step 6 — Deploy frontend to Vercel
 
@@ -192,6 +207,6 @@ Open your Vercel URL — the app should load live data from the Render API.
 | `backend/.env.example` | Backend environment template |
 | `render.yaml` | Render Postgres database blueprint |
 | `backend/Dockerfile` | Docker image for the Laravel API (used by Render) |
-| `backend/start.sh` | Container startup: runs `migrate` then starts the server |
+| `backend/start.sh` | Container startup: optional `migrate`/`db:seed`, then server |
 
 See `AGENTS.md` and `docs/IMPLEMENTATION_PLAN.md` for agent rules and delivery plan.

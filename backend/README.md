@@ -7,8 +7,15 @@ See the [root README](../README.md) for full local setup, deployment, and CORS n
 The `Dockerfile` and `start.sh` in this directory are used by Render's Docker
 Web Service. The image is `php:8.3-cli-bookworm` with extensions required by
 Laravel 13 and PostgreSQL: `mbstring`, `bcmath`, `intl`, `pdo`, `pdo_pgsql`,
-`zip`, `pcntl`. `start.sh` runs `php artisan migrate --force` then starts
-`php artisan serve` on `$PORT`.
+`zip`, `pcntl`.
+
+Render Free has no Shell access. At startup, `start.sh` optionally runs:
+
+- `RUN_MIGRATIONS=true` → `php artisan migrate --force`
+- `RUN_SEEDERS=true` → `php artisan db:seed --force`
+
+Then starts `php artisan serve` on `$PORT`. After the first demo seed, set
+`RUN_SEEDERS=false` on Render to avoid duplicate rows.
 
 ## Quick local setup
 

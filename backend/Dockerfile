@@ -53,8 +53,9 @@ RUN mkdir -p \
         storage/framework/views \
         storage/framework/cache/data \
         bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache
+    && chmod -R 775 storage bootstrap/cache \
+    && chmod +x start.sh
 
 EXPOSE 8000
 
-CMD ["sh", "start.sh"]
+CMD ["./start.sh"]
