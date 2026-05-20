@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { financeRecords, clients } from '../data/mock';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -77,9 +77,8 @@ export default function Finance() {
                 const s = statusConfig[f.status];
                 const debt = f.totalAmount - f.paidAmount;
                 return (
-                  <>
+                  <Fragment key={f.id}>
                     <tr
-                      key={f.id}
                       onClick={() => setSelected(selected === f.id ? null : f.id)}
                       style={{ borderBottom: '1px solid #F8FAFC', cursor: 'pointer', background: selected === f.id ? '#F8FAFC' : 'transparent' }}
                     >
@@ -134,7 +133,7 @@ export default function Finance() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>

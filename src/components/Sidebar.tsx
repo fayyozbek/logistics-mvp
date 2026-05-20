@@ -9,6 +9,7 @@ const navItems: { id: Page; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Дашборд', icon: '▦' },
   { id: 'shipments', label: 'Грузы', icon: '⬡' },
   { id: 'tracking', label: 'Отслеживание', icon: '◎' },
+  { id: 'managers', label: 'Менеджеры', icon: '◈' },
   { id: 'finance', label: 'Финансы', icon: '▤' },
   { id: 'users', label: 'Пользователи', icon: '◉' },
   { id: 'archive', label: 'Архив', icon: '▣' },
