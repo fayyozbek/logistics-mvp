@@ -1,0 +1,25 @@
+<?php
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+/** @mixin \App\Models\Client */
+class ClientResource extends JsonResource
+{
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => (string) $this->id,
+            'company' => $this->company,
+            'contact' => $this->contact,
+            'email' => $this->email,
+            'phone' => $this->phone,
+            'country' => $this->country,
+        ];
+    }
+}
