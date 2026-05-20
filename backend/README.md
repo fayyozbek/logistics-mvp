@@ -4,6 +4,10 @@ JSON API for the React/Vite logistics UI in the repository root.
 
 See the [root README](../README.md) for full local setup, deployment, and CORS notes.
 
+The `Dockerfile` and `start.sh` in this directory are used by Render's Docker
+Web Service. `start.sh` runs `php artisan migrate --force` then starts
+`php artisan serve` on `$PORT`.
+
 ## Quick local setup
 
 ```bash

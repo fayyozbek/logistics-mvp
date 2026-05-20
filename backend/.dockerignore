@@ -1,0 +1,35 @@
+# Never bake real credentials into the image
+.env
+.env.*
+!.env.example
+
+# Composer / Node artefacts (rebuilt inside the image)
+vendor/
+node_modules/
+
+# Git metadata
+.git/
+.gitignore
+.gitattributes
+
+# IDE / editor configs
+.idea/
+.vscode/
+.zed/
+.nova/
+.phpactor.json
+
+# Laravel runtime artefacts (created fresh inside the container)
+storage/logs/
+bootstrap/cache/
+
+# Test tooling not needed in the production image
+tests/
+phpunit.xml
+.phpunit.cache/
+.phpunit.result.cache
+
+# Build outputs
+dist/
+public/build/
+public/hot/

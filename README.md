@@ -86,16 +86,11 @@ VITE_API_BASE_URL=http://127.0.0.1:8000/api npm run dev -- --host localhost --po
 
 1. **New → Web Service** → connect your GitHub repo.
 2. **Root Directory**: `backend`
-3. **Runtime**: `PHP` (select the available PHP version, e.g. 8.3)
-4. **Build Command**:
-   ```bash
-   composer install --no-dev --optimize-autoloader && php artisan config:cache && php artisan route:cache
-   ```
-5. **Start Command**:
-   ```bash
-   php artisan serve --host 0.0.0.0 --port $PORT
-   ```
-6. **Plan**: Free.
+3. **Runtime**: **Docker** (Render auto-detects `backend/Dockerfile`)
+4. **Plan**: Free.
+
+No custom build or start commands are needed — `Dockerfile` and `start.sh`
+handle everything.
 
 ### Step 3 — Set Render environment variables
 
@@ -196,5 +191,7 @@ Open your Vercel URL — the app should load live data from the Render API.
 | `.env.example` | Frontend environment template |
 | `backend/.env.example` | Backend environment template |
 | `render.yaml` | Render Postgres database blueprint |
+| `backend/Dockerfile` | Docker image for the Laravel API (used by Render) |
+| `backend/start.sh` | Container startup: runs `migrate` then starts the server |
 
 See `AGENTS.md` and `docs/IMPLEMENTATION_PLAN.md` for agent rules and delivery plan.
