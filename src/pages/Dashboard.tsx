@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -14,20 +14,10 @@ import {
   YAxis,
 } from 'recharts';
 import { CalendarDays, ChevronDown, PackageCheck, TrendingUp } from 'lucide-react';
-import { financeRecords, shipments } from '../data/mock';
+import { getDashboardData } from '../api';
+import type { DashboardData } from '../types/api';
 
-const moneyByMonth = [
-  { month: 'Янв', turnover: 128000, paid: 94000, shipments: 42, active: 8 },
-  { month: 'Фев', turnover: 156000, paid: 118000, shipments: 50, active: 10 },
-  { month: 'Мар', turnover: 184000, paid: 139000, shipments: 58, active: 12 },
-  { month: 'Апр', turnover: 212000, paid: 166000, shipments: 64, active: 14 },
-  { month: 'Май', turnover: 248000, paid: 191000, shipments: 72, active: 16 },
-  { month: 'Июн', turnover: 236000, paid: 187000, shipments: 69, active: 15 },
-  { month: 'Июл', turnover: 268000, paid: 214000, shipments: 78, active: 18 },
-  { month: 'Авг', turnover: 291000, paid: 238000, shipments: 82, active: 19 },
-  { month: 'Сен', turnover: 317000, paid: 262000, shipments: 91, active: 22 },
-];
-
+// Static chart data for periods the API does not yet return.
 const moneyByWeek = [
   { month: 'Пн', turnover: 28000, paid: 18000, shipments: 9, active: 2 },
   { month: 'Вт', turnover: 36000, paid: 26000, shipments: 12, active: 3 },
@@ -46,15 +36,20 @@ const moneyByYear = [
   { month: '2026', turnover: 2370000, paid: 1900000, shipments: 910, active: 91 },
 ];
 
-type ChartPeriod = 'Неделя' | 'Месяц' | 'Год';
+// Fallback month data shown while the API response is in flight.
+const moneyByMonthFallback = [
+  { month: 'Янв', turnover: 128000, paid: 94000, shipments: 42, active: 8 },
+  { month: 'Фев', turnover: 156000, paid: 118000, shipments: 50, active: 10 },
+  { month: 'Мар', turnover: 184000, paid: 139000, shipments: 58, active: 12 },
+  { month: 'Апр', turnover: 212000, paid: 166000, shipments: 64, active: 14 },
+  { month: 'Май', turnover: 248000, paid: 191000, shipments: 72, active: 16 },
+  { month: 'Июн', turnover: 236000, paid: 187000, shipments: 69, active: 15 },
+  { month: 'Июл', turnover: 268000, paid: 214000, shipments: 78, active: 18 },
+  { month: 'Авг', turnover: 291000, paid: 238000, shipments: 82, active: 19 },
+  { month: 'Сен', turnover: 317000, paid: 262000, shipments: 91, active: 22 },
+];
 
-const chartDataByPeriod: Record<ChartPeriod, typeof moneyByMonth> = {
-  Неделя: moneyByWeek,
-  Месяц: moneyByMonth,
-  Год: moneyByYear,
-};
-
-const directionShare = [
+const directionShareFallback = [
   { name: 'Китай', value: 36, color: '#0B4CB8' },
   { name: 'Турция', value: 22, color: '#2563EB' },
   { name: 'Европа', value: 18, color: '#60A5FA' },
@@ -86,11 +81,7 @@ const calendarEvents = [
   { day: 27, label: 'Новый маршрут ОАЭ', amount: '$5.1k', tone: '#CBD5E1' },
 ];
 
-const totalTurnover = moneyByMonth.reduce((sum, item) => sum + item.turnover, 0);
-const totalPaid = moneyByMonth.reduce((sum, item) => sum + item.paid, 0);
-const activeShipments = shipments.filter((shipment) => shipment.status === 'in_transit' || shipment.status === 'planned').length;
-const completedShipments = shipments.filter((shipment) => shipment.status === 'delivered').length;
-const receivable = financeRecords.reduce((sum, item) => sum + item.totalAmount - item.paidAmount, 0);
+type ChartPeriod = 'Неделя' | 'Месяц' | 'Год';
 
 function formatMoney(value: number) {
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
@@ -254,10 +245,35 @@ function PeriodTabs({ value, onChange }: { value: ChartPeriod; onChange: (value:
 }
 
 export default function Dashboard() {
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+
+  useEffect(() => {
+    getDashboardData()
+      .then(setDashboardData)
+      .finally(() => setLoading(false));
+  }, []);
+
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [shipmentPeriod, setShipmentPeriod] = useState<ChartPeriod>('Год');
   const [moneyPeriod, setMoneyPeriod] = useState<ChartPeriod>('Год');
   const [dateRange, setDateRange] = useState<{ start: number | null; end: number | null }>({ start: 1, end: 20 });
+
+  const summary = dashboardData?.summary;
+  const monthlyTurnover = summary?.monthlyTurnover ?? 0;
+  const totalPaid = summary?.totalPaid ?? 0;
+  const activeShipments = summary?.activeShipments ?? 0;
+  const completedShipments = summary?.completedShipments ?? 0;
+  const receivable = summary?.receivable ?? 0;
+
+  const moneyByMonth = dashboardData?.charts.moneyByMonth ?? moneyByMonthFallback;
+  const directionShare = dashboardData?.charts.directionShare ?? directionShareFallback;
+
+  const chartDataByPeriod: Record<ChartPeriod, typeof moneyByMonth> = {
+    Неделя: moneyByWeek,
+    Месяц: moneyByMonth,
+    Год: moneyByYear,
+  };
 
   const selectedPeriod = useMemo(() => {
     if (dateRange.start && dateRange.end) {
@@ -268,6 +284,7 @@ export default function Dashboard() {
     if (dateRange.start) return `${String(dateRange.start).padStart(2, '0')} сен. 2026 - выберите конец`;
     return 'Выберите период';
   }, [dateRange]);
+
   const shipmentChartData = chartDataByPeriod[shipmentPeriod];
   const moneyChartData = chartDataByPeriod[moneyPeriod];
 
@@ -277,6 +294,20 @@ export default function Dashboard() {
       return { start: current.start, end: day };
     });
   };
+
+  if (loading) {
+    return (
+      <div style={{ padding: '22px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
+        <div style={{
+          width: 18, height: 18, borderRadius: '50%',
+          border: '2.5px solid #E2E8F0', borderTopColor: '#0B4CB8',
+          animation: 'spin 0.7s linear infinite',
+        }} />
+        Загрузка...
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '22px 28px 28px', background: '#F5F7FB', minHeight: '100%', display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -317,9 +348,9 @@ export default function Dashboard() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr 1fr 1fr 1fr', gap: 16 }}>
-        <StatCard title="Месячный оборот" value={formatMoney(moneyByMonth.at(-1)?.turnover ?? 0)} note="+18% к августу" bg="#DDEBFF" color="#0B4CB8" dark />
-        <StatCard title="Пришло денег" value={formatMoney(totalPaid)} note={`${Math.round((totalPaid / totalTurnover) * 100)}% собрано`} bg="#EAF2FF" color="#0B4CB8" />
-        <StatCard title="Активные грузы" value={`${activeShipments}`} note={`${Math.round((activeShipments / shipments.length) * 100)}% от всех`} bg="#F8FAFC" color="#2563EB" />
+        <StatCard title="Месячный оборот" value={formatMoney(monthlyTurnover)} note="+18% к августу" bg="#DDEBFF" color="#0B4CB8" dark />
+        <StatCard title="Пришло денег" value={formatMoney(totalPaid)} note={monthlyTurnover > 0 ? `${Math.round((totalPaid / monthlyTurnover) * 100)}% собрано` : '—'} bg="#EAF2FF" color="#0B4CB8" />
+        <StatCard title="Активные грузы" value={`${activeShipments}`} note={activeShipments + completedShipments > 0 ? `${Math.round((activeShipments / (activeShipments + completedShipments)) * 100)}% от всех` : '—'} bg="#F8FAFC" color="#2563EB" />
         <StatCard title="Завершено" value={`${completedShipments}`} note="за период" bg="#F8FAFC" color="#334155" />
         <StatCard title="К получению" value={formatMoney(receivable)} note="по клиентам" bg="#EAF2FF" color="#1D4ED8" />
       </div>
