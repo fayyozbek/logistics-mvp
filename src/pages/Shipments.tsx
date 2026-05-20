@@ -467,9 +467,11 @@ export default function Shipments() {
                     <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
                       <span style={{ fontWeight: 500 }}>Менеджер:</span> {manager?.name.split(' ').slice(0, 2).join(' ')}
                     </div>
-                    <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }}>
-                      {s.weight} · {s.volume}
-                    </div>
+                    {(s.weight || s.volume) && (
+                      <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }}>
+                        {[s.weight, s.volume].filter(Boolean).join(' · ')}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -572,9 +574,9 @@ export default function Shipments() {
                 { icon: '🏢', label: 'Клиент', value: clients.find(c => c.id === selected.clientId)?.company },
                 { icon: '👤', label: 'Менеджер', value: managers.find(m => m.id === selected.managerId)?.name },
                 { icon: '📦', label: 'Груз', value: selected.cargo },
-                { icon: '⚖', label: 'Вес / Объём', value: `${selected.weight} · ${selected.volume}` },
+                { icon: '⚖', label: 'Вес / Объём', value: [selected.weight, selected.volume].filter(Boolean).join(' · ') || undefined },
                 { icon: '📅', label: 'Плановая дата', value: selected.estimatedDelivery },
-              ].map(({ icon, label, value }) => (
+              ].filter(({ value }) => value).map(({ icon, label, value }) => (
                 <div key={label} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   padding: '7px 10px', borderRadius: 8, background: '#F8FAFC',

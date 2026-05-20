@@ -356,7 +356,7 @@ export default function Dashboard() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-        <section style={{ background: '#fff', borderRadius: 22, padding: '20px 22px', border: '1px solid rgba(255,255,255,0.8)' }}>
+        <section style={{ background: '#fff', borderRadius: 22, padding: '20px 22px', border: '1px solid rgba(255,255,255,0.8)', minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontSize: 18, fontWeight: 950, color: '#111827' }}>Грузы по месяцам</div>
             <PeriodTabs value={shipmentPeriod} onChange={setShipmentPeriod} />
@@ -379,7 +379,7 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section style={{ background: '#fff', borderRadius: 22, padding: '20px 22px', border: '1px solid rgba(255,255,255,0.8)' }}>
+        <section style={{ background: '#fff', borderRadius: 22, padding: '20px 22px', border: '1px solid rgba(255,255,255,0.8)', minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontSize: 18, fontWeight: 950, color: '#111827' }}>Оборот и оплаты</div>
             <PeriodTabs value={moneyPeriod} onChange={setMoneyPeriod} />
@@ -403,7 +403,7 @@ export default function Dashboard() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.05fr 1fr 1fr', gap: 18 }}>
-        <section style={{ background: '#fff', borderRadius: 22, padding: '20px 22px', border: '1px solid rgba(255,255,255,0.8)' }}>
+        <section style={{ background: '#fff', borderRadius: 22, padding: '20px 22px', border: '1px solid rgba(255,255,255,0.8)', minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: 18, fontWeight: 950, color: '#111827' }}>Разделение направлений</div>
             <span style={{ fontSize: 12, color: '#111827', fontWeight: 900 }}>Все ↗</span>
