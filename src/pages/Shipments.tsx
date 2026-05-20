@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { Client, Manager, Shipment, TransportType } from '../data/mock';
-import { ApiError, createShipment, getManagers, getShipments } from '../api';
+import type { Client, Manager, Shipment, ShipmentStatus, TransportType } from '../data/mock';
+import { ApiError, createShipment, getManagers, getShipments, updateShipmentStatus } from '../api';
 import type { CreateShipmentPayload } from '../types/api';
 
 const statusColors: Record<string, string> = {
@@ -93,7 +93,15 @@ const typeFilters = [
 ];
 
 const stepLabels = ['Создан', 'В пути', 'На пункте', 'Доставлен'];
-const stepKeys = ['planned', 'in_transit', 'at_checkpoint', 'delivered'];
+const stepKeys: ShipmentStatus[] = ['planned', 'in_transit', 'at_checkpoint', 'delivered'];
+
+const statusOptions: { value: ShipmentStatus; label: string }[] = [
+  { value: 'planned', label: 'Запланирован' },
+  { value: 'in_transit', label: 'В пути' },
+  { value: 'at_checkpoint', label: 'На пункте' },
+  { value: 'delivered', label: 'Доставлен' },
+  { value: 'delayed', label: 'Задержка' },
+];
 
 const transportTypes: { value: TransportType; label: string }[] = [
   { value: 'auto', label: 'Авто' },
@@ -138,6 +146,8 @@ const fieldLabels: Record<string, string> = {
   weight: 'Вес',
   volume: 'Объём',
   estimatedDelivery: 'Плановая дата',
+  status: 'Статус',
+  note: 'Комментарий',
 };
 
 function formatFieldErrors(errors: Record<string, string[]>): string[] {
@@ -162,6 +172,11 @@ export default function Shipments() {
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [formErrors, setFormErrors] = useState<string[]>([]);
+  const [statusDraft, setStatusDraft] = useState<ShipmentStatus>('planned');
+  const [statusNote, setStatusNote] = useState('');
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [statusSuccessMessage, setStatusSuccessMessage] = useState('');
+  const [statusUpdateErrors, setStatusUpdateErrors] = useState<string[]>([]);
 
   useEffect(() => {
     Promise.all([getShipments(), getManagers()])
@@ -173,10 +188,55 @@ export default function Shipments() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (selected) {
+      setStatusDraft(selected.status);
+      setStatusNote('');
+      setStatusUpdateErrors([]);
+      setStatusSuccessMessage('');
+    }
+  }, [selected?.id]);
+
+  const mergeShipment = (shipment: Shipment) => {
+    setShipments((current) => current.map((item) => (item.id === shipment.id ? shipment : item)));
+    setSelected(shipment);
+  };
+
+  const handleStatusUpdate = async (status: ShipmentStatus, note?: string) => {
+    if (!selected) return;
+
+    setStatusUpdating(true);
+    setStatusUpdateErrors([]);
+    setStatusSuccessMessage('');
+    setSuccessMessage('');
+
+    try {
+      const { shipment } = await updateShipmentStatus(selected.id, {
+        status,
+        note: note?.trim() || undefined,
+      });
+      mergeShipment(shipment);
+      setStatusDraft(shipment.status);
+      setStatusNote('');
+      setStatusSuccessMessage(`Статус ${shipment.trackingNumber} обновлён: ${statusLabel[shipment.status]}`);
+    } catch (error) {
+      if (error instanceof ApiError && error.validationErrors) {
+        setStatusUpdateErrors(formatFieldErrors(error.validationErrors));
+      } else if (error instanceof ApiError) {
+        setStatusUpdateErrors([error.message]);
+      } else {
+        setStatusUpdateErrors(['Не удалось обновить статус. Проверьте подключение к API.']);
+      }
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
   const openCreateForm = () => {
     setCreateForm(emptyCreateForm);
     setFormErrors([]);
     setSuccessMessage('');
+    setStatusSuccessMessage('');
     setShowCreateForm(true);
   };
 
@@ -190,6 +250,7 @@ export default function Shipments() {
     setSubmitting(true);
     setFormErrors([]);
     setSuccessMessage('');
+    setStatusSuccessMessage('');
 
     const payload: CreateShipmentPayload = {
       clientId: Number(createForm.clientId),
@@ -268,7 +329,7 @@ export default function Shipments() {
   return (
     <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {successMessage && (
+      {(successMessage || statusSuccessMessage) && (
         <div style={{
           padding: '12px 16px',
           borderRadius: 10,
@@ -278,7 +339,7 @@ export default function Shipments() {
           fontSize: 13,
           fontWeight: 700,
         }}>
-          {successMessage}
+          {successMessage || statusSuccessMessage}
         </div>
       )}
 
@@ -420,7 +481,31 @@ export default function Shipments() {
                       const active = i === stepIdx;
                       const color = s.status === 'delayed' && active ? '#EF4444' : '#3B82F6';
                       return (
-                        <div key={step} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: i === 0 ? 'flex-start' : i === stepKeys.length - 1 ? 'flex-end' : 'center' }}>
+                        <div
+                          key={step}
+                          role={isSelected ? 'button' : undefined}
+                          tabIndex={isSelected ? 0 : undefined}
+                          onClick={(event) => {
+                            if (!isSelected || statusUpdating) return;
+                            event.stopPropagation();
+                            void handleStatusUpdate(step);
+                          }}
+                          onKeyDown={(event) => {
+                            if (!isSelected || statusUpdating) return;
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              void handleStatusUpdate(step);
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: i === 0 ? 'flex-start' : i === stepKeys.length - 1 ? 'flex-end' : 'center',
+                            cursor: isSelected && !statusUpdating ? 'pointer' : 'default',
+                          }}
+                        >
                           <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
                             {i > 0 && (
                               <div style={{
@@ -501,6 +586,63 @@ export default function Shipments() {
                   <span style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', maxWidth: 160, textAlign: 'right' }}>{value}</span>
                 </div>
               ))}
+            </div>
+
+            <div style={{ marginBottom: 18, padding: '14px', borderRadius: 10, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Обновить статус</div>
+
+              {statusUpdateErrors.length > 0 && (
+                <div style={{ padding: '8px 10px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 11, marginBottom: 10 }}>
+                  {statusUpdateErrors.map((error) => <div key={error}>{error}</div>)}
+                </div>
+              )}
+
+              <label style={{ display: 'block', marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Статус</div>
+                <select
+                  value={statusDraft}
+                  onChange={(e) => setStatusDraft(e.target.value as ShipmentStatus)}
+                  disabled={statusUpdating}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                >
+                  {statusOptions.map(({ value, label }) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label style={{ display: 'block', marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Комментарий</div>
+                <textarea
+                  value={statusNote}
+                  onChange={(e) => setStatusNote(e.target.value)}
+                  disabled={statusUpdating}
+                  rows={2}
+                  placeholder="Необязательно"
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none', resize: 'none', fontFamily: 'inherit' }}
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={() => void handleStatusUpdate(statusDraft, statusNote)}
+                disabled={statusUpdating}
+                style={{
+                  width: '100%', padding: '9px 14px', background: statusUpdating ? '#94A3B8' : '#3B82F6', color: '#fff',
+                  border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12,
+                  cursor: statusUpdating ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}
+              >
+                {statusUpdating && (
+                  <span style={{
+                    width: 12, height: 12, borderRadius: '50%',
+                    border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
+                    animation: 'spin 0.7s linear infinite', display: 'inline-block',
+                  }} />
+                )}
+                {statusUpdating ? 'Сохранение...' : 'Сохранить статус'}
+              </button>
             </div>
 
             {/* Route timeline */}

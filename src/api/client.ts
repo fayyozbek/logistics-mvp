@@ -70,6 +70,13 @@ export function postJson<T>(path: string, data: unknown): Promise<T> {
   });
 }
 
+export function patchJson<T>(path: string, data: unknown): Promise<T> {
+  return requestJson<T>(path, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
 export async function requestWithMockFallback<T>(
   path: string,
   mock: () => T,

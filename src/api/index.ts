@@ -8,4 +8,5 @@ export {
   getShipments,
   getTelegramSettings,
   getTrackingData,
+  updateShipmentStatus,
 } from './logistics';

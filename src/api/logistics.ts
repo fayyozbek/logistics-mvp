@@ -7,8 +7,9 @@ import type {
   ShipmentsResponse,
   TelegramSettingsResponse,
   TrackingResponse,
+  UpdateShipmentStatusPayload,
 } from '../types/api';
-import { ApiError, isApiConfigured, postJson, requestWithMockFallback } from './client';
+import { ApiError, isApiConfigured, patchJson, postJson, requestWithMockFallback } from './client';
 import {
   getDashboardDataMock,
   getFinanceMock,
@@ -56,4 +57,18 @@ export function createShipment(payload: CreateShipmentPayload): Promise<Shipment
   }
 
   return postJson<ShipmentResponse>('/shipments', payload);
+}
+
+export function updateShipmentStatus(
+  id: string,
+  payload: UpdateShipmentStatusPayload,
+): Promise<ShipmentResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Обновление статуса доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  const encodedId = encodeURIComponent(id);
+  return patchJson<ShipmentResponse>(`/shipments/${encodedId}/status`, payload);
 }
