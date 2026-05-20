@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreShipmentRequest;
+use App\Http\Requests\UpdateShipmentStatusRequest;
 use App\Http\Resources\ShipmentResource;
 use App\Models\Checkpoint;
 use App\Models\Shipment;
@@ -35,6 +36,31 @@ class ShipmentController extends Controller
 
     public function show(Shipment $shipment): JsonResponse
     {
+        $shipment->load(['client', 'manager', 'checkpoints', 'financeRecord']);
+
+        return response()->json([
+            'shipment' => (new ShipmentResource($shipment))->resolve(),
+        ]);
+    }
+
+    public function updateStatus(UpdateShipmentStatusRequest $request, Shipment $shipment): JsonResponse
+    {
+        $validated = $request->validated();
+
+        $shipment->update(['status' => $validated['status']]);
+
+        if (! empty($validated['note'])) {
+            $checkpoint = $shipment->checkpoints()
+                ->where('status', 'current')
+                ->orderBy('sequence')
+                ->first()
+                ?? $shipment->checkpoints()->orderByDesc('sequence')->first();
+
+            if ($checkpoint) {
+                $checkpoint->update(['note' => $validated['note']]);
+            }
+        }
+
         $shipment->load(['client', 'manager', 'checkpoints', 'financeRecord']);
 
         return response()->json([

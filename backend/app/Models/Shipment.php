@@ -14,6 +14,14 @@ class Shipment extends Model
     /** @use HasFactory<ShipmentFactory> */
     use HasFactory;
 
+    public const STATUSES = [
+        'planned',
+        'in_transit',
+        'at_checkpoint',
+        'delivered',
+        'delayed',
+    ];
+
     protected $fillable = [
         'tracking_number',
         'transport_type',
