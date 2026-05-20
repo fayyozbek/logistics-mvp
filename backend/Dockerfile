@@ -1,42 +1,52 @@
-FROM php:8.3-cli
+FROM php:8.3-cli-bookworm
 
-# System packages and PHP extensions required by Laravel + Postgres
-RUN apt-get update && apt-get install -y \
+# System libraries for PHP extensions (Laravel 13 + PostgreSQL)
+RUN apt-get update && apt-get install -y --no-install-recommends \
         unzip \
         git \
         curl \
         libpq-dev \
         libzip-dev \
-    && docker-php-ext-install pdo pdo_pgsql zip pcntl \
+        libicu-dev \
+        libonig-dev \
+        libxml2-dev \
+    && docker-php-ext-configure intl \
+    && docker-php-ext-install -j"$(nproc)" \
+        bcmath \
+        intl \
+        mbstring \
+        pcntl \
+        pdo \
+        pdo_pgsql \
+        zip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Composer from the official image
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+ENV COMPOSER_ALLOW_SUPERUSER=1 \
+    COMPOSER_NO_INTERACTION=1
 
 WORKDIR /var/www
 
-# ── Dependency layer (cached unless composer.json / composer.lock changes) ──
+# Dependency layer (cached unless composer.json / composer.lock change)
 COPY composer.json composer.lock ./
 RUN composer install \
         --no-dev \
         --no-scripts \
         --no-autoloader \
-        --prefer-dist \
-        --no-interaction
+        --prefer-dist
 
-# ── Application source ────────────────────────────────────────────────────
+# Application source
 COPY . .
 
-# Optimise autoloader and discover packages.
-# A minimal .env (SQLite, no external DB) is needed only for the artisan
-# bootstrap that package:discover triggers — it is removed afterwards.
+# Optimise autoloader and discover packages (no migrations/seeds at build time).
+# Minimal .env only for artisan bootstrap during package:discover.
 RUN printf "APP_KEY=\nDB_CONNECTION=sqlite\n" > .env \
-    && php artisan key:generate \
-    && composer dump-autoload --optimize --no-interaction \
+    && php artisan key:generate --force \
+    && composer dump-autoload --optimize \
     && php artisan package:discover --ansi \
-    && rm .env
+    && rm -f .env
 
-# Ensure Laravel's writable directories exist with correct permissions
 RUN mkdir -p \
         storage/logs \
         storage/framework/sessions \
@@ -47,5 +57,4 @@ RUN mkdir -p \
 
 EXPOSE 8000
 
-# start.sh runs migrate then starts the PHP server (see start.sh)
 CMD ["sh", "start.sh"]
