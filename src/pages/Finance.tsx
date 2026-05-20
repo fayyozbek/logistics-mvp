@@ -1,6 +1,7 @@
-import { Fragment, useState } from 'react';
-import { financeRecords, clients } from '../data/mock';
+import { Fragment, useEffect, useState } from 'react';
+import { type Client, type FinanceRecord } from '../data/mock';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { getFinance } from '../api';
 
 const statusConfig = {
   paid: { label: 'Оплачен', color: '#10B981', bg: '#F0FDF4' },
@@ -10,8 +11,20 @@ const statusConfig = {
 };
 
 export default function Finance() {
+  const [loading, setLoading] = useState(true);
+  const [financeRecords, setFinanceRecords] = useState<FinanceRecord[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all');
+
+  useEffect(() => {
+    getFinance()
+      .then(({ financeRecords: f, clients: c }) => {
+        setFinanceRecords(f);
+        setClients(c);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   const totalRevenue = financeRecords.reduce((s, f) => s + f.totalAmount, 0);
   const totalPaid = financeRecords.reduce((s, f) => s + f.paidAmount, 0);
@@ -29,13 +42,27 @@ export default function Finance() {
     };
   }).filter(c => c.total > 0);
 
+  if (loading) {
+    return (
+      <div style={{ padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
+        <div style={{
+          width: 18, height: 18, borderRadius: '50%',
+          border: '2.5px solid #E2E8F0', borderTopColor: '#3B82F6',
+          animation: 'spin 0.7s linear infinite',
+        }} />
+        Загрузка...
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {[
           { label: 'Выставлено счетов', value: `$${totalRevenue.toLocaleString()}`, sub: `${financeRecords.length} счетов`, color: '#3B82F6' },
-          { label: 'Оплачено', value: `$${totalPaid.toLocaleString()}`, sub: `${Math.round(totalPaid / totalRevenue * 100)}% от выставленного`, color: '#10B981' },
+          { label: 'Оплачено', value: `$${totalPaid.toLocaleString()}`, sub: `${totalRevenue > 0 ? Math.round(totalPaid / totalRevenue * 100) : 0}% от выставленного`, color: '#10B981' },
           { label: 'Задолженность', value: `$${totalDebt.toLocaleString()}`, sub: 'Ожидает оплаты', color: '#F59E0B' },
           { label: 'Просроченных', value: overdueCount, sub: 'Счетов просрочено', color: '#EF4444' },
         ].map(kpi => (

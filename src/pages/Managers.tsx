@@ -1,10 +1,39 @@
-import { useState } from 'react';
-import { managers, shipments, clients, type Manager } from '../data/mock';
+import { useEffect, useState } from 'react';
+import { type Client, type Manager, type Shipment } from '../data/mock';
+import { getManagers } from '../api';
 
 export default function Managers() {
+  const [loading, setLoading] = useState(true);
+  const [managers, setManagers] = useState<Manager[]>([]);
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [selected, setSelected] = useState<Manager | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [newRoute, setNewRoute] = useState({ city: '', country: '', address: '', note: '' });
+
+  useEffect(() => {
+    getManagers()
+      .then(({ managers: m, shipments: s, clients: c }) => {
+        setManagers(m);
+        setShipments(s);
+        setClients(c);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
+        <div style={{
+          width: 18, height: 18, borderRadius: '50%',
+          border: '2.5px solid #E2E8F0', borderTopColor: '#3B82F6',
+          animation: 'spin 0.7s linear infinite',
+        }} />
+        Загрузка...
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>

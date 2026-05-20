@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { shipments, managers, clients } from '../data/mock';
+import { useEffect, useState } from 'react';
+import { managers, clients, type Shipment } from '../data/mock';
+import { getTelegramSettings } from '../api';
 
 const notifTypes = [
   { id: 'departure', label: 'Отправление груза', desc: 'Уведомление при создании и отправке', default: true },
@@ -20,6 +21,8 @@ const mockLogs = [
 ];
 
 export default function Telegram() {
+  const [loading, setLoading] = useState(true);
+  const [tgShipments, setTgShipments] = useState<Shipment[]>([]);
   const [token, setToken] = useState('7321058940:AAHxyz_DEMO_TOKEN_logistix_bot');
   const [chatId, setChatId] = useState('-1001234567890');
   const [connected, setConnected] = useState(true);
@@ -29,7 +32,40 @@ export default function Telegram() {
   const [testMsg, setTestMsg] = useState('');
   const [testSent, setTestSent] = useState(false);
 
-  const tgShipments = shipments.filter(s => s.telegramNotifications);
+  useEffect(() => {
+    getTelegramSettings()
+      .then(({ settings, shipments: ships }) => {
+        setTgShipments(ships);
+        if (settings) {
+          if (settings.chatId) setChatId(settings.chatId);
+          setConnected(settings.connected);
+          const flags = settings.eventFlags as Record<string, boolean | undefined>;
+          if (flags && Object.keys(flags).length > 0) {
+            setToggles(prev => ({
+              ...prev,
+              ...Object.fromEntries(
+                Object.entries(flags).filter(([, v]) => v !== undefined).map(([k, v]) => [k, v as boolean])
+              ),
+            }));
+          }
+        }
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
+        <div style={{
+          width: 18, height: 18, borderRadius: '50%',
+          border: '2.5px solid #E2E8F0', borderTopColor: '#0088cc',
+          animation: 'spin 0.7s linear infinite',
+        }} />
+        Загрузка...
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
