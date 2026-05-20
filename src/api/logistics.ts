@@ -1,4 +1,5 @@
 import type {
+  CreateShipmentPayload,
   DashboardData,
   FinanceResponse,
   ManagersResponse,
@@ -7,7 +8,7 @@ import type {
   TelegramSettingsResponse,
   TrackingResponse,
 } from '../types/api';
-import { requestWithMockFallback } from './client';
+import { ApiError, isApiConfigured, postJson, requestWithMockFallback } from './client';
 import {
   getDashboardDataMock,
   getFinanceMock,
@@ -45,4 +46,14 @@ export function getFinance(): Promise<FinanceResponse> {
 
 export function getTelegramSettings(): Promise<TelegramSettingsResponse> {
   return requestWithMockFallback('/telegram/settings', getTelegramSettingsMock);
+}
+
+export function createShipment(payload: CreateShipmentPayload): Promise<ShipmentResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Создание груза доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  return postJson<ShipmentResponse>('/shipments', payload);
 }

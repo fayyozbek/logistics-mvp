@@ -1,4 +1,4 @@
-import type { Client, FinanceRecord, Manager, Shipment } from '../data/mock';
+import type { CheckPoint, Client, FinanceRecord, Manager, Shipment, TransportType } from '../data/mock';
 
 export interface DashboardSummary {
   monthlyTurnover: number;
@@ -51,6 +51,32 @@ export interface ShipmentsResponse {
 export interface ShipmentResponse {
   shipment: Shipment;
 }
+
+export interface CreateShipmentCheckpointPayload {
+  city: string;
+  country?: string;
+  address: string;
+  plannedAt: string;
+  status?: CheckPoint['status'];
+  note?: string;
+}
+
+export interface CreateShipmentPayload {
+  clientId: number;
+  managerId?: number;
+  type: TransportType;
+  origin: string;
+  destination: string;
+  cargo?: string;
+  weight?: string;
+  volume?: string;
+  estimatedDelivery?: string;
+  telegramNotifications?: boolean;
+  trackingNumber?: string;
+  checkpoints?: CreateShipmentCheckpointPayload[];
+}
+
+export type ApiValidationErrors = Record<string, string[]>;
 
 export interface TrackingResponse {
   shipments: Shipment[];

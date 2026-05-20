@@ -1,3 +1,5 @@
+import type { ApiValidationErrors } from '../types/api';
+
 export function getApiBaseUrl(): string | null {
   const value = import.meta.env.VITE_API_BASE_URL;
   if (typeof value !== 'string' || !value.trim()) {
@@ -10,22 +12,62 @@ export function isApiConfigured(): boolean {
   return getApiBaseUrl() !== null;
 }
 
-async function fetchJson<T>(path: string): Promise<T> {
+export class ApiError extends Error {
+  status: number;
+  validationErrors?: ApiValidationErrors;
+
+  constructor(message: string, status: number, validationErrors?: ApiValidationErrors) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.validationErrors = validationErrors;
+  }
+}
+
+async function parseErrorBody(response: Response): Promise<{ message?: string; errors?: ApiValidationErrors }> {
+  try {
+    return await response.json() as { message?: string; errors?: ApiValidationErrors };
+  } catch {
+    return {};
+  }
+}
+
+async function requestJson<T>(path: string, options: RequestInit = {}): Promise<T> {
   const base = getApiBaseUrl();
   if (!base) {
-    throw new Error('VITE_API_BASE_URL is not set');
+    throw new ApiError('VITE_API_BASE_URL is not set', 0);
   }
 
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const response = await fetch(`${base}${normalizedPath}`, {
-    headers: { Accept: 'application/json' },
+    ...options,
+    headers: {
+      Accept: 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.headers ?? {}),
+    },
   });
 
   if (!response.ok) {
-    throw new Error(`API request failed (${response.status})`);
+    const body = await parseErrorBody(response);
+    if (response.status === 422 && body.errors) {
+      throw new ApiError(body.message ?? 'Validation failed', 422, body.errors);
+    }
+    throw new ApiError(body.message ?? `API request failed (${response.status})`, response.status);
   }
 
   return response.json() as Promise<T>;
+}
+
+async function fetchJson<T>(path: string): Promise<T> {
+  return requestJson<T>(path);
+}
+
+export function postJson<T>(path: string, data: unknown): Promise<T> {
+  return requestJson<T>(path, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 export async function requestWithMockFallback<T>(

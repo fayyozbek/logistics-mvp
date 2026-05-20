@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { clients, managers, type Shipment } from '../data/mock';
-import { getShipments } from '../api';
+import type { Client, Manager, Shipment, TransportType } from '../data/mock';
+import { ApiError, createShipment, getManagers, getShipments } from '../api';
+import type { CreateShipmentPayload } from '../types/api';
 
 const statusColors: Record<string, string> = {
   planned: '#F59E0B', in_transit: '#3B82F6', at_checkpoint: '#8B5CF6', delivered: '#10B981', delayed: '#EF4444',
@@ -94,18 +95,156 @@ const typeFilters = [
 const stepLabels = ['Создан', 'В пути', 'На пункте', 'Доставлен'];
 const stepKeys = ['planned', 'in_transit', 'at_checkpoint', 'delivered'];
 
+const transportTypes: { value: TransportType; label: string }[] = [
+  { value: 'auto', label: 'Авто' },
+  { value: 'air', label: 'Авиа' },
+  { value: 'sea', label: 'Море' },
+  { value: 'intermodal', label: 'Интермодал' },
+];
+
+interface CreateFormState {
+  clientId: string;
+  managerId: string;
+  type: TransportType;
+  origin: string;
+  destination: string;
+  cargo: string;
+  weight: string;
+  volume: string;
+  estimatedDelivery: string;
+  telegramNotifications: boolean;
+}
+
+const emptyCreateForm: CreateFormState = {
+  clientId: '',
+  managerId: '',
+  type: 'auto',
+  origin: '',
+  destination: '',
+  cargo: '',
+  weight: '',
+  volume: '',
+  estimatedDelivery: '',
+  telegramNotifications: false,
+};
+
+const fieldLabels: Record<string, string> = {
+  clientId: 'Клиент',
+  managerId: 'Менеджер',
+  type: 'Тип перевозки',
+  origin: 'Откуда',
+  destination: 'Куда',
+  cargo: 'Груз',
+  weight: 'Вес',
+  volume: 'Объём',
+  estimatedDelivery: 'Плановая дата',
+};
+
+function formatFieldErrors(errors: Record<string, string[]>): string[] {
+  return Object.entries(errors).flatMap(([field, messages]) =>
+    messages.map((message) => {
+      const label = fieldLabels[field] ?? field;
+      return `${label}: ${message}`;
+    }),
+  );
+}
+
 export default function Shipments() {
   const [loading, setLoading] = useState(true);
   const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [managers, setManagers] = useState<Manager[]>([]);
   const [filter, setFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [selected, setSelected] = useState<Shipment | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateFormState>(emptyCreateForm);
+  const [submitting, setSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [formErrors, setFormErrors] = useState<string[]>([]);
 
   useEffect(() => {
-    getShipments()
-      .then(({ shipments: data }) => setShipments(data))
+    Promise.all([getShipments(), getManagers()])
+      .then(([shipmentsRes, managersRes]) => {
+        setShipments(shipmentsRes.shipments);
+        setClients(managersRes.clients);
+        setManagers(managersRes.managers);
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  const openCreateForm = () => {
+    setCreateForm(emptyCreateForm);
+    setFormErrors([]);
+    setSuccessMessage('');
+    setShowCreateForm(true);
+  };
+
+  const closeCreateForm = () => {
+    if (submitting) return;
+    setShowCreateForm(false);
+    setFormErrors([]);
+  };
+
+  const handleCreateSubmit = async () => {
+    setSubmitting(true);
+    setFormErrors([]);
+    setSuccessMessage('');
+
+    const payload: CreateShipmentPayload = {
+      clientId: Number(createForm.clientId),
+      managerId: createForm.managerId ? Number(createForm.managerId) : undefined,
+      type: createForm.type,
+      origin: createForm.origin.trim(),
+      destination: createForm.destination.trim(),
+      cargo: createForm.cargo.trim() || undefined,
+      weight: createForm.weight.trim() || undefined,
+      volume: createForm.volume.trim() || undefined,
+      estimatedDelivery: createForm.estimatedDelivery || undefined,
+      telegramNotifications: createForm.telegramNotifications,
+    };
+
+    if (payload.origin && payload.destination) {
+      const plannedAt = createForm.estimatedDelivery
+        ? `${createForm.estimatedDelivery} 09:00`
+        : new Date().toISOString().slice(0, 16).replace('T', ' ');
+      payload.checkpoints = [
+        {
+          city: payload.origin,
+          country: '',
+          address: payload.origin,
+          plannedAt,
+          status: 'upcoming',
+        },
+        {
+          city: payload.destination,
+          country: '',
+          address: payload.destination,
+          plannedAt,
+          status: 'upcoming',
+        },
+      ];
+    }
+
+    try {
+      const { shipment } = await createShipment(payload);
+      setShipments((current) => [shipment, ...current]);
+      setSelected(shipment);
+      setShowCreateForm(false);
+      setCreateForm(emptyCreateForm);
+      setSuccessMessage(`Груз ${shipment.trackingNumber} успешно создан`);
+    } catch (error) {
+      if (error instanceof ApiError && error.validationErrors) {
+        setFormErrors(formatFieldErrors(error.validationErrors));
+      } else if (error instanceof ApiError) {
+        setFormErrors([error.message]);
+      } else {
+        setFormErrors(['Не удалось создать груз. Проверьте подключение к API.']);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const filtered = shipments.filter(s =>
     (filter === 'all' || s.status === filter) &&
@@ -128,6 +267,20 @@ export default function Shipments() {
 
   return (
     <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {successMessage && (
+        <div style={{
+          padding: '12px 16px',
+          borderRadius: 10,
+          background: '#F0FDF4',
+          border: '1px solid #BBF7D0',
+          color: '#15803D',
+          fontSize: 13,
+          fontWeight: 700,
+        }}>
+          {successMessage}
+        </div>
+      )}
 
       {/* Filters bar */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -166,11 +319,15 @@ export default function Shipments() {
         </div>
 
         <div style={{ marginLeft: 'auto' }}>
-          <button style={{
-            padding: '9px 20px', background: '#3B82F6', color: '#fff',
-            border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}>
+          <button
+            type="button"
+            onClick={openCreateForm}
+            style={{
+              padding: '9px 20px', background: '#3B82F6', color: '#fff',
+              border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/></svg>
             Новый груз
           </button>
@@ -391,6 +548,164 @@ export default function Shipments() {
           </div>
         )}
       </div>
+
+      {showCreateForm && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.48)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(3px)', padding: 24,
+        }}>
+          <div style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: '96vw', maxHeight: '92vh', overflowY: 'auto', border: '1px solid #E2E8F0' }}>
+            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>Новый груз</div>
+                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 3 }}>Создание отправления</div>
+              </div>
+              <button type="button" onClick={closeCreateForm} disabled={submitting} style={{
+                background: '#F1F5F9', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer',
+                width: 28, height: 28, borderRadius: 7, color: '#64748B', fontSize: 16, fontWeight: 700,
+              }}>×</button>
+            </div>
+
+            <div style={{ padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {formErrors.length > 0 && (
+                <div style={{ padding: '10px 12px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 12 }}>
+                  {formErrors.map((error) => <div key={error}>{error}</div>)}
+                </div>
+              )}
+
+              <label>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Клиент *</div>
+                <select
+                  value={createForm.clientId}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, clientId: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
+                >
+                  <option value="">Выберите клиента</option>
+                  {clients.map((c) => <option key={c.id} value={c.id}>{c.company}</option>)}
+                </select>
+              </label>
+
+              <label>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Менеджер</div>
+                <select
+                  value={createForm.managerId}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, managerId: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
+                >
+                  <option value="">Не назначен</option>
+                  {managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </label>
+
+              <label>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Тип перевозки *</div>
+                <select
+                  value={createForm.type}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, type: e.target.value as TransportType }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
+                >
+                  {transportTypes.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <label>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Откуда *</div>
+                  <input
+                    value={createForm.origin}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, origin: e.target.value }))}
+                    placeholder="Алматы"
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
+                  />
+                </label>
+                <label>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Куда *</div>
+                  <input
+                    value={createForm.destination}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, destination: e.target.value }))}
+                    placeholder="Ташкент"
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
+                  />
+                </label>
+              </div>
+
+              <label>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Груз</div>
+                <input
+                  value={createForm.cargo}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, cargo: e.target.value }))}
+                  placeholder="Описание груза"
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
+                />
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <label>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Вес</div>
+                  <input
+                    value={createForm.weight}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, weight: e.target.value }))}
+                    placeholder="2 400 кг"
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
+                  />
+                </label>
+                <label>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Объём</div>
+                  <input
+                    value={createForm.volume}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, volume: e.target.value }))}
+                    placeholder="18 м³"
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
+                  />
+                </label>
+              </div>
+
+              <label>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Плановая дата доставки</div>
+                <input
+                  type="date"
+                  value={createForm.estimatedDelivery}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, estimatedDelivery: e.target.value }))}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
+                />
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={createForm.telegramNotifications}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, telegramNotifications: e.target.checked }))}
+                />
+                <span style={{ fontSize: 12, color: '#64748B' }}>Telegram-уведомления</span>
+              </label>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                <button type="button" onClick={closeCreateForm} disabled={submitting} style={{
+                  padding: '9px 18px', background: '#fff', color: '#64748B', border: '1px solid #E2E8F0',
+                  borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: submitting ? 'not-allowed' : 'pointer',
+                }}>
+                  Отмена
+                </button>
+                <button type="button" onClick={handleCreateSubmit} disabled={submitting} style={{
+                  padding: '9px 20px', background: submitting ? '#94A3B8' : '#3B82F6', color: '#fff',
+                  border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}>
+                  {submitting && (
+                    <span style={{
+                      width: 14, height: 14, borderRadius: '50%',
+                      border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
+                      animation: 'spin 0.7s linear infinite', display: 'inline-block',
+                    }} />
+                  )}
+                  {submitting ? 'Сохранение...' : 'Создать груз'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
