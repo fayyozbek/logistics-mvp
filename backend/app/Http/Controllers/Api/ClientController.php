@@ -7,6 +7,7 @@ use App\Http\Requests\StoreClientRequest;
 use App\Http\Requests\UpdateClientRequest;
 use App\Http\Resources\ClientResource;
 use App\Models\Client;
+use App\Support\MapsValidatedAttributes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 
@@ -15,6 +16,18 @@ use Illuminate\Validation\ValidationException;
  */
 class ClientController extends Controller
 {
+    use MapsValidatedAttributes;
+
+    private const UPDATE_FIELD_MAP = [
+        'company' => 'company',
+        'contact' => 'contact',
+        'email' => 'email',
+        'phone' => 'phone',
+        'country' => 'country',
+        'city' => 'city',
+        'address' => 'address',
+    ];
+
     public function index(): JsonResponse
     {
         return response()->json([
@@ -52,7 +65,7 @@ class ClientController extends Controller
 
     public function update(UpdateClientRequest $request, Client $client): JsonResponse
     {
-        $client->update($this->mapUpdateAttributes($request->validated()));
+        $client->update($this->mapValidatedAttributes($request->validated(), self::UPDATE_FIELD_MAP));
 
         return response()->json([
             'client' => (new ClientResource($client->fresh()))->resolve(),
@@ -80,30 +93,5 @@ class ClientController extends Controller
             'message' => 'Partner/client deleted.',
             'clientId' => $clientId,
         ]);
-    }
-
-    /**
-     * @param  array<string, mixed>  $validated
-     * @return array<string, mixed>
-     */
-    private function mapUpdateAttributes(array $validated): array
-    {
-        $attributes = [];
-
-        foreach ([
-            'company' => 'company',
-            'contact' => 'contact',
-            'email' => 'email',
-            'phone' => 'phone',
-            'country' => 'country',
-            'city' => 'city',
-            'address' => 'address',
-        ] as $input => $column) {
-            if (array_key_exists($input, $validated)) {
-                $attributes[$column] = $validated[$input];
-            }
-        }
-
-        return $attributes;
     }
 }

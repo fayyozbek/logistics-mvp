@@ -30,7 +30,7 @@ class ExportController extends Controller
         ];
 
         $rows = Shipment::query()
-            ->with(['client', 'manager'])
+            ->withSummaryRelations()
             ->orderByDesc('created_at')
             ->get()
             ->map(fn (Shipment $shipment) => [

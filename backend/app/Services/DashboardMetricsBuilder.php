@@ -12,8 +12,6 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardMetricsBuilder
 {
-    private const ACTIVE_STATUSES = ['planned', 'in_transit', 'at_checkpoint', 'delayed'];
-
     private const MONTH_LABELS = [
         '01' => 'Янв',
         '02' => 'Фев',
@@ -58,7 +56,7 @@ class DashboardMetricsBuilder
         $receivable = $totalRevenue - $totalPaid;
 
         $activeShipments = (clone $shipmentQuery)
-            ->whereIn('status', self::ACTIVE_STATUSES)
+            ->whereIn('status', Shipment::ACTIVE_STATUSES)
             ->count();
 
         $completedShipments = (clone $shipmentQuery)
@@ -127,7 +125,7 @@ class DashboardMetricsBuilder
                 ->count();
 
             $activeInPeriod = (clone $shipmentQuery)
-                ->whereIn('status', self::ACTIVE_STATUSES)
+                ->whereIn('status', Shipment::ACTIVE_STATUSES)
                 ->when($periodStart, fn (Builder $query) => $query->whereDate('created_at', '>=', $periodStart))
                 ->when($periodEnd, fn (Builder $query) => $query->whereDate('created_at', '<=', $periodEnd))
                 ->count();
@@ -148,7 +146,7 @@ class DashboardMetricsBuilder
         $managers = Manager::query()
             ->withCount([
                 'shipments as active_shipments_count' => function (Builder $query) use ($dateFrom, $dateTo) {
-                    $query->whereIn('status', self::ACTIVE_STATUSES);
+                    $query->whereIn('status', Shipment::ACTIVE_STATUSES);
                     if ($dateFrom) {
                         $query->whereDate('created_at', '>=', $dateFrom);
                     }

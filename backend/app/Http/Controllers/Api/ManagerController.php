@@ -11,13 +11,24 @@ use App\Http\Resources\ShipmentResource;
 use App\Models\Client;
 use App\Models\Manager;
 use App\Models\Shipment;
+use App\Support\MapsValidatedAttributes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 
 class ManagerController extends Controller
 {
-    /** @var list<string> */
-    private const ACTIVE_SHIPMENT_STATUSES = ['planned', 'in_transit', 'at_checkpoint', 'delayed'];
+    use MapsValidatedAttributes;
+
+    private const UPDATE_FIELD_MAP = [
+        'name' => 'name',
+        'avatar' => 'avatar',
+        'email' => 'email',
+        'phone' => 'phone',
+        'telegramId' => 'telegram_id',
+        'region' => 'region',
+        'role' => 'role',
+        'department' => 'department',
+    ];
 
     public function index(): JsonResponse
     {
@@ -32,7 +43,7 @@ class ManagerController extends Controller
     public function overview(): JsonResponse
     {
         $shipments = Shipment::query()
-            ->with(['client', 'manager'])
+            ->withSummaryRelations()
             ->orderByDesc('created_at')
             ->get();
 
@@ -47,10 +58,7 @@ class ManagerController extends Controller
 
     public function show(Manager $manager): JsonResponse
     {
-        $manager->loadCount([
-            'shipments',
-            'shipments as active_shipments_count' => fn ($query) => $query->whereIn('status', self::ACTIVE_SHIPMENT_STATUSES),
-        ]);
+        $this->loadManagerCounts($manager);
 
         return response()->json([
             'manager' => (new ManagerResource($manager))->resolve(),
@@ -73,10 +81,7 @@ class ManagerController extends Controller
             'department' => $validated['department'] ?? null,
         ]);
 
-        $manager->loadCount([
-            'shipments',
-            'shipments as active_shipments_count' => fn ($query) => $query->whereIn('status', self::ACTIVE_SHIPMENT_STATUSES),
-        ]);
+        $this->loadManagerCounts($manager);
 
         return response()->json([
             'manager' => (new ManagerResource($manager))->resolve(),
@@ -85,15 +90,13 @@ class ManagerController extends Controller
 
     public function update(UpdateManagerRequest $request, Manager $manager): JsonResponse
     {
-        $manager->update($this->mapUpdateAttributes($request->validated()));
+        $manager->update($this->mapValidatedAttributes($request->validated(), self::UPDATE_FIELD_MAP));
 
-        $manager->loadCount([
-            'shipments',
-            'shipments as active_shipments_count' => fn ($query) => $query->whereIn('status', self::ACTIVE_SHIPMENT_STATUSES),
-        ]);
+        $manager = $manager->fresh();
+        $this->loadManagerCounts($manager);
 
         return response()->json([
-            'manager' => (new ManagerResource($manager->fresh()))->resolve(),
+            'manager' => (new ManagerResource($manager))->resolve(),
         ]);
     }
 
@@ -117,17 +120,30 @@ class ManagerController extends Controller
     private function managersQuery()
     {
         return Manager::query()
-            ->withCount([
-                'shipments',
-                'shipments as active_shipments_count' => fn ($query) => $query->whereIn('status', self::ACTIVE_SHIPMENT_STATUSES),
-            ])
+            ->withCount($this->managerCountRelations())
             ->orderBy('name');
+    }
+
+    private function loadManagerCounts(Manager $manager): void
+    {
+        $manager->loadCount($this->managerCountRelations());
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function managerCountRelations(): array
+    {
+        return [
+            'shipments',
+            'shipments as active_shipments_count' => fn ($query) => $query->whereIn('status', Shipment::ACTIVE_STATUSES),
+        ];
     }
 
     private function hasActiveShipments(Manager $manager): bool
     {
         return $manager->shipments()
-            ->whereIn('status', self::ACTIVE_SHIPMENT_STATUSES)
+            ->whereIn('status', Shipment::ACTIVE_STATUSES)
             ->exists();
     }
 
@@ -140,31 +156,5 @@ class ManagerController extends Controller
         }
 
         return mb_strtoupper(mb_substr($name, 0, 2));
-    }
-
-    /**
-     * @param  array<string, mixed>  $validated
-     * @return array<string, mixed>
-     */
-    private function mapUpdateAttributes(array $validated): array
-    {
-        $attributes = [];
-
-        foreach ([
-            'name' => 'name',
-            'avatar' => 'avatar',
-            'email' => 'email',
-            'phone' => 'phone',
-            'telegramId' => 'telegram_id',
-            'region' => 'region',
-            'role' => 'role',
-            'department' => 'department',
-        ] as $input => $column) {
-            if (array_key_exists($input, $validated)) {
-                $attributes[$column] = $validated[$input];
-            }
-        }
-
-        return $attributes;
     }
 }

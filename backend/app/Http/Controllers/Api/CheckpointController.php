@@ -8,46 +8,25 @@ use App\Http\Requests\UpdateCheckpointRequest;
 use App\Http\Resources\CheckpointResource;
 use App\Models\Checkpoint;
 use App\Models\Shipment;
+use App\Services\CheckpointSequenceService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
 class CheckpointController extends Controller
 {
+    public function __construct(
+        private readonly CheckpointSequenceService $checkpointSequenceService,
+    ) {}
+
     public function store(StoreCheckpointRequest $request, Shipment $shipment): JsonResponse
     {
         $validated = $request->validated();
         $insertAfter = $validated['insertAfter'] ?? -1;
 
-        $checkpoint = DB::transaction(function () use ($shipment, $validated, $insertAfter) {
-            $existing = $shipment->checkpoints()->orderBy('sequence')->get();
-            $position = $insertAfter === -1
-                ? $existing->count()
-                : min($insertAfter + 1, $existing->count());
-
-            $checkpoint = Checkpoint::query()->create([
-                'shipment_id' => $shipment->id,
-                'sequence' => 0,
-                'city' => $validated['city'],
-                'country' => $validated['country'] ?? null,
-                'address' => $validated['address'],
-                'planned_at' => Carbon::parse($validated['plannedAt']),
-                'arrived_at' => isset($validated['arrivedAt'])
-                    ? Carbon::parse($validated['arrivedAt'])
-                    : null,
-                'status' => $validated['status'] ?? 'upcoming',
-                'note' => $validated['note'] ?? null,
-            ]);
-
-            $orderedIds = $existing->pluck('id')->all();
-            array_splice($orderedIds, $position, 0, [$checkpoint->id]);
-
-            foreach ($orderedIds as $index => $id) {
-                Checkpoint::query()->whereKey($id)->update(['sequence' => $index + 1]);
-            }
-
-            return $checkpoint->fresh();
-        });
+        $checkpoint = DB::transaction(
+            fn () => $this->checkpointSequenceService->insert($shipment, $validated, $insertAfter),
+        );
 
         return response()->json([
             'checkpoint' => (new CheckpointResource($checkpoint))->resolve(),
@@ -56,8 +35,35 @@ class CheckpointController extends Controller
 
     public function update(UpdateCheckpointRequest $request, Checkpoint $checkpoint): JsonResponse
     {
-        $validated = $request->validated();
+        $checkpoint->update($this->mapCheckpointUpdateAttributes($request->validated()));
 
+        return response()->json([
+            'checkpoint' => (new CheckpointResource($checkpoint->fresh()))->resolve(),
+        ]);
+    }
+
+    public function destroy(Checkpoint $checkpoint): JsonResponse
+    {
+        $checkpointId = (string) $checkpoint->id;
+        $shipment = $checkpoint->shipment;
+
+        DB::transaction(function () use ($checkpoint, $shipment): void {
+            $checkpoint->delete();
+            $this->checkpointSequenceService->resequenceAfterDelete($shipment);
+        });
+
+        return response()->json([
+            'message' => 'Checkpoint deleted.',
+            'checkpointId' => $checkpointId,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function mapCheckpointUpdateAttributes(array $validated): array
+    {
         $attributes = [];
 
         if (array_key_exists('city', $validated)) {
@@ -84,30 +90,6 @@ class CheckpointController extends Controller
             $attributes['note'] = $validated['note'];
         }
 
-        $checkpoint->update($attributes);
-
-        return response()->json([
-            'checkpoint' => (new CheckpointResource($checkpoint->fresh()))->resolve(),
-        ]);
-    }
-
-    public function destroy(Checkpoint $checkpoint): JsonResponse
-    {
-        $checkpointId = (string) $checkpoint->id;
-        $shipment = $checkpoint->shipment;
-
-        DB::transaction(function () use ($checkpoint, $shipment) {
-            $checkpoint->delete();
-
-            $remaining = $shipment->checkpoints()->orderBy('sequence')->get();
-            foreach ($remaining as $index => $item) {
-                $item->update(['sequence' => $index + 1]);
-            }
-        });
-
-        return response()->json([
-            'message' => 'Checkpoint deleted.',
-            'checkpointId' => $checkpointId,
-        ]);
+        return $attributes;
     }
 }

@@ -8,8 +8,8 @@ use App\Http\Resources\ClientResource;
 use App\Http\Resources\FinanceRecordResource;
 use App\Models\Client;
 use App\Models\FinanceRecord;
+use App\Services\FinanceRecordStatusService;
 use App\Services\FinanceReportBuilder;
-use Database\Seeders\Support\FinanceAmountRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -17,6 +17,7 @@ class FinanceController extends Controller
 {
     public function __construct(
         private readonly FinanceReportBuilder $financeReportBuilder,
+        private readonly FinanceRecordStatusService $financeRecordStatusService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -46,19 +47,10 @@ class FinanceController extends Controller
 
     public function updateStatus(UpdateFinanceStatusRequest $request, FinanceRecord $financeRecord): JsonResponse
     {
-        $status = $request->validated('status');
-        $synced = FinanceAmountRules::apply([
-            'total_amount' => $financeRecord->total_amount,
-            'paid_amount' => $financeRecord->paid_amount,
-            'status' => $status,
-        ]);
-
-        $financeRecord->update([
-            'status' => $synced['status'],
-            'paid_amount' => $synced['paid_amount'],
-        ]);
-
-        $financeRecord->load('client');
+        $financeRecord = $this->financeRecordStatusService->updateStatus(
+            $financeRecord,
+            $request->validated('status'),
+        );
 
         return response()->json([
             'financeRecord' => (new FinanceRecordResource($financeRecord))->resolve(),

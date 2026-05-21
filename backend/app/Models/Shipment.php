@@ -22,6 +22,48 @@ class Shipment extends Model
         'delayed',
     ];
 
+    /** Statuses counted as active for manager workload and dashboard KPIs. */
+    public const ACTIVE_STATUSES = [
+        'planned',
+        'in_transit',
+        'at_checkpoint',
+        'delayed',
+    ];
+
+    /**
+     * @return list<string>
+     */
+    public static function detailRelations(): array
+    {
+        return ['client', 'manager', 'checkpoints', 'financeRecord'];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function summaryRelations(): array
+    {
+        return ['client', 'manager'];
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<Shipment>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<Shipment>
+     */
+    public function scopeWithDetailRelations($query)
+    {
+        return $query->with(self::detailRelations());
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<Shipment>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<Shipment>
+     */
+    public function scopeWithSummaryRelations($query)
+    {
+        return $query->with(self::summaryRelations());
+    }
+
     protected $fillable = [
         'tracking_number',
         'transport_type',
