@@ -21,16 +21,21 @@ class UpdateFinanceStatusApiTest extends TestCase
     {
         $record = FinanceRecord::query()->where('status', 'unpaid')->firstOrFail();
 
-        $this->patchJson("/api/finance/{$record->id}/status", [
+        $total = (float) $record->total_amount;
+
+        $response = $this->patchJson("/api/finance/{$record->id}/status", [
             'status' => 'paid',
         ])
             ->assertOk()
             ->assertJsonPath('financeRecord.id', (string) $record->id)
             ->assertJsonPath('financeRecord.status', 'paid');
 
+        $this->assertEquals($total, (float) $response->json('financeRecord.paidAmount'));
+
         $this->assertDatabaseHas('finance_records', [
             'id' => $record->id,
             'status' => 'paid',
+            'paid_amount' => $total,
         ]);
     }
 

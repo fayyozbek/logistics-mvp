@@ -9,6 +9,7 @@ use App\Models\Manager;
 use App\Models\Shipment;
 use App\Models\TelegramSetting;
 use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\Support\FinanceAmountRules;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -37,6 +38,16 @@ class LogisticsDemoSeederTest extends TestCase
             'paid_amount' => 0,
             'status' => 'unpaid',
         ]);
+
+        foreach (FinanceRecord::all() as $record) {
+            $this->assertTrue(
+                FinanceAmountRules::isConsistent(
+                    (float) $record->total_amount,
+                    (float) $record->paid_amount,
+                    $record->status,
+                ),
+            );
+        }
     }
 
     public function test_demo_seeder_is_idempotent_when_run_twice(): void

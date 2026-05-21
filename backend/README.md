@@ -58,6 +58,23 @@ php artisan test
 | GET | `/api/telegram/settings` | Telegram bot settings |
 | PATCH | `/api/telegram/settings` | Save Telegram settings |
 
+## Finance amounts (MVP)
+
+`PATCH /api/finance/{id}/status` accepts **`status` only** (no payment gateway or
+custom `paidAmount` in the request). The API keeps amounts aligned with status:
+
+| Status | `paid_amount` | Balance (`total_amount - paid_amount`) |
+|--------|---------------|----------------------------------------|
+| `paid` | equals `total_amount` | `0` |
+| `unpaid`, `overdue` | `0` | equals `total_amount` |
+| `partial` | between `0` and `total_amount` | greater than `0` |
+
+When status becomes `partial` and the current `paid_amount` is already in range,
+that value is kept; otherwise `paid_amount` defaults to half of `total_amount`
+(demo-friendly placeholder until a dedicated payment-amount endpoint exists).
+
+Demo seed data uses the same rules via `FinanceAmountRules`.
+
 ## CORS
 
 `config/cors.php` allows `http://localhost:5173`, `http://127.0.0.1:5173`, and
