@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { LocationAutocomplete } from '../components/LocationAutocomplete';
 import type { Client, Manager, Shipment, ShipmentStatus, TransportType } from '../data/mock';
+import { normalizeLocationValue } from '../data/locations';
 import { ApiError, createShipment, deleteShipment, getClients, getManagers, getShipments, updateShipment, updateShipmentStatus } from '../api';
 import type { CreateShipmentPayload, UpdateShipmentPayload } from '../types/api';
 
@@ -329,8 +331,8 @@ export default function Shipments() {
       clientId: Number(editForm.clientId),
       managerId: editForm.managerId ? Number(editForm.managerId) : null,
       type: editForm.type,
-      origin: editForm.origin.trim(),
-      destination: editForm.destination.trim(),
+      origin: normalizeLocationValue(editForm.origin),
+      destination: normalizeLocationValue(editForm.destination),
       cargo: editForm.cargo.trim() || undefined,
       weight: editForm.weight.trim() || undefined,
       weightUnit: editForm.weightUnit.trim() || undefined,
@@ -416,8 +418,8 @@ export default function Shipments() {
       clientId: Number(createForm.clientId),
       managerId: createForm.managerId ? Number(createForm.managerId) : undefined,
       type: createForm.type,
-      origin: createForm.origin.trim(),
-      destination: createForm.destination.trim(),
+      origin: normalizeLocationValue(createForm.origin),
+      destination: normalizeLocationValue(createForm.destination),
       cargo: createForm.cargo.trim() || undefined,
       weight: createForm.weight.trim() || undefined,
       volume: createForm.volume.trim() || undefined,
@@ -849,24 +851,18 @@ export default function Shipments() {
                   </label>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <label>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Откуда *</div>
-                      <input
-                        value={editForm.origin}
-                        onChange={(e) => setEditForm((f) => f && ({ ...f, origin: e.target.value }))}
-                        disabled={editSubmitting}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
-                      />
-                    </label>
-                    <label>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Куда *</div>
-                      <input
-                        value={editForm.destination}
-                        onChange={(e) => setEditForm((f) => f && ({ ...f, destination: e.target.value }))}
-                        disabled={editSubmitting}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
-                      />
-                    </label>
+                    <LocationAutocomplete
+                      label="Откуда *"
+                      value={editForm.origin}
+                      onChange={(origin) => setEditForm((f) => f && ({ ...f, origin }))}
+                      disabled={editSubmitting}
+                    />
+                    <LocationAutocomplete
+                      label="Куда *"
+                      value={editForm.destination}
+                      onChange={(destination) => setEditForm((f) => f && ({ ...f, destination }))}
+                      disabled={editSubmitting}
+                    />
                   </div>
 
                   <label>
@@ -1161,24 +1157,20 @@ export default function Shipments() {
               </label>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <label>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Откуда *</div>
-                  <input
-                    value={createForm.origin}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, origin: e.target.value }))}
-                    placeholder="Алматы"
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
-                  />
-                </label>
-                <label>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Куда *</div>
-                  <input
-                    value={createForm.destination}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, destination: e.target.value }))}
-                    placeholder="Ташкент"
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
-                  />
-                </label>
+                <LocationAutocomplete
+                  label="Откуда *"
+                  value={createForm.origin}
+                  onChange={(origin) => setCreateForm((f) => ({ ...f, origin }))}
+                  placeholder="Almaty"
+                  inputStyle={{ padding: '9px 12px', fontSize: 13, background: '#F8FAFC' }}
+                />
+                <LocationAutocomplete
+                  label="Куда *"
+                  value={createForm.destination}
+                  onChange={(destination) => setCreateForm((f) => ({ ...f, destination }))}
+                  placeholder="Tashkent"
+                  inputStyle={{ padding: '9px 12px', fontSize: 13, background: '#F8FAFC' }}
+                />
               </div>
 
               <label>

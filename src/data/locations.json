@@ -1,0 +1,233 @@
+[
+  {
+    "countryCode": "KR",
+    "countryName": "South Korea",
+    "cityName": "Seoul",
+    "displayName": "Seoul, South Korea",
+    "searchAliases": ["서울", "Сеул"]
+  },
+  {
+    "countryCode": "KR",
+    "countryName": "South Korea",
+    "cityName": "Busan",
+    "displayName": "Busan, South Korea",
+    "searchAliases": ["부산", "Пусан"]
+  },
+  {
+    "countryCode": "KR",
+    "countryName": "South Korea",
+    "cityName": "Incheon",
+    "displayName": "Incheon, South Korea",
+    "searchAliases": ["인천", "Инчхон"]
+  },
+  {
+    "countryCode": "KR",
+    "countryName": "South Korea",
+    "cityName": "Daegu",
+    "displayName": "Daegu, South Korea",
+    "searchAliases": ["대구", "Тэгу"]
+  },
+  {
+    "countryCode": "KR",
+    "countryName": "South Korea",
+    "cityName": "Daejeon",
+    "displayName": "Daejeon, South Korea",
+    "searchAliases": ["대전", "Тэджон"]
+  },
+  {
+    "countryCode": "KR",
+    "countryName": "South Korea",
+    "cityName": "Gwangju",
+    "displayName": "Gwangju, South Korea",
+    "searchAliases": ["광주", "Кванджу"]
+  },
+  {
+    "countryCode": "KR",
+    "countryName": "South Korea",
+    "cityName": "Ulsan",
+    "displayName": "Ulsan, South Korea",
+    "searchAliases": ["울산", "Ульсан"]
+  },
+  {
+    "countryCode": "KR",
+    "countryName": "South Korea",
+    "cityName": "Chuncheon",
+    "displayName": "Chuncheon, South Korea",
+    "searchAliases": ["춘천", "Чунчхон"]
+  },
+  {
+    "countryCode": "UZ",
+    "countryName": "Uzbekistan",
+    "cityName": "Tashkent",
+    "displayName": "Tashkent, Uzbekistan",
+    "searchAliases": ["Ташкент", "Toshkent"]
+  },
+  {
+    "countryCode": "UZ",
+    "countryName": "Uzbekistan",
+    "cityName": "Samarkand",
+    "displayName": "Samarkand, Uzbekistan",
+    "searchAliases": ["Самарканд", "Samarqand"]
+  },
+  {
+    "countryCode": "UZ",
+    "countryName": "Uzbekistan",
+    "cityName": "Bukhara",
+    "displayName": "Bukhara, Uzbekistan",
+    "searchAliases": ["Бухара", "Buxoro"]
+  },
+  {
+    "countryCode": "UZ",
+    "countryName": "Uzbekistan",
+    "cityName": "Andijan",
+    "displayName": "Andijan, Uzbekistan",
+    "searchAliases": ["Андижан", "Andijon"]
+  },
+  {
+    "countryCode": "UZ",
+    "countryName": "Uzbekistan",
+    "cityName": "Fergana",
+    "displayName": "Fergana, Uzbekistan",
+    "searchAliases": ["Фергана", "Farg'ona"]
+  },
+  {
+    "countryCode": "KZ",
+    "countryName": "Kazakhstan",
+    "cityName": "Almaty",
+    "displayName": "Almaty, Kazakhstan",
+    "searchAliases": ["Алматы", "Alma-Ata"]
+  },
+  {
+    "countryCode": "KZ",
+    "countryName": "Kazakhstan",
+    "cityName": "Astana",
+    "displayName": "Astana, Kazakhstan",
+    "searchAliases": ["Астана", "Nur-Sultan", "Нур-Султан"]
+  },
+  {
+    "countryCode": "KZ",
+    "countryName": "Kazakhstan",
+    "cityName": "Shymkent",
+    "displayName": "Shymkent, Kazakhstan",
+    "searchAliases": ["Шымкент", "Chimkent"]
+  },
+  {
+    "countryCode": "KZ",
+    "countryName": "Kazakhstan",
+    "cityName": "Aktau",
+    "displayName": "Aktau, Kazakhstan",
+    "searchAliases": ["Актау", "Shevchenko"]
+  },
+  {
+    "countryCode": "GE",
+    "countryName": "Georgia",
+    "cityName": "Tbilisi",
+    "displayName": "Tbilisi, Georgia",
+    "searchAliases": ["Тбилиси", "Tiflis"]
+  },
+  {
+    "countryCode": "GE",
+    "countryName": "Georgia",
+    "cityName": "Batumi",
+    "displayName": "Batumi, Georgia",
+    "searchAliases": ["Батуми"]
+  },
+  {
+    "countryCode": "CN",
+    "countryName": "China",
+    "cityName": "Shanghai",
+    "displayName": "Shanghai, China",
+    "searchAliases": ["上海", "Шанхай"]
+  },
+  {
+    "countryCode": "CN",
+    "countryName": "China",
+    "cityName": "Beijing",
+    "displayName": "Beijing, China",
+    "searchAliases": ["北京", "Пекин"]
+  },
+  {
+    "countryCode": "CN",
+    "countryName": "China",
+    "cityName": "Shenzhen",
+    "displayName": "Shenzhen, China",
+    "searchAliases": ["深圳", "Шэньчжэнь"]
+  },
+  {
+    "countryCode": "CN",
+    "countryName": "China",
+    "cityName": "Guangzhou",
+    "displayName": "Guangzhou, China",
+    "searchAliases": ["广州", "Гуанчжоу", "Canton"]
+  },
+  {
+    "countryCode": "JP",
+    "countryName": "Japan",
+    "cityName": "Tokyo",
+    "displayName": "Tokyo, Japan",
+    "searchAliases": ["東京", "Токио"]
+  },
+  {
+    "countryCode": "JP",
+    "countryName": "Japan",
+    "cityName": "Osaka",
+    "displayName": "Osaka, Japan",
+    "searchAliases": ["大阪", "Осака"]
+  },
+  {
+    "countryCode": "JP",
+    "countryName": "Japan",
+    "cityName": "Yokohama",
+    "displayName": "Yokohama, Japan",
+    "searchAliases": ["横浜", "Иокогама"]
+  },
+  {
+    "countryCode": "TR",
+    "countryName": "Turkey",
+    "cityName": "Istanbul",
+    "displayName": "Istanbul, Turkey",
+    "searchAliases": ["İstanbul", "Стамбул"]
+  },
+  {
+    "countryCode": "TR",
+    "countryName": "Turkey",
+    "cityName": "Ankara",
+    "displayName": "Ankara, Turkey",
+    "searchAliases": ["Анкара"]
+  },
+  {
+    "countryCode": "AE",
+    "countryName": "United Arab Emirates",
+    "cityName": "Dubai",
+    "displayName": "Dubai, UAE",
+    "searchAliases": ["Дубай", "دبي"]
+  },
+  {
+    "countryCode": "AE",
+    "countryName": "United Arab Emirates",
+    "cityName": "Abu Dhabi",
+    "displayName": "Abu Dhabi, UAE",
+    "searchAliases": ["Абу-Даби", "أبو ظبي"]
+  },
+  {
+    "countryCode": "DE",
+    "countryName": "Germany",
+    "cityName": "Frankfurt",
+    "displayName": "Frankfurt, Germany",
+    "searchAliases": ["Франкфурт", "Frankfurt am Main"]
+  },
+  {
+    "countryCode": "FR",
+    "countryName": "France",
+    "cityName": "Paris",
+    "displayName": "Paris, France",
+    "searchAliases": ["Париж"]
+  },
+  {
+    "countryCode": "RU",
+    "countryName": "Russia",
+    "cityName": "Moscow",
+    "displayName": "Moscow, Russia",
+    "searchAliases": ["Москва", "Moskva"]
+  }
+]
