@@ -363,7 +363,9 @@ export default function Clients() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: '#0F172A' }}>{selected.company}</div>
-                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>ID: {selected.id}</div>
+                {selected.contact && (
+                  <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>{selected.contact}</div>
+                )}
               </div>
               <button type="button" onClick={() => setSelected(null)} style={{
                 background: '#F1F5F9', border: 'none', cursor: 'pointer',
