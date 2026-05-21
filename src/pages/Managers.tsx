@@ -110,15 +110,17 @@ export default function Managers() {
   }, [loadOverview]);
 
   useEffect(() => {
-    if (selected) {
-      const fresh = managers.find((m) => m.id === selected.id) ?? selected;
-      setSelected(fresh);
-      setForm(managerToForm(fresh));
-      setEditMode(false);
-      setShowDeleteConfirm(false);
-      setFormErrors([]);
-    }
-  }, [selected?.id, managers]);
+    setEditMode(false);
+    setShowDeleteConfirm(false);
+    setFormErrors([]);
+  }, [selected?.id]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const fresh = managers.find((m) => m.id === selected.id) ?? selected;
+    setSelected(fresh);
+    setForm((current) => (editMode ? current : managerToForm(fresh)));
+  }, [selected?.id, managers, editMode]);
 
   const openCreateForm = () => {
     setCreateForm(emptyForm);
@@ -388,7 +390,12 @@ export default function Managers() {
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="button"
-                onClick={() => { setEditMode(true); setShowDeleteConfirm(false); setFormErrors([]); }}
+                onClick={() => {
+                  setForm(managerToForm(selected));
+                  setEditMode(true);
+                  setShowDeleteConfirm(false);
+                  setFormErrors([]);
+                }}
                 disabled={submitting || deleteSubmitting}
                 style={{
                   padding: '6px 14px', background: editMode ? '#DBEAFE' : '#F0F7FF', color: '#1D4ED8',

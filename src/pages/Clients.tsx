@@ -107,13 +107,17 @@ export default function Clients() {
   }, [loadClients]);
 
   useEffect(() => {
-    if (selected) {
-      setForm(clientToForm(selected));
-      setEditMode(false);
-      setShowDeleteConfirm(false);
-      setFormErrors([]);
-    }
+    setEditMode(false);
+    setShowDeleteConfirm(false);
+    setFormErrors([]);
   }, [selected?.id]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const fresh = clients.find((c) => c.id === selected.id) ?? selected;
+    setSelected(fresh);
+    setForm((current) => (editMode ? current : clientToForm(fresh)));
+  }, [selected?.id, clients, editMode]);
 
   const openCreateForm = () => {
     setCreateForm(emptyForm);
@@ -373,7 +377,12 @@ export default function Clients() {
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
               <button
                 type="button"
-                onClick={() => { setEditMode(true); setShowDeleteConfirm(false); setFormErrors([]); }}
+                onClick={() => {
+                  setForm(clientToForm(selected));
+                  setEditMode(true);
+                  setShowDeleteConfirm(false);
+                  setFormErrors([]);
+                }}
                 disabled={submitting || deleteSubmitting}
                 style={{
                   flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #BFDBFE',
