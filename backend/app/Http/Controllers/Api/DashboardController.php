@@ -46,21 +46,21 @@ class DashboardController extends Controller
             ])
             ->values();
 
+        $invoicePeriodSql = $this->invoicePeriodSql();
+
         $monthlyStats = FinanceRecord::query()
-            ->selectRaw("strftime('%Y-%m', invoice_date) as period")
+            ->selectRaw("{$invoicePeriodSql} as period")
             ->selectRaw('count(*) as shipments')
             ->selectRaw('sum(total_amount) as revenue')
             ->whereNotNull('invoice_date')
-            ->groupBy('period')
-            ->orderBy('period')
+            ->groupBy(DB::raw($invoicePeriodSql))
+            ->orderBy(DB::raw($invoicePeriodSql))
             ->get()
             ->map(fn ($row) => [
                 'month' => $row->period,
                 'shipments' => (int) $row->shipments,
                 'revenue' => (float) $row->revenue,
             ]);
-
-        // SQLite strftime works in tests; MySQL would need date_format — acceptable for MVP seed data.
 
         $managers = Manager::query()
             ->withCount([
@@ -98,5 +98,17 @@ class DashboardController extends Controller
                 ],
             ],
         ]);
+    }
+
+    /**
+     * SQL expression for grouping finance records by YYYY-MM (driver-specific).
+     */
+    private function invoicePeriodSql(): string
+    {
+        return match (DB::connection()->getDriverName()) {
+            'pgsql' => "to_char(invoice_date, 'YYYY-MM')",
+            'sqlite' => "strftime('%Y-%m', invoice_date)",
+            default => "strftime('%Y-%m', invoice_date)",
+        };
     }
 }
