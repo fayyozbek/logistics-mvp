@@ -20,6 +20,10 @@ Open **http://localhost:5173** in a browser.
 pre-demo checks and a step-by-step walkthrough of
 https://logistics-mvp-sigma.vercel.app.
 
+**MVP+ client demo scope:** see [docs/MVP_PLUS_SCOPE.md](docs/MVP_PLUS_SCOPE.md) for
+the fuller operational demo (CRUD, Excel, validation, autocomplete) and what stays
+out of scope (auth, payments, Telegram send, PDF).
+
 > **Without a running backend** the app still works — every read request
 > falls back to `src/data/mock.ts` automatically. Write actions (add
 > checkpoint, update status, save Telegram settings) will show an error
@@ -220,6 +224,7 @@ Open your Vercel URL — the app should load live data from the Render API.
 | `backend/` | Laravel JSON API |
 | `docs/` | Project documentation |
 | `docs/DEMO_SCRIPT.md` | Stakeholder demo script (production URLs) |
+| `docs/MVP_PLUS_SCOPE.md` | MVP+ client demo scope, QA matrix, implementation order |
 | `.env.example` | Frontend environment template |
 | `backend/.env.example` | Backend environment template |
 | `render.yaml` | Render Postgres database blueprint |
