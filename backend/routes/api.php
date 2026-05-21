@@ -26,6 +26,7 @@ Route::delete('/shipments/{shipment}', [ShipmentController::class, 'destroy']);
 Route::patch('/shipments/{shipment}/status', [ShipmentController::class, 'updateStatus']);
 Route::post('/shipments/{shipment}/checkpoints', [CheckpointController::class, 'store']);
 Route::patch('/checkpoints/{checkpoint}', [CheckpointController::class, 'update']);
+Route::delete('/checkpoints/{checkpoint}', [CheckpointController::class, 'destroy']);
 Route::get('/tracking', [TrackingController::class, 'index']);
 Route::get('/clients', [ClientController::class, 'index']);
 Route::post('/clients', [ClientController::class, 'store']);

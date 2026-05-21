@@ -90,4 +90,24 @@ class CheckpointController extends Controller
             'checkpoint' => (new CheckpointResource($checkpoint->fresh()))->resolve(),
         ]);
     }
+
+    public function destroy(Checkpoint $checkpoint): JsonResponse
+    {
+        $checkpointId = (string) $checkpoint->id;
+        $shipment = $checkpoint->shipment;
+
+        DB::transaction(function () use ($checkpoint, $shipment) {
+            $checkpoint->delete();
+
+            $remaining = $shipment->checkpoints()->orderBy('sequence')->get();
+            foreach ($remaining as $index => $item) {
+                $item->update(['sequence' => $index + 1]);
+            }
+        });
+
+        return response()->json([
+            'message' => 'Checkpoint deleted.',
+            'checkpointId' => $checkpointId,
+        ]);
+    }
 }

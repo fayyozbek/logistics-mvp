@@ -10,6 +10,7 @@ export {
   createClient,
   createManager,
   createShipment,
+  deleteCheckpoint,
   deleteClient,
   deleteManager,
   deleteShipment,

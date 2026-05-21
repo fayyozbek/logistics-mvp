@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, Search, Send, X } from 'lucide-react';
+import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, Search, Send, Trash2, X } from 'lucide-react';
 import { clients, managers, type CheckPoint, type Shipment } from '../data/mock';
-import { addShipmentCheckpoint, ApiError, getTrackingData, handleApiLoadFailure, updateCheckpoint } from '../api';
+import { addShipmentCheckpoint, ApiError, deleteCheckpoint, getTrackingData, handleApiLoadFailure, updateCheckpoint } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 import { toastErrors, useToast } from '../components/ToastProvider';
 
@@ -316,6 +316,8 @@ export default function Tracking() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [checkpointUpdatingId, setCheckpointUpdatingId] = useState<string | null>(null);
+  const [checkpointDeleteConfirmId, setCheckpointDeleteConfirmId] = useState<string | null>(null);
+  const [checkpointDeletingId, setCheckpointDeletingId] = useState<string | null>(null);
   const { showToast } = useToast();
   const [newPoint, setNewPoint] = useState<NewPoint>(emptyPoint);
   const [citySearch, setCitySearch] = useState('');
@@ -328,6 +330,10 @@ export default function Tracking() {
     const selectedId = keepSelectedId ?? selected?.id;
     setSelected(mapped.find((s) => s.id === selectedId) ?? mapped[0] ?? null);
   };
+
+  useEffect(() => {
+    setCheckpointDeleteConfirmId(null);
+  }, [selected?.id]);
 
   useEffect(() => {
     getTrackingData()
@@ -424,6 +430,28 @@ export default function Tracking() {
       }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleCheckpointDelete = async (checkpoint: CheckPoint) => {
+    if (!selected) return;
+
+    setCheckpointDeletingId(checkpoint.id);
+    try {
+      await deleteCheckpoint(checkpoint.id);
+      await refreshTracking(selected.id);
+      setCheckpointDeleteConfirmId(null);
+      showToast(`Точка ${checkpoint.city} удалена из маршрута`);
+    } catch (error) {
+      if (error instanceof ApiError && error.validationErrors) {
+        toastErrors(showToast, formatFieldErrors(error.validationErrors));
+      } else if (error instanceof ApiError) {
+        showToast(error.message, 'error');
+      } else {
+        showToast('Не удалось удалить точку. Проверьте подключение к API.', 'error');
+      }
+    } finally {
+      setCheckpointDeletingId(null);
     }
   };
 
@@ -679,6 +707,62 @@ export default function Tracking() {
                         <Send size={11} />
                         Telegram: {telegramText}
                       </div>
+                      {checkpointDeleteConfirmId === checkpoint.id ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                          <div style={{ fontSize: 11, color: '#B91C1C', fontWeight: 800, maxWidth: 180, textAlign: 'right' }}>
+                            Удалить {checkpoint.city}?
+                          </div>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              type="button"
+                              onClick={() => setCheckpointDeleteConfirmId(null)}
+                              disabled={checkpointDeletingId === checkpoint.id}
+                              style={{
+                                padding: '5px 10px', borderRadius: 8, border: '1px solid #E2E8F0',
+                                background: '#fff', color: '#64748B', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                              }}
+                            >
+                              Отмена
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleCheckpointDelete(checkpoint)}
+                              disabled={checkpointDeletingId === checkpoint.id}
+                              style={{
+                                padding: '5px 10px', borderRadius: 8, border: 'none',
+                                background: checkpointDeletingId === checkpoint.id ? '#94A3B8' : '#DC2626',
+                                color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                              }}
+                            >
+                              {checkpointDeletingId === checkpoint.id ? 'Удаление...' : 'Удалить'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setCheckpointDeleteConfirmId(checkpoint.id)}
+                          disabled={checkpointDeletingId !== null || checkpointUpdatingId === checkpoint.id}
+                          aria-label={`Удалить точку ${checkpoint.city}`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '5px 9px',
+                            borderRadius: 8,
+                            border: '1px solid #FECACA',
+                            background: '#FEF2F2',
+                            color: '#B91C1C',
+                            fontSize: 10,
+                            fontWeight: 800,
+                            cursor: (checkpointDeletingId !== null || checkpointUpdatingId === checkpoint.id) ? 'not-allowed' : 'pointer',
+                            opacity: (checkpointDeletingId !== null || checkpointUpdatingId === checkpoint.id) ? 0.6 : 1,
+                          }}
+                        >
+                          <Trash2 size={12} />
+                          Удалить
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

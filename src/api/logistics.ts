@@ -1,6 +1,7 @@
 import type {
   AddShipmentCheckpointPayload,
   CheckpointResponse,
+  DeleteCheckpointResponse,
   ClientResponse,
   ClientsResponse,
   CreateClientPayload,
@@ -274,4 +275,15 @@ export function updateCheckpoint(
 
   const encodedId = encodeURIComponent(checkpointId);
   return patchJson<CheckpointResponse>(`/checkpoints/${encodedId}`, payload);
+}
+
+export function deleteCheckpoint(checkpointId: string): Promise<DeleteCheckpointResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Удаление точек маршрута доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  const encodedId = encodeURIComponent(checkpointId);
+  return deleteJson<DeleteCheckpointResponse>(`/checkpoints/${encodedId}`);
 }

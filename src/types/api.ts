@@ -86,6 +86,11 @@ export interface CheckpointResponse {
   checkpoint: CheckPoint;
 }
 
+export interface DeleteCheckpointResponse {
+  message: string;
+  checkpointId: string;
+}
+
 export interface CreateShipmentPayload {
   clientId: number;
   managerId?: number;
