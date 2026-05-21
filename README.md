@@ -16,6 +16,10 @@ VITE_API_BASE_URL=http://127.0.0.1:8000/api npm run dev -- --host localhost --po
 
 Open **http://localhost:5173** in a browser.
 
+**Stakeholder demo (production):** see [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) for
+pre-demo checks and a step-by-step walkthrough of
+https://logistics-mvp-sigma.vercel.app.
+
 > **Without a running backend** the app still works — every read request
 > falls back to `src/data/mock.ts` automatically. Write actions (add
 > checkpoint, update status, save Telegram settings) will show an error
@@ -215,6 +219,7 @@ Open your Vercel URL — the app should load live data from the Render API.
 | `src/data/mock.ts` | Mock data (offline fallback) |
 | `backend/` | Laravel JSON API |
 | `docs/` | Project documentation |
+| `docs/DEMO_SCRIPT.md` | Stakeholder demo script (production URLs) |
 | `.env.example` | Frontend environment template |
 | `backend/.env.example` | Backend environment template |
 | `render.yaml` | Render Postgres database blueprint |
