@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { Bell, Search } from 'lucide-react';
+import { Bell, Menu, Search } from 'lucide-react';
 import NotificationsPanel, { taskNotifications } from './NotificationsPanel';
 
 interface HeaderProps {
   title: string;
   subtitle?: string;
+  onMenuClick?: () => void;
+  showMenuButton?: boolean;
 }
 
-export default function Header({ title, subtitle }: HeaderProps) {
+export default function Header({ title, subtitle, onMenuClick, showMenuButton = false }: HeaderProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const unreadCount = taskNotifications.filter((item) => item.unread).length;
 
@@ -19,21 +21,26 @@ export default function Header({ title, subtitle }: HeaderProps) {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         flexShrink: 0,
       }}>
-        <div>
-          <h1 style={{ fontSize: 17, fontWeight: 700, color: '#0F172A', margin: 0 }}>{title}</h1>
-          {subtitle && <p style={{ fontSize: 12, color: '#94A3B8', margin: 0 }}>{subtitle}</p>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          {showMenuButton && (
+            <button
+              type="button"
+              className="header-menu-btn"
+              aria-label="Открыть меню"
+              onClick={onMenuClick}
+            >
+              <Menu size={20} />
+            </button>
+          )}
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ fontSize: 17, fontWeight: 700, color: '#0F172A', margin: 0 }}>{title}</h1>
+            {subtitle && <p style={{ fontSize: 12, color: '#94A3B8', margin: 0 }}>{subtitle}</p>}
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* Search */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: '#F1F5F9', borderRadius: 8, padding: '6px 12px',
-          }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          <div className="header-search">
             <Search size={14} color="#94A3B8" />
-            <input
-              placeholder="Поиск грузов, клиентов..."
-              style={{ border: 'none', background: 'transparent', fontSize: 13, color: '#0F172A', outline: 'none', width: 200 }}
-            />
+            <input placeholder="Поиск грузов, клиентов..." />
           </div>
           {/* Bell */}
           <button
@@ -57,7 +64,7 @@ export default function Header({ title, subtitle }: HeaderProps) {
             }}>{unreadCount}</div>
           </button>
           {/* Date */}
-          <div style={{ fontSize: 12, color: '#94A3B8' }}>
+          <div className="header-date">
             {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
         </div>

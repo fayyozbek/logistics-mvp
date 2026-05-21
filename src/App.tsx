@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './pages/Dashboard';
@@ -11,6 +11,7 @@ import Telegram from './pages/Telegram';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
 import Archive from './pages/Archive';
+import { useMediaQuery } from './hooks/useMediaQuery';
 
 export type Page = 'dashboard' | 'shipments' | 'tracking' | 'managers' | 'clients' | 'finance' | 'users' | 'archive' | 'telegram' | 'settings';
 
@@ -29,14 +30,45 @@ const pageTitles: Record<Page, { title: string; subtitle: string }> = {
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const isMobileNav = useMediaQuery('(max-width: 1023px)');
   const { title, subtitle } = pageTitles[page];
 
+  useEffect(() => {
+    if (!isMobileNav) setMobileNavOpen(false);
+  }, [isMobileNav]);
+
+  useEffect(() => {
+    if (!isMobileNav || !mobileNavOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileNav, mobileNavOpen]);
+
+  const handleNavigate = (nextPage: Page) => {
+    setPage(nextPage);
+    if (isMobileNav) setMobileNavOpen(false);
+  };
+
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#F0F2F8' }}>
-      <Sidebar currentPage={page} onNavigate={setPage} />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflowX: 'hidden' }}>
-        <Header title={title} subtitle={subtitle} />
-        <main style={{ flex: 1, overflowY: 'auto' }}>
+    <div className="app-shell">
+      <Sidebar
+        currentPage={page}
+        onNavigate={handleNavigate}
+        isMobile={isMobileNav}
+        mobileOpen={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+      />
+      <div className="app-main">
+        <Header
+          title={title}
+          subtitle={subtitle}
+          showMenuButton={isMobileNav}
+          onMenuClick={() => setMobileNavOpen(true)}
+        />
+        <main className="app-main-content">
           {page === 'dashboard' && <Dashboard />}
           {page === 'shipments' && <Shipments />}
           {page === 'tracking' && <Tracking />}
