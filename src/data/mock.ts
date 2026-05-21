@@ -20,6 +20,8 @@ export interface Manager {
   phone: string;
   telegramId: string;
   region: string;
+  role?: string;
+  department?: string;
   activeShipments: number;
 }
 

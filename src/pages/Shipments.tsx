@@ -232,6 +232,11 @@ export default function Shipments() {
     setClients(data);
   };
 
+  const refreshManagers = async () => {
+    const { managers: data } = await getManagers();
+    setManagers(data);
+  };
+
   useEffect(() => {
     Promise.all([getShipments(), getManagers(), getClients()])
       .then(([shipmentsRes, managersRes, clientsRes]) => {
@@ -391,7 +396,7 @@ export default function Shipments() {
     setFormErrors([]);
     setSuccessMessage('');
     setStatusSuccessMessage('');
-    void refreshClients();
+    void Promise.all([refreshClients(), refreshManagers()]);
     setShowCreateForm(true);
   };
 

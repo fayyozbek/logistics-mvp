@@ -169,6 +169,37 @@ export interface ManagersResponse {
   shipments: Shipment[];
 }
 
+export interface ManagerResponse {
+  manager: Manager;
+}
+
+export interface CreateManagerPayload {
+  name: string;
+  email?: string;
+  phone?: string;
+  telegramId?: string;
+  region?: string;
+  role?: string;
+  department?: string;
+  avatar?: string;
+}
+
+export interface UpdateManagerPayload {
+  name?: string;
+  email?: string;
+  phone?: string;
+  telegramId?: string;
+  region?: string;
+  role?: string;
+  department?: string;
+  avatar?: string;
+}
+
+export interface DeleteManagerResponse {
+  message: string;
+  managerId: string;
+}
+
 export interface FinanceResponse {
   financeRecords: FinanceRecord[];
   clients: Client[];

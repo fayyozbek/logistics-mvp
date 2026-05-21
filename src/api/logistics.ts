@@ -10,6 +10,9 @@ import type {
   FinanceRecordResponse,
   FinanceResponse,
   UpdateFinanceStatusPayload,
+  CreateManagerPayload,
+  DeleteManagerResponse,
+  ManagerResponse,
   ManagersResponse,
   ShipmentResponse,
   ShipmentsResponse,
@@ -19,6 +22,7 @@ import type {
   TrackingResponse,
   DeleteShipmentResponse,
   UpdateClientPayload,
+  UpdateManagerPayload,
   UpdateCheckpointPayload,
   UpdateShipmentPayload,
   UpdateShipmentStatusPayload,
@@ -53,7 +57,39 @@ export function getTrackingData(): Promise<TrackingResponse> {
 }
 
 export function getManagers(): Promise<ManagersResponse> {
-  return requestWithMockFallback('/managers', getManagersMock);
+  return requestWithMockFallback('/managers/overview', getManagersMock);
+}
+
+export function createManager(payload: CreateManagerPayload): Promise<ManagerResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Создание менеджера доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  return postJson<ManagerResponse>('/managers', payload);
+}
+
+export function updateManager(id: string, payload: UpdateManagerPayload): Promise<ManagerResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Редактирование менеджера доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  const encodedId = encodeURIComponent(id);
+  return patchJson<ManagerResponse>(`/managers/${encodedId}`, payload);
+}
+
+export function deleteManager(id: string): Promise<DeleteManagerResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Удаление менеджера доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  const encodedId = encodeURIComponent(id);
+  return deleteJson<DeleteManagerResponse>(`/managers/${encodedId}`);
 }
 
 export function getClients(): Promise<ClientsResponse> {

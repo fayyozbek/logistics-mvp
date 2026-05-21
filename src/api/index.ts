@@ -2,8 +2,10 @@ export { ApiError, getApiBaseUrl, isApiConfigured } from './client';
 export {
   addShipmentCheckpoint,
   createClient,
+  createManager,
   createShipment,
   deleteClient,
+  deleteManager,
   deleteShipment,
   getClient,
   getClients,
@@ -15,6 +17,7 @@ export {
   getTelegramSettings,
   getTrackingData,
   updateClient,
+  updateManager,
   updateCheckpoint,
   updateFinanceStatus,
   updateShipment,
