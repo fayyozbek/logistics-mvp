@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateShipmentStatusRequest;
 use App\Http\Resources\ShipmentResource;
 use App\Models\Checkpoint;
 use App\Models\Shipment;
+use App\Services\TrackingNumberGenerator;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,9 @@ use Illuminate\Support\Facades\DB;
 
 class ShipmentController extends Controller
 {
+    public function __construct(
+        private readonly TrackingNumberGenerator $trackingNumberGenerator,
+    ) {}
     public function index(Request $request): JsonResponse
     {
         $query = Shipment::query()
@@ -74,7 +78,7 @@ class ShipmentController extends Controller
 
         $shipment = DB::transaction(function () use ($validated) {
             $shipment = Shipment::query()->create([
-                'tracking_number' => $validated['trackingNumber'] ?? $this->generateTrackingNumber(),
+                'tracking_number' => $validated['trackingNumber'] ?? $this->trackingNumberGenerator->next(),
                 'transport_type' => $validated['type'],
                 'status' => $validated['status'] ?? 'planned',
                 'client_id' => $validated['clientId'],
@@ -114,21 +118,4 @@ class ShipmentController extends Controller
         ], 201);
     }
 
-    private function generateTrackingNumber(): string
-    {
-        $year = now()->year;
-        $prefix = "LGX-{$year}-";
-
-        $latest = Shipment::query()
-            ->where('tracking_number', 'like', $prefix.'%')
-            ->orderByDesc('tracking_number')
-            ->value('tracking_number');
-
-        $next = 1;
-        if (is_string($latest) && preg_match('/-(\d+)$/', $latest, $matches)) {
-            $next = (int) $matches[1] + 1;
-        }
-
-        return $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
-    }
 }

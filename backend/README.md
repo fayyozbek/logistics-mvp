@@ -58,6 +58,13 @@ php artisan test
 | GET | `/api/telegram/settings` | Telegram bot settings |
 | PATCH | `/api/telegram/settings` | Save Telegram settings |
 
+## Tracking numbers
+
+Auto-generated numbers use the format `LGX-YYYY-NNNN` (e.g. `LGX-2026-0562`).
+A persistent `tracking_number_counters` table stores the last sequence per calendar
+year so numbers are **monotonic** and are **not reused** when shipments are deleted.
+Demo seeders sync the counter from existing demo shipments after `ShipmentSeeder`.
+
 ## Finance amounts (MVP)
 
 `PATCH /api/finance/{id}/status` accepts **`status` only** (no payment gateway or
