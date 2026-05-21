@@ -1,7 +1,11 @@
 import type {
   AddShipmentCheckpointPayload,
   CheckpointResponse,
+  ClientResponse,
+  ClientsResponse,
+  CreateClientPayload,
   CreateShipmentPayload,
+  DeleteClientResponse,
   DashboardData,
   FinanceRecordResponse,
   FinanceResponse,
@@ -14,12 +18,14 @@ import type {
   UpdateTelegramSettingsResponse,
   TrackingResponse,
   DeleteShipmentResponse,
+  UpdateClientPayload,
   UpdateCheckpointPayload,
   UpdateShipmentPayload,
   UpdateShipmentStatusPayload,
 } from '../types/api';
 import { ApiError, deleteJson, isApiConfigured, patchJson, postJson, requestWithMockFallback } from './client';
 import {
+  getClientsMock,
   getDashboardDataMock,
   getFinanceMock,
   getManagersMock,
@@ -48,6 +54,53 @@ export function getTrackingData(): Promise<TrackingResponse> {
 
 export function getManagers(): Promise<ManagersResponse> {
   return requestWithMockFallback('/managers', getManagersMock);
+}
+
+export function getClients(): Promise<ClientsResponse> {
+  return requestWithMockFallback('/clients', getClientsMock);
+}
+
+export function getClient(id: string): Promise<ClientResponse> {
+  const encodedId = encodeURIComponent(id);
+  return requestWithMockFallback(`/clients/${encodedId}`, () => {
+    const client = getClientsMock().clients.find((item) => item.id === id);
+    if (!client) {
+      throw new Error(`Client not found: ${id}`);
+    }
+    return { client };
+  });
+}
+
+export function createClient(payload: CreateClientPayload): Promise<ClientResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Создание партнёра доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  return postJson<ClientResponse>('/clients', payload);
+}
+
+export function updateClient(id: string, payload: UpdateClientPayload): Promise<ClientResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Редактирование партнёра доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  const encodedId = encodeURIComponent(id);
+  return patchJson<ClientResponse>(`/clients/${encodedId}`, payload);
+}
+
+export function deleteClient(id: string): Promise<DeleteClientResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Удаление партнёра доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  const encodedId = encodeURIComponent(id);
+  return deleteJson<DeleteClientResponse>(`/clients/${encodedId}`);
 }
 
 export function getFinance(): Promise<FinanceResponse> {

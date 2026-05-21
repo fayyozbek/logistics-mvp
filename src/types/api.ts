@@ -128,6 +128,41 @@ export interface TrackingResponse {
   shipments: Shipment[];
 }
 
+export interface ClientsResponse {
+  clients: Client[];
+}
+
+export interface ClientResponse {
+  client: Client;
+}
+
+export interface CreateClientPayload {
+  company: string;
+  name?: string;
+  contact?: string;
+  email?: string;
+  phone?: string;
+  country?: string;
+  city?: string;
+  address?: string;
+}
+
+export interface UpdateClientPayload {
+  company?: string;
+  name?: string;
+  contact?: string;
+  email?: string;
+  phone?: string;
+  country?: string;
+  city?: string;
+  address?: string;
+}
+
+export interface DeleteClientResponse {
+  message: string;
+  clientId: string;
+}
+
 export interface ManagersResponse {
   managers: Manager[];
   clients: Client[];

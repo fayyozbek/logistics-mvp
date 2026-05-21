@@ -13,6 +13,7 @@ import type {
   ShipmentResponse,
   ShipmentsResponse,
   TelegramSettingsResponse,
+  ClientsResponse,
   TrackingResponse,
 } from '../types/api';
 
@@ -80,6 +81,10 @@ export function getShipmentMock(id: string): ShipmentResponse {
 
 export function getTrackingDataMock(): TrackingResponse {
   return { shipments };
+}
+
+export function getClientsMock(): ClientsResponse {
+  return { clients };
 }
 
 export function getManagersMock(): ManagersResponse {

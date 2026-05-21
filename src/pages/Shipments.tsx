@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Client, Manager, Shipment, ShipmentStatus, TransportType } from '../data/mock';
-import { ApiError, createShipment, deleteShipment, getManagers, getShipments, updateShipment, updateShipmentStatus } from '../api';
+import { ApiError, createShipment, deleteShipment, getClients, getManagers, getShipments, updateShipment, updateShipmentStatus } from '../api';
 import type { CreateShipmentPayload, UpdateShipmentPayload } from '../types/api';
 
 const statusColors: Record<string, string> = {
@@ -227,12 +227,17 @@ export default function Shipments() {
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteErrors, setDeleteErrors] = useState<string[]>([]);
 
+  const refreshClients = async () => {
+    const { clients: data } = await getClients();
+    setClients(data);
+  };
+
   useEffect(() => {
-    Promise.all([getShipments(), getManagers()])
-      .then(([shipmentsRes, managersRes]) => {
+    Promise.all([getShipments(), getManagers(), getClients()])
+      .then(([shipmentsRes, managersRes, clientsRes]) => {
         setShipments(shipmentsRes.shipments);
-        setClients(managersRes.clients);
         setManagers(managersRes.managers);
+        setClients(clientsRes.clients);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -386,6 +391,7 @@ export default function Shipments() {
     setFormErrors([]);
     setSuccessMessage('');
     setStatusSuccessMessage('');
+    void refreshClients();
     setShowCreateForm(true);
   };
 

@@ -30,6 +30,8 @@ export interface Client {
   email: string;
   phone: string;
   country: string;
+  city?: string;
+  address?: string;
 }
 
 export interface FinanceRecord {
