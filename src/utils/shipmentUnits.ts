@@ -1,3 +1,14 @@
+import {
+  formatNumberWithGrouping,
+  parseFormattedNumber,
+  sanitizeFormattedNumberForPayload,
+  stripFormattedNumber,
+} from './numberFormat';
+import {
+  validateAllowedUnit,
+  validatePositiveNumber,
+} from './formValidation';
+
 export const WEIGHT_UNITS = ['kg', 'ton'] as const;
 export const VOLUME_UNITS = ['m3', 'cbm'] as const;
 
@@ -36,63 +47,27 @@ export function resolveVolumeUnit(unit?: string | null): VolumeUnit {
   return VOLUME_UNIT_ALIASES[key] ?? DEFAULT_VOLUME_UNIT;
 }
 
-export function stripQuantityFormatting(value: string): string {
-  return value.replace(/\s/g, '').replace(/,/g, '');
-}
+/** @deprecated Use stripFormattedNumber from numberFormat */
+export const stripQuantityFormatting = stripFormattedNumber;
 
-export function parseQuantityNumber(value: string): number | null {
-  const raw = stripQuantityFormatting(value.trim());
-  if (!raw) return null;
-  if (!/^\d+(\.\d+)?$/.test(raw)) return null;
-  const num = Number(raw);
-  return Number.isFinite(num) ? num : null;
-}
+/** @deprecated Use parseFormattedNumber from numberFormat */
+export const parseQuantityNumber = parseFormattedNumber;
 
-export function formatQuantityDisplay(value: string): string {
-  const raw = stripQuantityFormatting(value.trim());
-  if (!raw) return '';
-  const match = raw.match(/^(\d+)(?:\.(\d+))?$/);
-  if (!match) return value.trim();
+/** @deprecated Use formatNumberWithGrouping from numberFormat */
+export const formatQuantityDisplay = formatNumberWithGrouping;
 
-  const intPart = match[1].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  const fraction = match[2];
-  return fraction !== undefined ? `${intPart}.${fraction}` : intPart;
-}
+/** @deprecated Use sanitizeFormattedNumberForPayload from numberFormat */
+export const sanitizeQuantityForPayload = sanitizeFormattedNumberForPayload;
 
-export function sanitizeQuantityForPayload(value: string): string {
-  const num = parseQuantityNumber(value);
-  if (num === null) return '';
-  return Number.isInteger(num) ? String(num) : String(num);
-}
-
-export function validateQuantityValue(
-  value: string,
-  label: string,
-): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-
-  const raw = stripQuantityFormatting(trimmed);
-  if (!/^\d+(\.\d+)?$/.test(raw)) {
-    return `${label}: введите положительное число`;
-  }
-
-  const num = Number(raw);
-  if (num <= 0) {
-    return `${label}: значение должно быть больше 0`;
-  }
-  if (num > MAX_QUANTITY_VALUE) {
-    return `${label}: слишком большое значение`;
-  }
-
-  return null;
+export function validateQuantityValue(value: string, label: string): string | null {
+  return validatePositiveNumber(value, label, MAX_QUANTITY_VALUE);
 }
 
 export function validateWeightField(value: string, unit: string): string | null {
   const quantityError = validateQuantityValue(value, 'Вес');
   if (quantityError) return quantityError;
-  if (value.trim() && !WEIGHT_UNITS.includes(unit as WeightUnit)) {
-    return 'Вес: выберите единицу (kg или ton)';
+  if (value.trim()) {
+    return validateAllowedUnit(unit, WEIGHT_UNITS, 'Вес', 'kg или ton');
   }
   return null;
 }
@@ -100,8 +75,8 @@ export function validateWeightField(value: string, unit: string): string | null 
 export function validateVolumeField(value: string, unit: string): string | null {
   const quantityError = validateQuantityValue(value, 'Объём');
   if (quantityError) return quantityError;
-  if (value.trim() && !VOLUME_UNITS.includes(unit as VolumeUnit)) {
-    return 'Объём: выберите единицу (m3 или cbm)';
+  if (value.trim()) {
+    return validateAllowedUnit(unit, VOLUME_UNITS, 'Объём', 'm3 или cbm');
   }
   return null;
 }
@@ -109,8 +84,8 @@ export function validateVolumeField(value: string, unit: string): string | null 
 function extractLeadingNumber(value: string): string {
   const match = value.trim().match(/^([\d\s.,]+)/);
   if (!match) return value.trim();
-  const num = parseQuantityNumber(match[1]);
-  return num !== null ? sanitizeQuantityForPayload(match[1]) : value.trim();
+  const num = parseFormattedNumber(match[1]);
+  return num !== null ? sanitizeFormattedNumberForPayload(match[1]) : value.trim();
 }
 
 function extractTrailingUnit(value: string, aliases: Record<string, string>): string | undefined {
@@ -131,7 +106,7 @@ export function parseShipmentWeightForForm(
   if (weightUnit?.trim()) {
     const numeric = extractLeadingNumber(weight);
     return {
-      displayValue: numeric ? formatQuantityDisplay(numeric) : weight.trim(),
+      displayValue: numeric ? formatNumberWithGrouping(numeric) : weight.trim(),
       unit: resolveWeightUnit(weightUnit),
     };
   }
@@ -139,7 +114,7 @@ export function parseShipmentWeightForForm(
   const legacyUnit = extractTrailingUnit(weight, WEIGHT_UNIT_ALIASES);
   const numeric = extractLeadingNumber(weight);
   return {
-    displayValue: numeric ? formatQuantityDisplay(numeric) : weight.trim(),
+    displayValue: numeric ? formatNumberWithGrouping(numeric) : weight.trim(),
     unit: legacyUnit ? resolveWeightUnit(legacyUnit) : DEFAULT_WEIGHT_UNIT,
   };
 }
@@ -155,7 +130,7 @@ export function parseShipmentVolumeForForm(
   if (volumeUnit?.trim()) {
     const numeric = extractLeadingNumber(volume);
     return {
-      displayValue: numeric ? formatQuantityDisplay(numeric) : volume.trim(),
+      displayValue: numeric ? formatNumberWithGrouping(numeric) : volume.trim(),
       unit: resolveVolumeUnit(volumeUnit),
     };
   }
@@ -163,7 +138,7 @@ export function parseShipmentVolumeForForm(
   const legacyUnit = extractTrailingUnit(volume, VOLUME_UNIT_ALIASES);
   const numeric = extractLeadingNumber(volume);
   return {
-    displayValue: numeric ? formatQuantityDisplay(numeric) : volume.trim(),
+    displayValue: numeric ? formatNumberWithGrouping(numeric) : volume.trim(),
     unit: legacyUnit ? resolveVolumeUnit(legacyUnit) : DEFAULT_VOLUME_UNIT,
   };
 }
@@ -185,7 +160,7 @@ export function formatShipmentWeightDisplay(
   if (!weight?.trim()) return undefined;
   const parsed = parseShipmentWeightForForm(weight, weightUnit);
   if (!parsed.displayValue) return undefined;
-  const numeric = parseQuantityNumber(parsed.displayValue) ?? parseQuantityNumber(extractLeadingNumber(weight));
+  const numeric = parseFormattedNumber(parsed.displayValue) ?? parseFormattedNumber(extractLeadingNumber(weight));
   if (numeric === null && parsed.displayValue === weight.trim()) {
     return weight.trim();
   }
@@ -199,7 +174,7 @@ export function formatShipmentVolumeDisplay(
   if (!volume?.trim()) return undefined;
   const parsed = parseShipmentVolumeForForm(volume, volumeUnit);
   if (!parsed.displayValue) return undefined;
-  const numeric = parseQuantityNumber(parsed.displayValue) ?? parseQuantityNumber(extractLeadingNumber(volume));
+  const numeric = parseFormattedNumber(parsed.displayValue) ?? parseFormattedNumber(extractLeadingNumber(volume));
   if (numeric === null && parsed.displayValue === volume.trim()) {
     return volume.trim();
   }
@@ -213,7 +188,7 @@ export function buildWeightPayload(
   const trimmed = value.trim();
   if (!trimmed) return {};
   return {
-    weight: sanitizeQuantityForPayload(trimmed),
+    weight: sanitizeFormattedNumberForPayload(trimmed),
     weightUnit: resolveWeightUnit(unit),
   };
 }
@@ -225,7 +200,7 @@ export function buildVolumePayload(
   const trimmed = value.trim();
   if (!trimmed) return {};
   return {
-    volume: sanitizeQuantityForPayload(trimmed),
+    volume: sanitizeFormattedNumberForPayload(trimmed),
     volumeUnit: resolveVolumeUnit(unit),
   };
 }

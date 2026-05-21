@@ -7,6 +7,7 @@ import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 import PageLoading from '../components/PageLoading';
 import { useToast } from '../components/ToastProvider';
 import { showApiMutationError } from '../utils/apiErrors';
+import { hasRequiredStrings } from '../utils/formValidation';
 import { pluralPoints } from '../utils/shipmentLabels';
 
 const checkpointFieldLabels: Record<string, string> = {
@@ -377,7 +378,7 @@ export default function Tracking() {
   };
 
   const handleAddPoint = async () => {
-    if (!selected || !newPoint.city.trim() || !newPoint.address.trim()) return;
+    if (!selected || !hasRequiredStrings(newPoint.city, newPoint.address)) return;
 
     setSubmitting(true);
 
@@ -901,16 +902,16 @@ export default function Tracking() {
               <button
                 type="button"
                 onClick={() => void handleAddPoint()}
-                disabled={submitting || !newPoint.city.trim() || !newPoint.address.trim()}
+                disabled={submitting || !hasRequiredStrings(newPoint.city, newPoint.address)}
                 style={{
                   minWidth: 230,
                   padding: '13px 22px',
                   border: 'none',
-                  background: submitting || !newPoint.city.trim() || !newPoint.address.trim() ? '#E2E8F0' : '#2563EB',
-                  color: submitting || !newPoint.city.trim() || !newPoint.address.trim() ? '#94A3B8' : '#fff',
+                  background: submitting || !hasRequiredStrings(newPoint.city, newPoint.address) ? '#E2E8F0' : '#2563EB',
+                  color: submitting || !hasRequiredStrings(newPoint.city, newPoint.address) ? '#94A3B8' : '#fff',
                   borderRadius: 14,
                   fontWeight: 950,
-                  cursor: submitting || !newPoint.city.trim() || !newPoint.address.trim() ? 'not-allowed' : 'pointer',
+                  cursor: submitting || !hasRequiredStrings(newPoint.city, newPoint.address) ? 'not-allowed' : 'pointer',
                   fontSize: 14,
                   display: 'flex',
                   alignItems: 'center',

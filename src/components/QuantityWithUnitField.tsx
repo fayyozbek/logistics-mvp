@@ -1,7 +1,10 @@
 import { useState, type CSSProperties } from 'react';
+import { normalizeDecimalInput } from '../utils/formValidation';
 import {
-  formatQuantityDisplay,
-  stripQuantityFormatting,
+  formatNumberWithGrouping,
+  stripFormattedNumber,
+} from '../utils/numberFormat';
+import {
   validateQuantityValue,
   type VolumeUnit,
   type WeightUnit,
@@ -52,13 +55,10 @@ export function QuantityWithUnitField({
     outline: 'none',
   };
 
-  const displayValue = focused ? value : (value.trim() ? formatQuantityDisplay(value) : '');
+  const displayValue = focused ? value : (value.trim() ? formatNumberWithGrouping(value) : '');
 
   const handleChange = (raw: string) => {
-    const cleaned = stripQuantityFormatting(raw).replace(/[^\d.]/g, '');
-    const parts = cleaned.split('.');
-    const normalized =
-      parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
+    const normalized = normalizeDecimalInput(raw);
     onValueChange(normalized);
     setLocalError(validateQuantityValue(normalized, quantityLabel));
   };
@@ -78,12 +78,12 @@ export function QuantityWithUnitField({
             disabled={disabled}
             onFocus={() => {
               setFocused(true);
-              if (value.trim()) onValueChange(stripQuantityFormatting(value));
+              if (value.trim()) onValueChange(stripFormattedNumber(value));
             }}
             onBlur={() => {
               setFocused(false);
               if (value.trim()) {
-                onValueChange(formatQuantityDisplay(value));
+                onValueChange(formatNumberWithGrouping(value));
                 setLocalError(validateQuantityValue(value, quantityLabel));
               } else {
                 setLocalError(null);

@@ -18,6 +18,7 @@ import { getDashboardData, handleApiLoadFailure } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 import PageLoading from '../components/PageLoading';
 import type { DashboardData } from '../types/api';
+import { formatMoneyUsdCompact } from '../utils/numberFormat';
 
 // Fallback chart data shown while the API response is in flight.
 const moneyByMonthFallback = [
@@ -85,11 +86,6 @@ function daysInMonth(monthValue: string): number {
 function formatDateLabel(iso: string): string {
   const date = new Date(`${iso}T12:00:00`);
   return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function formatMoney(value: number) {
-  if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-  return `$${Math.round(value / 1000)}k`;
 }
 
 function StatCard({
@@ -423,11 +419,11 @@ export default function Dashboard() {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr 1fr 1fr 1fr', gap: 16 }}>
-        <StatCard title="Месячный оборот" value={formatMoney(monthlyTurnover)} note="+18% к августу" bg="#DDEBFF" color="#0B4CB8" dark />
-        <StatCard title="Пришло денег" value={formatMoney(totalPaid)} note={monthlyTurnover > 0 ? `${Math.round((totalPaid / monthlyTurnover) * 100)}% собрано` : '—'} bg="#EAF2FF" color="#0B4CB8" />
+        <StatCard title="Месячный оборот" value={formatMoneyUsdCompact(monthlyTurnover)} note="+18% к августу" bg="#DDEBFF" color="#0B4CB8" dark />
+        <StatCard title="Пришло денег" value={formatMoneyUsdCompact(totalPaid)} note={monthlyTurnover > 0 ? `${Math.round((totalPaid / monthlyTurnover) * 100)}% собрано` : '—'} bg="#EAF2FF" color="#0B4CB8" />
         <StatCard title="Активные грузы" value={`${activeShipments}`} note={activeShipments + completedShipments > 0 ? `${Math.round((activeShipments / (activeShipments + completedShipments)) * 100)}% от всех` : '—'} bg="#F8FAFC" color="#2563EB" />
         <StatCard title="Завершено" value={`${completedShipments}`} note="за период" bg="#F8FAFC" color="#334155" />
-        <StatCard title="К получению" value={formatMoney(receivable)} note="по клиентам" bg="#EAF2FF" color="#1D4ED8" />
+        <StatCard title="К получению" value={formatMoneyUsdCompact(receivable)} note="по клиентам" bg="#EAF2FF" color="#1D4ED8" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
@@ -464,7 +460,7 @@ export default function Dashboard() {
               <CartesianGrid vertical={false} stroke="#EEF2FF" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={(value) => `$${Number(value) / 1000}k`} />
-              <Tooltip contentStyle={{ borderRadius: 14, border: '1px solid #E2E8F0', fontSize: 12 }} formatter={(value) => `$${Number(value).toLocaleString()}`} />
+              <Tooltip contentStyle={{ borderRadius: 14, border: '1px solid #E2E8F0', fontSize: 12 }} formatter={(value) => formatMoneyUsdCompact(Number(value))} />
               <Line type="monotone" dataKey="turnover" stroke="#0B4CB8" strokeWidth={3} dot={false} name="Оборот" />
               <Line type="monotone" dataKey="paid" stroke="#93C5FD" strokeWidth={3} dot={false} name="Пришло денег" />
             </LineChart>

@@ -7,6 +7,7 @@ import InlineConfirm from '../components/InlineConfirm';
 import PageLoading from '../components/PageLoading';
 import { useToast } from '../components/ToastProvider';
 import { formatFieldErrors } from '../utils/apiErrors';
+import { hasRequiredStrings } from '../utils/formValidation';
 import { shipmentStatusColors, shipmentStatusLabels } from '../utils/shipmentLabels';
 import type { CreateManagerPayload, UpdateManagerPayload } from '../types/api';
 
@@ -415,7 +416,7 @@ export default function Managers() {
                 <button type="button" onClick={() => { setEditMode(false); setForm(managerToForm(selected)); setFormErrors([]); }} disabled={submitting} style={{
                   flex: 1, padding: '9px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600,
                 }}>Отмена</button>
-                <button type="button" onClick={() => void handleEditSubmit()} disabled={submitting || !form.name.trim()} style={{
+                <button type="button" onClick={() => void handleEditSubmit()} disabled={submitting || !hasRequiredStrings(form.name)} style={{
                   flex: 1, padding: '9px 14px', borderRadius: 8, border: 'none',
                   background: submitting ? '#94A3B8' : '#3B82F6', color: '#fff', fontSize: 12, fontWeight: 700,
                 }}>
@@ -481,7 +482,7 @@ export default function Managers() {
                 <button type="button" onClick={closeCreateForm} disabled={submitting} style={{
                   padding: '9px 18px', background: '#fff', color: '#64748B', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13, fontWeight: 600,
                 }}>Отмена</button>
-                <button type="button" onClick={() => void handleCreateSubmit()} disabled={submitting || !createForm.name.trim()} style={{
+                <button type="button" onClick={() => void handleCreateSubmit()} disabled={submitting || !hasRequiredStrings(createForm.name)} style={{
                   padding: '9px 20px', background: submitting ? '#94A3B8' : '#3B82F6', color: '#fff',
                   border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: submitting ? 'not-allowed' : 'pointer',
                 }}>

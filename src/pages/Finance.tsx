@@ -8,6 +8,7 @@ import { showApiMutationError } from '../utils/apiErrors';
 import { useToast } from '../components/ToastProvider';
 import type { FinanceReportSummary } from '../types/api';
 import { buildFinanceReport, formatReportMonthLabel } from '../utils/financeReport';
+import { formatMoneyUsd } from '../utils/numberFormat';
 
 const statusConfig = {
   paid: { label: 'Оплачен', color: '#10B981', bg: '#F0FDF4' },
@@ -134,10 +135,10 @@ export default function Finance() {
       {/* Report summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {[
-          { label: 'Выставлено', value: `$${totalRevenue.toLocaleString()}`, sub: `${financeRecords.length} счетов`, color: '#3B82F6' },
-          { label: 'Оплачено', value: `$${totalPaid.toLocaleString()}`, sub: `${paidPercent}% от выставленного`, color: '#10B981' },
-          { label: 'Задолженность', value: `$${totalDebt.toLocaleString()}`, sub: 'Ожидает оплаты', color: '#F59E0B' },
-          { label: 'Просрочено', value: `$${overdueAmount.toLocaleString()}`, sub: `${overdueCount} счетов`, color: '#EF4444' },
+          { label: 'Выставлено', value: formatMoneyUsd(totalRevenue), sub: `${financeRecords.length} счетов`, color: '#3B82F6' },
+          { label: 'Оплачено', value: formatMoneyUsd(totalPaid), sub: `${paidPercent}% от выставленного`, color: '#10B981' },
+          { label: 'Задолженность', value: formatMoneyUsd(totalDebt), sub: 'Ожидает оплаты', color: '#F59E0B' },
+          { label: 'Просрочено', value: formatMoneyUsd(overdueAmount), sub: `${overdueCount} счетов`, color: '#EF4444' },
         ].map((kpi) => (
           <div key={kpi.label} style={{ background: '#fff', borderRadius: 12, padding: '16px 20px', border: '1px solid #F1F5F9' }}>
             <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 500, marginBottom: 6 }}>{kpi.label}</div>
@@ -183,7 +184,7 @@ export default function Finance() {
               <BarChart data={revenueChartData} barGap={4} barSize={14}>
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${Number(v) / 1000}k`} width={42} />
-                <Tooltip contentStyle={{ borderRadius: 8, fontSize: 11 }} formatter={(v) => `$${Number(v ?? 0).toLocaleString()}`} />
+                <Tooltip contentStyle={{ borderRadius: 8, fontSize: 11 }} formatter={(v) => formatMoneyUsd(Number(v ?? 0))} />
                 <Bar dataKey="revenue" fill="#BFDBFE" radius={[3, 3, 0, 0]} name="Выставлено" />
                 <Bar dataKey="paid" fill="#3B82F6" radius={[3, 3, 0, 0]} name="Оплачено" />
               </BarChart>
@@ -256,10 +257,10 @@ export default function Finance() {
                         <div style={{ fontSize: 10, color: '#94A3B8' }}>{client?.contact}</div>
                       </td>
                       <td style={{ padding: '10px 10px', color: '#64748B', fontSize: 11 }}>{f.shipmentId.replace('s', 'LGX-0')}</td>
-                      <td style={{ padding: '10px 10px', fontWeight: 700, color: '#0F172A' }}>${f.totalAmount.toLocaleString()}</td>
-                      <td style={{ padding: '10px 10px', color: '#10B981', fontWeight: 600 }}>${f.paidAmount.toLocaleString()}</td>
+                      <td style={{ padding: '10px 10px', fontWeight: 700, color: '#0F172A' }}>{formatMoneyUsd(f.totalAmount)}</td>
+                      <td style={{ padding: '10px 10px', color: '#10B981', fontWeight: 600 }}>{formatMoneyUsd(f.paidAmount)}</td>
                       <td style={{ padding: '10px 10px', color: debt > 0 ? '#EF4444' : '#94A3B8', fontWeight: debt > 0 ? 700 : 400 }}>
-                        {debt > 0 ? `$${debt.toLocaleString()}` : '—'}
+                        {debt > 0 ? formatMoneyUsd(debt) : '—'}
                       </td>
                       <td style={{ padding: '10px 10px', color: '#94A3B8', fontSize: 11 }}>{f.dueDate}</td>
                       <td style={{ padding: '10px 10px' }}>
@@ -275,7 +276,7 @@ export default function Finance() {
                               {f.items.map(item => (
                                 <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 24, marginBottom: 4 }}>
                                   <span style={{ fontSize: 11, color: '#64748B' }}>{item.label}</span>
-                                  <span style={{ fontSize: 11, fontWeight: 600, color: '#0F172A' }}>${item.amount.toLocaleString()}</span>
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: '#0F172A' }}>{formatMoneyUsd(item.amount)}</span>
                                 </div>
                               ))}
                             </div>
@@ -286,7 +287,7 @@ export default function Finance() {
                                 <div style={{ width: `${(f.paidAmount / f.totalAmount) * 100}%`, height: '100%', background: s.color, borderRadius: 3 }} />
                               </div>
                               <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4 }}>
-                                {Math.round(f.paidAmount / f.totalAmount * 100)}% оплачено · ${(f.totalAmount - f.paidAmount).toLocaleString()} остаток
+                                {Math.round(f.paidAmount / f.totalAmount * 100)}% оплачено · {formatMoneyUsd(f.totalAmount - f.paidAmount)} остаток
                               </div>
                               <div style={{ marginTop: 10 }}>
                                 <div style={{ fontSize: 10, color: '#64748B', fontWeight: 700, marginBottom: 4 }}>Статус счёта</div>
@@ -364,7 +365,7 @@ export default function Finance() {
             <BarChart data={clientData} barGap={3} barSize={16} layout="vertical">
               <XAxis type="number" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={v => `$${v / 1000}k`} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#64748B' }} axisLine={false} tickLine={false} width={60} />
-              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 11 }} formatter={(v) => `$${Number(v ?? 0).toLocaleString()}`} />
+              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 11 }} formatter={(v) => formatMoneyUsd(Number(v ?? 0))} />
               <Bar dataKey="total" fill="#BFDBFE" radius={[0, 3, 3, 0]} name="Выставлено" />
               <Bar dataKey="paid" fill="#3B82F6" radius={[0, 3, 3, 0]} name="Оплачено" />
             </BarChart>
@@ -382,7 +383,7 @@ export default function Finance() {
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#0F172A' }}>{client?.company}</div>
                     <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 20, background: s.bg, color: s.color }}>{s.label}</span>
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: '#EF4444' }}>−${debt.toLocaleString()}</div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: '#EF4444' }}>−{formatMoneyUsd(debt).slice(1)}</div>
                 </div>
               );
             })}
