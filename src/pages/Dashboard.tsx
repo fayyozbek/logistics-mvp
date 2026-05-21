@@ -16,6 +16,7 @@ import {
 import { CalendarDays, ChevronDown, PackageCheck, TrendingUp } from 'lucide-react';
 import { getDashboardData, handleApiLoadFailure } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
+import PageLoading from '../components/PageLoading';
 import type { DashboardData } from '../types/api';
 
 // Fallback chart data shown while the API response is in flight.
@@ -361,17 +362,7 @@ export default function Dashboard() {
   }
 
   if (loading) {
-    return (
-      <div style={{ padding: '22px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
-        <div style={{
-          width: 18, height: 18, borderRadius: '50%',
-          border: '2.5px solid #E2E8F0', borderTopColor: '#0B4CB8',
-          animation: 'spin 0.7s linear infinite',
-        }} />
-        Загрузка...
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
+    return <PageLoading padding="22px 28px" accentColor="#0B4CB8" />;
   }
 
   return (

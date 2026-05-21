@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, Search, Send, Trash2, X } from 'lucide-react';
 import { clients, managers, type CheckPoint, type Shipment } from '../data/mock';
-import { addShipmentCheckpoint, ApiError, deleteCheckpoint, getTrackingData, handleApiLoadFailure, updateCheckpoint } from '../api';
+import { addShipmentCheckpoint, deleteCheckpoint, getTrackingData, handleApiLoadFailure, updateCheckpoint } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
-import { toastErrors, useToast } from '../components/ToastProvider';
+import PageLoading from '../components/PageLoading';
+import { useToast } from '../components/ToastProvider';
+import { showApiMutationError } from '../utils/apiErrors';
+import { pluralPoints } from '../utils/shipmentLabels';
 
 const checkpointFieldLabels: Record<string, string> = {
   city: 'Город',
@@ -14,21 +17,6 @@ const checkpointFieldLabels: Record<string, string> = {
   status: 'Статус',
   note: 'Примечание',
 };
-
-function formatFieldErrors(errors: Record<string, string[]>): string[] {
-  return Object.entries(errors).flatMap(([field, messages]) =>
-    messages.map((message) => {
-      const label = checkpointFieldLabels[field] ?? field;
-      return `${label}: ${message}`;
-    }),
-  );
-}
-
-function pluralPoints(n: number): string {
-  if (n % 10 === 1 && n % 100 !== 11) return `${n} точка`;
-  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return `${n} точки`;
-  return `${n} точек`;
-}
 
 function toPlannedAt(value: string): string {
   if (!value) {
@@ -364,17 +352,7 @@ export default function Tracking() {
   }
 
   if (loading) {
-    return (
-      <div style={{ padding: '20px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
-        <div style={{
-          width: 18, height: 18, borderRadius: '50%',
-          border: '2.5px solid #E2E8F0', borderTopColor: '#2563EB',
-          animation: 'spin 0.7s linear infinite',
-        }} />
-        Загрузка...
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   if (!selected) return null;
@@ -421,13 +399,9 @@ export default function Tracking() {
       showToast(`Точка ${newPoint.city} добавлена в маршрут ${selected.trackingNumber}`);
       closeAddModal();
     } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        toastErrors(showToast, formatFieldErrors(error.validationErrors));
-      } else if (error instanceof ApiError) {
-        showToast(error.message, 'error');
-      } else {
-        showToast('Не удалось добавить точку. Проверьте подключение к API.', 'error');
-      }
+      showApiMutationError(showToast, error, 'Не удалось добавить точку. Проверьте подключение к API.', {
+        fieldLabels: checkpointFieldLabels,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -443,13 +417,9 @@ export default function Tracking() {
       setCheckpointDeleteConfirmId(null);
       showToast(`Точка ${checkpoint.city} удалена из маршрута`);
     } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        toastErrors(showToast, formatFieldErrors(error.validationErrors));
-      } else if (error instanceof ApiError) {
-        showToast(error.message, 'error');
-      } else {
-        showToast('Не удалось удалить точку. Проверьте подключение к API.', 'error');
-      }
+      showApiMutationError(showToast, error, 'Не удалось удалить точку. Проверьте подключение к API.', {
+        fieldLabels: checkpointFieldLabels,
+      });
     } finally {
       setCheckpointDeletingId(null);
     }
@@ -465,13 +435,9 @@ export default function Tracking() {
       await refreshTracking(selected.id);
       showToast('Статус точки маршрута обновлён');
     } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        toastErrors(showToast, formatFieldErrors(error.validationErrors));
-      } else if (error instanceof ApiError) {
-        showToast(error.message, 'error');
-      } else {
-        showToast('Не удалось обновить точку. Проверьте подключение к API.', 'error');
-      }
+      showApiMutationError(showToast, error, 'Не удалось обновить точку. Проверьте подключение к API.', {
+        fieldLabels: checkpointFieldLabels,
+      });
     } finally {
       setCheckpointUpdatingId(null);
     }

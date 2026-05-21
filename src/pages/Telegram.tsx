@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { managers, clients, type Shipment } from '../data/mock';
-import { ApiError, getTelegramSettings, handleApiLoadFailure, updateTelegramSettings } from '../api';
+import { getTelegramSettings, handleApiLoadFailure, updateTelegramSettings } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
-import { toastErrors, useToast } from '../components/ToastProvider';
+import PageLoading from '../components/PageLoading';
+import { showApiMutationError } from '../utils/apiErrors';
+import { shipmentStatusColors, shipmentStatusLabels } from '../utils/shipmentLabels';
+import { useToast } from '../components/ToastProvider';
 import type { TelegramEventFlags } from '../types/api';
 
 const notifTypes = [
@@ -21,15 +24,6 @@ const settingsFieldLabels: Record<string, string> = {
   botToken: 'Bot Token',
   eventFlags: 'Типы уведомлений',
 };
-
-function formatFieldErrors(errors: Record<string, string[]>): string[] {
-  return Object.entries(errors).flatMap(([field, messages]) =>
-    messages.map((message) => {
-      const label = settingsFieldLabels[field] ?? field;
-      return `${label}: ${message}`;
-    }),
-  );
-}
 
 const mockLogs = [
   { id: 1, time: '19 мая, 15:42', shipment: 'LGX-2026-0498', type: 'checkpoint', text: '✈ Груз прибыл в аэропорт Стамбул (IST). Транзит.', manager: 'Дина Сейткали', status: 'sent' },
@@ -136,13 +130,9 @@ export default function Telegram() {
       applySettingsResponse(settings);
       showToast('Настройки Telegram сохранены');
     } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        toastErrors(showToast, formatFieldErrors(error.validationErrors));
-      } else if (error instanceof ApiError) {
-        showToast(error.message, 'error');
-      } else {
-        showToast('Не удалось сохранить настройки. Проверьте подключение к API.', 'error');
-      }
+      showApiMutationError(showToast, error, 'Не удалось сохранить настройки. Проверьте подключение к API.', {
+        fieldLabels: settingsFieldLabels,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -159,17 +149,7 @@ export default function Telegram() {
   }
 
   if (loading) {
-    return (
-      <div style={{ padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
-        <div style={{
-          width: 18, height: 18, borderRadius: '50%',
-          border: '2.5px solid #E2E8F0', borderTopColor: '#0088cc',
-          animation: 'spin 0.7s linear infinite',
-        }} />
-        Загрузка...
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
+    return <PageLoading padding="24px 28px" accentColor="#0088cc" />;
   }
 
   return (
@@ -323,13 +303,11 @@ export default function Telegram() {
           {tgShipments.map(s => {
             const client = clients.find(c => c.id === s.clientId);
             const manager = managers.find(m => m.id === s.managerId);
-            const statusC: Record<string, string> = { planned: '#F59E0B', in_transit: '#3B82F6', delivered: '#10B981', delayed: '#EF4444', at_checkpoint: '#8B5CF6' };
-            const statusL: Record<string, string> = { planned: 'Запланирован', in_transit: 'В пути', delivered: 'Доставлен', delayed: 'Задержка', at_checkpoint: 'На пункте' };
             return (
               <div key={s.id} style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#F8FAFC' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>{s.trackingNumber}</div>
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: statusC[s.status] + '20', color: statusC[s.status] }}>{statusL[s.status]}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: shipmentStatusColors[s.status] + '20', color: shipmentStatusColors[s.status] }}>{shipmentStatusLabels[s.status]}</span>
                 </div>
                 <div style={{ fontSize: 11, color: '#64748B', marginTop: 3 }}>{s.origin} → {s.destination}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 10, color: '#94A3B8' }}>

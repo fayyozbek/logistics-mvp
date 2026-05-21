@@ -1,9 +1,11 @@
 import { Fragment, useEffect, useState } from 'react';
 import { type Client, type FinanceRecord } from '../data/mock';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { ApiError, exportFinanceCsv, getFinance, getFinanceReport, handleApiLoadFailure, isApiConfigured, updateFinanceStatus } from '../api';
+import { exportFinanceCsv, getFinance, getFinanceReport, handleApiLoadFailure, isApiConfigured, updateFinanceStatus } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
-import { toastErrors, useToast } from '../components/ToastProvider';
+import PageLoading from '../components/PageLoading';
+import { showApiMutationError } from '../utils/apiErrors';
+import { useToast } from '../components/ToastProvider';
 import type { FinanceReportSummary } from '../types/api';
 import { buildFinanceReport, formatReportMonthLabel } from '../utils/financeReport';
 
@@ -17,15 +19,6 @@ const statusConfig = {
 const statusFieldLabels: Record<string, string> = {
   status: 'Статус',
 };
-
-function formatFieldErrors(errors: Record<string, string[]>): string[] {
-  return Object.entries(errors).flatMap(([field, messages]) =>
-    messages.map((message) => {
-      const label = statusFieldLabels[field] ?? field;
-      return `${label}: ${message}`;
-    }),
-  );
-}
 
 export default function Finance() {
   const [loading, setLoading] = useState(true);
@@ -105,12 +98,7 @@ export default function Finance() {
     try {
       await exportFinanceCsv();
     } catch (error) {
-      showToast(
-        error instanceof ApiError
-          ? error.message
-          : 'Не удалось экспортировать финансы. Проверьте подключение к API.',
-        'error',
-      );
+      showApiMutationError(showToast, error, 'Не удалось экспортировать финансы. Проверьте подключение к API.');
     } finally {
       setExporting(false);
     }
@@ -125,13 +113,9 @@ export default function Finance() {
       refreshReport();
       showToast(`Статус счёта обновлён: ${statusConfig[financeRecord.status].label}`);
     } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        toastErrors(showToast, formatFieldErrors(error.validationErrors));
-      } else if (error instanceof ApiError) {
-        showToast(error.message, 'error');
-      } else {
-        showToast('Не удалось обновить статус. Проверьте подключение к API.', 'error');
-      }
+      showApiMutationError(showToast, error, 'Не удалось обновить статус. Проверьте подключение к API.', {
+        fieldLabels: statusFieldLabels,
+      });
     } finally {
       setUpdatingId(null);
     }
@@ -142,17 +126,7 @@ export default function Finance() {
   }
 
   if (loading) {
-    return (
-      <div style={{ padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
-        <div style={{
-          width: 18, height: 18, borderRadius: '50%',
-          border: '2.5px solid #E2E8F0', borderTopColor: '#3B82F6',
-          animation: 'spin 0.7s linear infinite',
-        }} />
-        Загрузка...
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
+    return <PageLoading padding="24px 28px" />;
   }
 
   return (

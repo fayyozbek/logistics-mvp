@@ -2,7 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Client } from '../data/mock';
 import { ApiError, createClient, deleteClient, getClients, handleApiLoadFailure, updateClient } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
+import FormErrorList from '../components/FormErrorList';
+import InlineConfirm from '../components/InlineConfirm';
+import PageLoading from '../components/PageLoading';
 import { useToast } from '../components/ToastProvider';
+import { formatFieldErrors } from '../utils/apiErrors';
 import type { CreateClientPayload, UpdateClientPayload } from '../types/api';
 
 interface ClientFormState {
@@ -36,15 +40,6 @@ const fieldLabels: Record<string, string> = {
   address: 'Адрес',
   client: 'Партнёр',
 };
-
-function formatFieldErrors(errors: Record<string, string[]>): string[] {
-  return Object.entries(errors).flatMap(([field, messages]) =>
-    messages.map((message) => {
-      const label = fieldLabels[field] ?? field;
-      return `${label}: ${message}`;
-    }),
-  );
-}
 
 function clientToForm(client: Client): ClientFormState {
   return {
@@ -144,7 +139,7 @@ export default function Clients() {
       showToast(`Партнёр ${client.company} добавлен`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
-        setFormErrors(formatFieldErrors(error.validationErrors));
+        setFormErrors(formatFieldErrors(error.validationErrors, fieldLabels));
       } else if (error instanceof ApiError) {
         setFormErrors([error.message]);
       } else {
@@ -169,7 +164,7 @@ export default function Clients() {
       showToast(`Партнёр ${client.company} обновлён`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
-        setFormErrors(formatFieldErrors(error.validationErrors));
+        setFormErrors(formatFieldErrors(error.validationErrors, fieldLabels));
       } else if (error instanceof ApiError) {
         setFormErrors([error.message]);
       } else {
@@ -198,7 +193,7 @@ export default function Clients() {
       showToast(`Партнёр ${deletedCompany} удалён`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
-        const messages = formatFieldErrors(error.validationErrors);
+        const messages = formatFieldErrors(error.validationErrors, fieldLabels);
         setFormErrors([
           messages[0]?.includes('shipments')
             ? 'Нельзя удалить партнёра: есть связанные грузы. Сначала удалите или переназначьте грузы.'
@@ -219,17 +214,7 @@ export default function Clients() {
   }
 
   if (loading) {
-    return (
-      <div style={{ padding: '20px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
-        <div style={{
-          width: 18, height: 18, borderRadius: '50%',
-          border: '2.5px solid #E2E8F0', borderTopColor: '#3B82F6',
-          animation: 'spin 0.7s linear infinite',
-        }} />
-        Загрузка...
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   const renderFormFields = (
@@ -373,11 +358,7 @@ export default function Clients() {
               }}>×</button>
             </div>
 
-            {formErrors.length > 0 && (
-              <div style={{ padding: '10px 12px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 12, marginBottom: 12 }}>
-                {formErrors.map((error) => <div key={error}>{error}</div>)}
-              </div>
-            )}
+            <FormErrorList errors={formErrors} />
 
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
               <button
@@ -406,22 +387,12 @@ export default function Clients() {
             </div>
 
             {showDeleteConfirm ? (
-              <div style={{ padding: '12px', borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA', marginBottom: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#991B1B', marginBottom: 8 }}>
-                  Удалить {selected.company}?
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" onClick={() => !deleteSubmitting && setShowDeleteConfirm(false)} disabled={deleteSubmitting} style={{
-                    flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12,
-                  }}>Отмена</button>
-                  <button type="button" onClick={() => void handleDeleteConfirm()} disabled={deleteSubmitting} style={{
-                    flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none',
-                    background: deleteSubmitting ? '#94A3B8' : '#DC2626', color: '#fff', fontSize: 12, fontWeight: 700,
-                  }}>
-                    {deleteSubmitting ? 'Удаление...' : 'Да, удалить'}
-                  </button>
-                </div>
-              </div>
+              <InlineConfirm
+                message={`Удалить ${selected.company}?`}
+                confirming={deleteSubmitting}
+                onCancel={() => !deleteSubmitting && setShowDeleteConfirm(false)}
+                onConfirm={() => void handleDeleteConfirm()}
+              />
             ) : editMode ? (
               <>
                 {renderFormFields(form, setForm, submitting)}
@@ -475,11 +446,7 @@ export default function Clients() {
               }}>×</button>
             </div>
             <div style={{ padding: '20px 24px 24px' }}>
-              {formErrors.length > 0 && (
-                <div style={{ padding: '10px 12px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 12, marginBottom: 12 }}>
-                  {formErrors.map((error) => <div key={error}>{error}</div>)}
-                </div>
-              )}
+              <FormErrorList errors={formErrors} />
               {renderFormFields(createForm, setCreateForm, submitting)}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
                 <button type="button" onClick={closeCreateForm} disabled={submitting} style={{

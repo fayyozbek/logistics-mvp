@@ -21,18 +21,16 @@ import {
 } from '../utils/shipmentUnits';
 import { ApiError, createShipment, deleteShipment, exportShipmentsCsv, getClients, getManagers, getShipments, handleApiLoadFailure, updateShipment, updateShipmentStatus } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
+import FormErrorList from '../components/FormErrorList';
+import PageLoading from '../components/PageLoading';
+import { formatFieldErrors } from '../utils/apiErrors';
+import { pluralPoints, shipmentStatusBg, shipmentStatusColors, shipmentStatusLabels } from '../utils/shipmentLabels';
 import { useToast } from '../components/ToastProvider';
 import type { CreateShipmentPayload, UpdateShipmentPayload } from '../types/api';
 
-const statusColors: Record<string, string> = {
-  planned: '#F59E0B', in_transit: '#3B82F6', at_checkpoint: '#8B5CF6', delivered: '#10B981', delayed: '#EF4444',
-};
-const statusLabel: Record<string, string> = {
-  planned: 'Запланирован', in_transit: 'В пути', at_checkpoint: 'На пункте', delivered: 'Доставлен', delayed: 'Задержка',
-};
-const statusBg: Record<string, string> = {
-  planned: '#FEF3C7', in_transit: '#DBEAFE', at_checkpoint: '#EDE9FE', delivered: '#DCFCE7', delayed: '#FEE2E2',
-};
+const statusColors = shipmentStatusColors;
+const statusLabel = shipmentStatusLabels;
+const statusBg = shipmentStatusBg;
 
 function TruckIcon() {
   return (
@@ -216,21 +214,6 @@ const fieldLabels: Record<string, string> = {
   note: 'Комментарий',
 };
 
-function formatFieldErrors(errors: Record<string, string[]>): string[] {
-  return Object.entries(errors).flatMap(([field, messages]) =>
-    messages.map((message) => {
-      const label = fieldLabels[field] ?? field;
-      return `${label}: ${message}`;
-    }),
-  );
-}
-
-function pluralPoints(n: number): string {
-  if (n % 10 === 1 && n % 100 !== 11) return `${n} точка`;
-  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return `${n} точки`;
-  return `${n} точек`;
-}
-
 export default function Shipments() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -321,7 +304,7 @@ export default function Shipments() {
       showToast(`Статус ${shipment.trackingNumber} обновлён: ${statusLabel[shipment.status]}`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
-        setStatusUpdateErrors(formatFieldErrors(error.validationErrors));
+        setStatusUpdateErrors(formatFieldErrors(error.validationErrors, fieldLabels));
       } else if (error instanceof ApiError) {
         setStatusUpdateErrors([error.message]);
       } else {
@@ -386,7 +369,7 @@ export default function Shipments() {
       showToast(`Груз ${shipment.trackingNumber} обновлён`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
-        setEditErrors(formatFieldErrors(error.validationErrors));
+        setEditErrors(formatFieldErrors(error.validationErrors, fieldLabels));
       } else if (error instanceof ApiError) {
         setEditErrors([error.message]);
       } else {
@@ -508,7 +491,7 @@ export default function Shipments() {
       showToast(`Груз ${shipment.trackingNumber} успешно создан`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
-        setFormErrors(formatFieldErrors(error.validationErrors));
+        setFormErrors(formatFieldErrors(error.validationErrors, fieldLabels));
       } else if (error instanceof ApiError) {
         setFormErrors([error.message]);
       } else {
@@ -549,17 +532,7 @@ export default function Shipments() {
   }
 
   if (loading) {
-    return (
-      <div className="shipments-page" style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
-        <div style={{
-          width: 18, height: 18, borderRadius: '50%',
-          border: '2.5px solid #E2E8F0', borderTopColor: '#3B82F6',
-          animation: 'spin 0.7s linear infinite',
-        }} />
-        Загрузка...
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
+    return <PageLoading className="shipments-page" />;
   }
 
   const renderDetailPanel = () => {
@@ -661,11 +634,7 @@ export default function Shipments() {
               <div className="shipments-edit-form">
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Редактирование груза</div>
 
-                {editErrors.length > 0 && (
-                  <div style={{ padding: '8px 10px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 11, marginBottom: 10 }}>
-                    {editErrors.map((error) => <div key={error}>{error}</div>)}
-                  </div>
-                )}
+                <FormErrorList errors={editErrors} fontSize={11} padding="8px 10px" marginBottom={10} />
 
                 <div className="shipments-edit-form-fields">
                   <label>
@@ -838,11 +807,7 @@ export default function Shipments() {
             <div style={{ marginBottom: 18, padding: '14px', borderRadius: 10, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Обновить статус</div>
 
-              {statusUpdateErrors.length > 0 && (
-                <div style={{ padding: '8px 10px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 11, marginBottom: 10 }}>
-                  {statusUpdateErrors.map((error) => <div key={error}>{error}</div>)}
-                </div>
-              )}
+              <FormErrorList errors={statusUpdateErrors} fontSize={11} padding="8px 10px" marginBottom={10} />
 
               <label style={{ display: 'block', marginBottom: 10 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Статус</div>
@@ -1183,11 +1148,7 @@ export default function Shipments() {
 
             <div className="shipments-form-body">
               <div className="shipments-form-fields">
-              {formErrors.length > 0 && (
-                <div style={{ padding: '10px 12px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 12 }}>
-                  {formErrors.map((error) => <div key={error}>{error}</div>)}
-                </div>
-              )}
+              <FormErrorList errors={formErrors} marginBottom={0} />
 
               <label>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Клиент *</div>

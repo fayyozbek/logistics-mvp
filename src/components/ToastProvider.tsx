@@ -9,7 +9,7 @@ type ToastItem = {
   message: string;
 };
 
-type ToastContextValue = {
+export type ToastContextValue = {
   showToast: (message: string, type?: ToastType) => void;
 };
 
