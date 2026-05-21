@@ -12,7 +12,12 @@ class ClientSeeder extends Seeder
     public function run(): void
     {
         foreach (DemoData::clients() as $key => $attributes) {
-            DemoSeedState::$clientIds[$key] = Client::query()->create($attributes)->id;
+            $client = Client::query()->updateOrCreate(
+                ['email' => $attributes['email']],
+                $attributes,
+            );
+
+            DemoSeedState::$clientIds[$key] = $client->id;
         }
     }
 }

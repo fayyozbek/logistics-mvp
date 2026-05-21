@@ -31,5 +31,24 @@ class LogisticsDemoSeederTest extends TestCase
             'tracking_number' => 'LGX-2026-0498',
             'status' => 'in_transit',
         ]);
+
+        $this->assertDatabaseHas('finance_records', [
+            'total_amount' => 22000,
+            'paid_amount' => 0,
+            'status' => 'unpaid',
+        ]);
+    }
+
+    public function test_demo_seeder_is_idempotent_when_run_twice(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->seed(DatabaseSeeder::class);
+
+        $this->assertSame(5, Client::count());
+        $this->assertSame(4, Manager::count());
+        $this->assertSame(6, Shipment::count());
+        $this->assertSame(21, Checkpoint::count());
+        $this->assertSame(6, FinanceRecord::count());
+        $this->assertSame(1, TelegramSetting::count());
     }
 }

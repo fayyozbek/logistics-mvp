@@ -12,7 +12,12 @@ class ManagerSeeder extends Seeder
     public function run(): void
     {
         foreach (DemoData::managers() as $key => $attributes) {
-            DemoSeedState::$managerIds[$key] = Manager::query()->create($attributes)->id;
+            $manager = Manager::query()->updateOrCreate(
+                ['email' => $attributes['email']],
+                $attributes,
+            );
+
+            DemoSeedState::$managerIds[$key] = $manager->id;
         }
     }
 }

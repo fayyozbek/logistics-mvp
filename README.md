@@ -127,9 +127,14 @@ In the Web Service → **Environment** tab, add:
 - `RUN_MIGRATIONS=true` → `php artisan migrate --force` (safe to repeat)
 - `RUN_SEEDERS=true` → `php artisan db:seed --force`
 
+Demo seeders are **idempotent** (`updateOrCreate` on stable keys such as client
+email, manager email, shipment `tracking_number`, and finance `shipment_id`).
+Re-running `db:seed` will not duplicate canonical demo rows.
+
 After the first successful deploy and demo seed, set **`RUN_SEEDERS=false`**
-on Render to avoid duplicate demo data on later wake-ups (seeders are not
-idempotent). Keep `RUN_MIGRATIONS=true` so new migrations apply automatically.
+on Render anyway so container restarts do not reset Telegram settings or
+overwrite stakeholder edits to demo rows. Keep `RUN_MIGRATIONS=true` so new
+migrations apply automatically.
 
 ### Step 4 — Generate APP_KEY
 
@@ -148,7 +153,9 @@ loads demo data when `RUN_MIGRATIONS=true` and `RUN_SEEDERS=true`. No Shell
 step is required.
 
 When demo data is confirmed in the UI, set `RUN_SEEDERS=false` in Render
-environment variables and redeploy.
+environment variables and redeploy. Use `RUN_SEEDERS=true` only when you
+intentionally want to refresh canonical demo data (safe after
+`FIX-SEED-DEDUP-001`; does not remove QA rows created via the API).
 
 ### Step 6 — Deploy frontend to Vercel
 

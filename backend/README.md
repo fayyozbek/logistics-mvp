@@ -17,8 +17,9 @@ Render Free has no Shell access. At startup, `start.sh` optionally runs:
 - `RUN_MIGRATIONS=true` → `php artisan migrate --force`
 - `RUN_SEEDERS=true` → `php artisan db:seed --force`
 
-Then starts `php artisan serve` on `$PORT`. After the first demo seed, set
-`RUN_SEEDERS=false` on Render to avoid duplicate rows.
+Then starts `php artisan serve` on `$PORT`. Demo seeders are idempotent; after
+the first demo seed, set `RUN_SEEDERS=false` on Render so restarts do not reset
+Telegram settings or overwrite stakeholder edits.
 
 ## Quick local setup
 
