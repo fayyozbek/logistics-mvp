@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\CheckpointController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\FinanceController;
@@ -22,6 +23,11 @@ Route::patch('/shipments/{shipment}/status', [ShipmentController::class, 'update
 Route::post('/shipments/{shipment}/checkpoints', [CheckpointController::class, 'store']);
 Route::patch('/checkpoints/{checkpoint}', [CheckpointController::class, 'update']);
 Route::get('/tracking', [TrackingController::class, 'index']);
+Route::get('/clients', [ClientController::class, 'index']);
+Route::post('/clients', [ClientController::class, 'store']);
+Route::get('/clients/{client}', [ClientController::class, 'show']);
+Route::patch('/clients/{client}', [ClientController::class, 'update']);
+Route::delete('/clients/{client}', [ClientController::class, 'destroy']);
 Route::get('/managers', [ManagerController::class, 'index']);
 Route::get('/finance', [FinanceController::class, 'index']);
 Route::patch('/finance/{financeRecord}/status', [FinanceController::class, 'updateStatus']);

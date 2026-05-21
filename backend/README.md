@@ -54,6 +54,11 @@ php artisan test
 | POST | `/api/shipments/{id}/checkpoints` | Add checkpoint |
 | PATCH | `/api/checkpoints/{id}` | Update checkpoint |
 | GET | `/api/tracking` | Tracking view |
+| GET | `/api/clients` | Partner/client list |
+| POST | `/api/clients` | Create partner/client |
+| GET | `/api/clients/{id}` | Single partner/client |
+| PATCH | `/api/clients/{id}` | Update partner/client |
+| DELETE | `/api/clients/{id}` | Delete partner/client (blocked if referenced) |
 | GET | `/api/managers` | Manager list |
 | GET | `/api/finance` | Finance records |
 | PATCH | `/api/finance/{id}/status` | Update finance status |
