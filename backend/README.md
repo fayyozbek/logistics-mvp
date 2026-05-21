@@ -48,6 +48,8 @@ php artisan test
 | GET | `/api/shipments` | Shipment list |
 | POST | `/api/shipments` | Create shipment |
 | GET | `/api/shipments/{id}` | Single shipment |
+| PATCH | `/api/shipments/{id}` | Update shipment fields |
+| DELETE | `/api/shipments/{id}` | Delete shipment (cascades checkpoints and finance) |
 | PATCH | `/api/shipments/{id}/status` | Update shipment status |
 | POST | `/api/shipments/{id}/checkpoints` | Add checkpoint |
 | PATCH | `/api/checkpoints/{id}` | Update checkpoint |

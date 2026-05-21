@@ -1,0 +1,115 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Checkpoint;
+use App\Models\FinanceRecord;
+use App\Models\Shipment;
+use Database\Seeders\DatabaseSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class ShipmentCrudApiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(DatabaseSeeder::class);
+    }
+
+    public function test_can_update_shipment(): void
+    {
+        $shipment = Shipment::query()->where('tracking_number', 'LGX-2026-0498')->firstOrFail();
+
+        $this->patchJson("/api/shipments/{$shipment->id}", [
+            'clientId' => 2,
+            'managerId' => 2,
+            'type' => 'air',
+            'origin' => 'Астана',
+            'destination' => 'Бишкек',
+            'cargoName' => 'Медоборудование (обновлено)',
+            'weight' => '900',
+            'weightUnit' => 'kg',
+            'volume' => '12',
+            'volumeUnit' => 'm3',
+            'plannedPickup' => '2026-05-01',
+            'plannedDelivery' => '2026-06-20',
+            'notes' => 'Срочная доставка',
+        ])
+            ->assertOk()
+            ->assertJsonPath('shipment.trackingNumber', 'LGX-2026-0498')
+            ->assertJsonPath('shipment.clientId', '2')
+            ->assertJsonPath('shipment.managerId', '2')
+            ->assertJsonPath('shipment.type', 'air')
+            ->assertJsonPath('shipment.origin', 'Астана')
+            ->assertJsonPath('shipment.destination', 'Бишкек')
+            ->assertJsonPath('shipment.cargo', 'Медоборудование (обновлено)')
+            ->assertJsonPath('shipment.weight', '900')
+            ->assertJsonPath('shipment.weightUnit', 'kg')
+            ->assertJsonPath('shipment.volume', '12')
+            ->assertJsonPath('shipment.volumeUnit', 'm3')
+            ->assertJsonPath('shipment.plannedPickup', '2026-05-01')
+            ->assertJsonPath('shipment.estimatedDelivery', '2026-06-20')
+            ->assertJsonPath('shipment.notes', 'Срочная доставка');
+
+        $this->assertDatabaseHas('shipments', [
+            'id' => $shipment->id,
+            'client_id' => 2,
+            'manager_id' => 2,
+            'transport_type' => 'air',
+            'origin' => 'Астана',
+            'destination' => 'Бишкек',
+            'cargo' => 'Медоборудование (обновлено)',
+            'weight_unit' => 'kg',
+            'volume_unit' => 'm3',
+            'notes' => 'Срочная доставка',
+        ]);
+    }
+
+    public function test_can_delete_shipment(): void
+    {
+        $shipment = Shipment::query()->where('tracking_number', 'LGX-2026-0561')->firstOrFail();
+        $shipmentId = $shipment->id;
+        $checkpointCount = Checkpoint::query()->where('shipment_id', $shipmentId)->count();
+        $financeId = FinanceRecord::query()->where('shipment_id', $shipmentId)->value('id');
+
+        $this->assertGreaterThan(0, $checkpointCount);
+        $this->assertNotNull($financeId);
+
+        $this->deleteJson("/api/shipments/{$shipmentId}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Shipment deleted.')
+            ->assertJsonPath('shipmentId', (string) $shipmentId);
+
+        $this->assertDatabaseMissing('shipments', ['id' => $shipmentId]);
+        $this->assertDatabaseMissing('checkpoints', ['shipment_id' => $shipmentId]);
+        $this->assertDatabaseMissing('finance_records', ['id' => $financeId]);
+    }
+
+    public function test_delete_missing_shipment_returns_404_json(): void
+    {
+        $this->deleteJson('/api/shipments/99999')
+            ->assertNotFound()
+            ->assertJsonStructure(['message']);
+    }
+
+    public function test_list_does_not_show_deleted_shipment(): void
+    {
+        $shipment = Shipment::query()->where('tracking_number', 'LGX-2026-0387')->firstOrFail();
+
+        $this->deleteJson("/api/shipments/{$shipment->id}")->assertOk();
+
+        $this->getJson('/api/shipments')
+            ->assertOk()
+            ->assertJsonMissing(['trackingNumber' => 'LGX-2026-0387']);
+
+        $trackingNumbers = collect($this->getJson('/api/shipments')->json('shipments'))
+            ->pluck('trackingNumber')
+            ->all();
+
+        $this->assertNotContains('LGX-2026-0387', $trackingNumbers);
+        $this->assertSame(5, Shipment::query()->count());
+    }
+}

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreShipmentRequest;
+use App\Http\Requests\UpdateShipmentRequest;
 use App\Http\Requests\UpdateShipmentStatusRequest;
 use App\Http\Resources\ShipmentResource;
 use App\Models\Checkpoint;
@@ -44,6 +45,28 @@ class ShipmentController extends Controller
 
         return response()->json([
             'shipment' => (new ShipmentResource($shipment))->resolve(),
+        ]);
+    }
+
+    public function update(UpdateShipmentRequest $request, Shipment $shipment): JsonResponse
+    {
+        $shipment->update($this->mapUpdateAttributes($request->validated()));
+        $shipment->load(['client', 'manager', 'checkpoints', 'financeRecord']);
+
+        return response()->json([
+            'shipment' => (new ShipmentResource($shipment))->resolve(),
+        ]);
+    }
+
+    public function destroy(Shipment $shipment): JsonResponse
+    {
+        DB::transaction(function () use ($shipment): void {
+            $shipment->delete();
+        });
+
+        return response()->json([
+            'message' => 'Shipment deleted.',
+            'shipmentId' => (string) $shipment->id,
         ]);
     }
 
@@ -118,4 +141,37 @@ class ShipmentController extends Controller
         ], 201);
     }
 
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function mapUpdateAttributes(array $validated): array
+    {
+        $attributes = [];
+
+        $fieldMap = [
+            'clientId' => 'client_id',
+            'managerId' => 'manager_id',
+            'type' => 'transport_type',
+            'origin' => 'origin',
+            'destination' => 'destination',
+            'cargo' => 'cargo',
+            'weight' => 'weight',
+            'weightUnit' => 'weight_unit',
+            'volume' => 'volume',
+            'volumeUnit' => 'volume_unit',
+            'plannedPickup' => 'planned_pickup',
+            'estimatedDelivery' => 'estimated_delivery',
+            'notes' => 'notes',
+            'telegramNotifications' => 'telegram_notifications',
+        ];
+
+        foreach ($fieldMap as $input => $column) {
+            if (array_key_exists($input, $validated)) {
+                $attributes[$column] = $validated[$input];
+            }
+        }
+
+        return $attributes;
+    }
 }

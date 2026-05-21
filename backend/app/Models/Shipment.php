@@ -33,15 +33,20 @@ class Shipment extends Model
         'destination',
         'cargo',
         'weight',
+        'weight_unit',
         'volume',
+        'volume_unit',
         'estimated_delivery',
+        'planned_pickup',
         'telegram_notifications',
+        'notes',
     ];
 
     protected function casts(): array
     {
         return [
             'estimated_delivery' => 'date',
+            'planned_pickup' => 'date',
             'telegram_notifications' => 'boolean',
         ];
     }
