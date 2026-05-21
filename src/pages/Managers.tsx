@@ -6,7 +6,7 @@ import FormErrorList from '../components/FormErrorList';
 import InlineConfirm from '../components/InlineConfirm';
 import PageLoading from '../components/PageLoading';
 import { useToast } from '../components/ToastProvider';
-import { formatFieldErrors } from '../utils/apiErrors';
+import { formatFieldErrors, showApiMutationError } from '../utils/apiErrors';
 import { hasRequiredStrings } from '../utils/formValidation';
 import { shipmentStatusColors, shipmentStatusLabels } from '../utils/shipmentLabels';
 import type { CreateManagerPayload, UpdateManagerPayload } from '../types/api';
@@ -205,6 +205,10 @@ export default function Managers() {
       } else {
         setFormErrors(['Не удалось удалить менеджера. Проверьте подключение к API.']);
       }
+      showApiMutationError(showToast, error, 'Не удалось удалить менеджера. Проверьте подключение к API.', {
+        fieldLabels,
+        mapMessage: mapManagerFieldError,
+      });
     } finally {
       setDeleteSubmitting(false);
     }

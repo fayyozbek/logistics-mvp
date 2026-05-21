@@ -60,6 +60,7 @@ class TrackingNumberGenerator
         $prefix = "LGX-{$year}-";
 
         $latest = Shipment::query()
+            ->withTrashed()
             ->where('tracking_number', 'like', $prefix.'%')
             ->orderByDesc('tracking_number')
             ->value('tracking_number');
@@ -79,6 +80,7 @@ class TrackingNumberGenerator
         $years = [];
 
         Shipment::query()
+            ->withTrashed()
             ->select('tracking_number')
             ->lazy()
             ->each(function (Shipment $shipment) use (&$years): void {

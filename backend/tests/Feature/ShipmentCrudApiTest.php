@@ -83,9 +83,22 @@ class ShipmentCrudApiTest extends TestCase
             ->assertJsonPath('message', 'Shipment deleted.')
             ->assertJsonPath('shipmentId', (string) $shipmentId);
 
-        $this->assertDatabaseMissing('shipments', ['id' => $shipmentId]);
+        $this->assertSoftDeleted('shipments', ['id' => $shipmentId]);
         $this->assertDatabaseMissing('checkpoints', ['shipment_id' => $shipmentId]);
-        $this->assertDatabaseMissing('finance_records', ['id' => $financeId]);
+        $this->assertDatabaseHas('finance_records', ['id' => $financeId, 'shipment_id' => $shipmentId]);
+    }
+
+    public function test_soft_deleted_shipment_is_not_accessible_via_api(): void
+    {
+        $shipment = Shipment::query()->where('tracking_number', 'LGX-2026-0421')->firstOrFail();
+
+        $this->deleteJson("/api/shipments/{$shipment->id}")->assertOk();
+
+        $this->getJson("/api/shipments/{$shipment->id}")
+            ->assertNotFound();
+
+        $this->patchJson("/api/shipments/{$shipment->id}", ['cargo' => 'Blocked'])
+            ->assertNotFound();
     }
 
     public function test_delete_missing_shipment_returns_404_json(): void
@@ -111,5 +124,6 @@ class ShipmentCrudApiTest extends TestCase
 
         $this->assertNotContains('LGX-2026-0387', $trackingNumbers);
         $this->assertSame(5, Shipment::query()->count());
+        $this->assertSame(6, Shipment::withTrashed()->count());
     }
 }

@@ -45,9 +45,9 @@ class TrackingNumberGeneratorTest extends TestCase
         $this->assertSame('LGX-2026-0562', $issuedNumber);
 
         $shipmentId = $created->json('shipment.id');
-        Shipment::query()->whereKey($shipmentId)->delete();
+        $this->deleteJson("/api/shipments/{$shipmentId}")->assertOk();
 
-        $this->assertDatabaseMissing('shipments', ['tracking_number' => $issuedNumber]);
+        $this->assertSoftDeleted('shipments', ['tracking_number' => $issuedNumber]);
 
         $next = $this->postJson('/api/shipments', $this->validShipmentPayload())->assertCreated();
         $nextNumber = $next->json('shipment.trackingNumber');

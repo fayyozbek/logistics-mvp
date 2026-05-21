@@ -23,7 +23,7 @@ import { ApiError, createShipment, deleteShipment, exportShipmentsCsv, getClient
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 import FormErrorList from '../components/FormErrorList';
 import PageLoading from '../components/PageLoading';
-import { formatFieldErrors } from '../utils/apiErrors';
+import { formatFieldErrors, showApiMutationError } from '../utils/apiErrors';
 import { pluralPoints, shipmentStatusBg, shipmentStatusColors, shipmentStatusLabels } from '../utils/shipmentLabels';
 import { useToast } from '../components/ToastProvider';
 import type { CreateShipmentPayload, UpdateShipmentPayload } from '../types/api';
@@ -399,6 +399,7 @@ export default function Shipments() {
       } else {
         setDeleteErrors(['Не удалось удалить груз. Проверьте подключение к API.']);
       }
+      showApiMutationError(showToast, error, 'Не удалось удалить груз. Проверьте подключение к API.');
     } finally {
       setDeleteSubmitting(false);
     }

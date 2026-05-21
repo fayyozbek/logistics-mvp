@@ -9,11 +9,23 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Shipment extends Model
 {
     /** @use HasFactory<ShipmentFactory> */
-    use HasFactory;
+    use HasFactory, SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::deleting(function (Shipment $shipment): void {
+            if ($shipment->isForceDeleting()) {
+                return;
+            }
+
+            $shipment->checkpoints()->delete();
+        });
+    }
 
     public const STATUSES = [
         'planned',
