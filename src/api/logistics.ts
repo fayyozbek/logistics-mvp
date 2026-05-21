@@ -7,6 +7,7 @@ import type {
   CreateShipmentPayload,
   DeleteClientResponse,
   DashboardData,
+  DashboardQuery,
   FinanceRecordResponse,
   FinanceReportResponse,
   FinanceResponse,
@@ -42,8 +43,18 @@ import {
   getTrackingDataMock,
 } from './mockFallback';
 
-export function getDashboardData(): Promise<DashboardData> {
-  return requestWithMockFallback('/dashboard', getDashboardDataMock);
+function buildDashboardPath(query?: DashboardQuery): string {
+  const params = new URLSearchParams();
+  if (query?.dateFrom) params.set('date_from', query.dateFrom);
+  if (query?.dateTo) params.set('date_to', query.dateTo);
+  if (query?.chartPeriod) params.set('chart_period', query.chartPeriod);
+  const qs = params.toString();
+  return qs ? `/dashboard?${qs}` : '/dashboard';
+}
+
+export function getDashboardData(query?: DashboardQuery): Promise<DashboardData> {
+  const path = buildDashboardPath(query);
+  return requestWithMockFallback(path, () => getDashboardDataMock(query));
 }
 
 export function getShipments(): Promise<ShipmentsResponse> {

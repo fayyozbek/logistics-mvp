@@ -44,6 +44,12 @@ export interface DashboardData {
   };
 }
 
+export interface DashboardQuery {
+  dateFrom?: string;
+  dateTo?: string;
+  chartPeriod?: 'week' | 'month' | 'year';
+}
+
 export interface ShipmentsResponse {
   shipments: Shipment[];
 }
