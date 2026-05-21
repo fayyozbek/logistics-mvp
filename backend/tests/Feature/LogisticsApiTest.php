@@ -79,7 +79,7 @@ class LogisticsApiTest extends TestCase
 
     public function test_managers_endpoint(): void
     {
-        $this->getJson('/api/managers')
+        $this->getJson('/api/managers/overview')
             ->assertOk()
             ->assertJsonStructure([
                 'managers',

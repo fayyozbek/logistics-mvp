@@ -2,10 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Manager;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\Manager */
+/** @mixin Manager */
 class ManagerResource extends JsonResource
 {
     /**
@@ -16,6 +17,8 @@ class ManagerResource extends JsonResource
         return [
             'id' => (string) $this->id,
             'name' => $this->name,
+            'role' => $this->role,
+            'department' => $this->department,
             'avatar' => $this->avatar,
             'email' => $this->email,
             'phone' => $this->phone,

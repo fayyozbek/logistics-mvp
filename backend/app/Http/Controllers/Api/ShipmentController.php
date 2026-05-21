@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreShipmentRequest;
+use App\Http\Requests\UpdateShipmentRequest;
 use App\Http\Requests\UpdateShipmentStatusRequest;
 use App\Http\Resources\ShipmentResource;
 use App\Models\Checkpoint;
 use App\Models\Shipment;
+use App\Services\TrackingNumberGenerator;
+use App\Support\MapsValidatedAttributes;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,10 +18,33 @@ use Illuminate\Support\Facades\DB;
 
 class ShipmentController extends Controller
 {
+    use MapsValidatedAttributes;
+
+    private const UPDATE_FIELD_MAP = [
+        'clientId' => 'client_id',
+        'managerId' => 'manager_id',
+        'type' => 'transport_type',
+        'origin' => 'origin',
+        'destination' => 'destination',
+        'cargo' => 'cargo',
+        'weight' => 'weight',
+        'weightUnit' => 'weight_unit',
+        'volume' => 'volume',
+        'volumeUnit' => 'volume_unit',
+        'plannedPickup' => 'planned_pickup',
+        'estimatedDelivery' => 'estimated_delivery',
+        'notes' => 'notes',
+        'telegramNotifications' => 'telegram_notifications',
+    ];
+
+    public function __construct(
+        private readonly TrackingNumberGenerator $trackingNumberGenerator,
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = Shipment::query()
-            ->with(['client', 'manager', 'checkpoints', 'financeRecord'])
+            ->withDetailRelations()
             ->orderByDesc('created_at');
 
         if ($request->filled('status')) {
@@ -36,10 +62,25 @@ class ShipmentController extends Controller
 
     public function show(Shipment $shipment): JsonResponse
     {
-        $shipment->load(['client', 'manager', 'checkpoints', 'financeRecord']);
+        return $this->shipmentResponse($this->loadShipmentDetails($shipment));
+    }
+
+    public function update(UpdateShipmentRequest $request, Shipment $shipment): JsonResponse
+    {
+        $shipment->update($this->mapValidatedAttributes($request->validated(), self::UPDATE_FIELD_MAP));
+
+        return $this->shipmentResponse($this->loadShipmentDetails($shipment));
+    }
+
+    public function destroy(Shipment $shipment): JsonResponse
+    {
+        DB::transaction(function () use ($shipment): void {
+            $shipment->delete();
+        });
 
         return response()->json([
-            'shipment' => (new ShipmentResource($shipment))->resolve(),
+            'message' => 'Shipment deleted.',
+            'shipmentId' => (string) $shipment->id,
         ]);
     }
 
@@ -61,11 +102,7 @@ class ShipmentController extends Controller
             }
         }
 
-        $shipment->load(['client', 'manager', 'checkpoints', 'financeRecord']);
-
-        return response()->json([
-            'shipment' => (new ShipmentResource($shipment))->resolve(),
-        ]);
+        return $this->shipmentResponse($this->loadShipmentDetails($shipment));
     }
 
     public function store(StoreShipmentRequest $request): JsonResponse
@@ -74,7 +111,7 @@ class ShipmentController extends Controller
 
         $shipment = DB::transaction(function () use ($validated) {
             $shipment = Shipment::query()->create([
-                'tracking_number' => $validated['trackingNumber'] ?? $this->generateTrackingNumber(),
+                'tracking_number' => $validated['trackingNumber'] ?? $this->trackingNumberGenerator->next(),
                 'transport_type' => $validated['type'],
                 'status' => $validated['status'] ?? 'planned',
                 'client_id' => $validated['clientId'],
@@ -83,52 +120,52 @@ class ShipmentController extends Controller
                 'destination' => $validated['destination'],
                 'cargo' => $validated['cargo'] ?? null,
                 'weight' => $validated['weight'] ?? null,
+                'weight_unit' => isset($validated['weight']) ? ($validated['weightUnit'] ?? 'kg') : null,
                 'volume' => $validated['volume'] ?? null,
+                'volume_unit' => isset($validated['volume']) ? ($validated['volumeUnit'] ?? 'm3') : null,
                 'estimated_delivery' => $validated['estimatedDelivery'] ?? null,
                 'telegram_notifications' => $validated['telegramNotifications'] ?? false,
             ]);
 
-            foreach ($validated['checkpoints'] ?? [] as $index => $checkpoint) {
-                Checkpoint::query()->create([
-                    'shipment_id' => $shipment->id,
-                    'sequence' => $index + 1,
-                    'city' => $checkpoint['city'],
-                    'country' => $checkpoint['country'] ?? null,
-                    'address' => $checkpoint['address'],
-                    'planned_at' => Carbon::parse($checkpoint['plannedAt']),
-                    'arrived_at' => isset($checkpoint['arrivedAt'])
-                        ? Carbon::parse($checkpoint['arrivedAt'])
-                        : null,
-                    'status' => $checkpoint['status'] ?? 'upcoming',
-                    'note' => $checkpoint['note'] ?? null,
-                ]);
-            }
+            $this->createCheckpointsFromPayload($shipment, $validated['checkpoints'] ?? []);
 
             return $shipment;
         });
 
-        $shipment->load(['client', 'manager', 'checkpoints', 'financeRecord']);
-
-        return response()->json([
-            'shipment' => (new ShipmentResource($shipment))->resolve(),
-        ], 201);
+        return $this->shipmentResponse($this->loadShipmentDetails($shipment), 201);
     }
 
-    private function generateTrackingNumber(): string
+    private function loadShipmentDetails(Shipment $shipment): Shipment
     {
-        $year = now()->year;
-        $prefix = "LGX-{$year}-";
+        return $shipment->load(Shipment::detailRelations());
+    }
 
-        $latest = Shipment::query()
-            ->where('tracking_number', 'like', $prefix.'%')
-            ->orderByDesc('tracking_number')
-            ->value('tracking_number');
+    private function shipmentResponse(Shipment $shipment, int $status = 200): JsonResponse
+    {
+        return response()->json([
+            'shipment' => (new ShipmentResource($shipment))->resolve(),
+        ], $status);
+    }
 
-        $next = 1;
-        if (is_string($latest) && preg_match('/-(\d+)$/', $latest, $matches)) {
-            $next = (int) $matches[1] + 1;
+    /**
+     * @param  list<array<string, mixed>>  $checkpoints
+     */
+    private function createCheckpointsFromPayload(Shipment $shipment, array $checkpoints): void
+    {
+        foreach ($checkpoints as $index => $checkpoint) {
+            Checkpoint::query()->create([
+                'shipment_id' => $shipment->id,
+                'sequence' => $index + 1,
+                'city' => $checkpoint['city'],
+                'country' => $checkpoint['country'] ?? null,
+                'address' => $checkpoint['address'],
+                'planned_at' => Carbon::parse($checkpoint['plannedAt']),
+                'arrived_at' => isset($checkpoint['arrivedAt'])
+                    ? Carbon::parse($checkpoint['arrivedAt'])
+                    : null,
+                'status' => $checkpoint['status'] ?? 'upcoming',
+                'note' => $checkpoint['note'] ?? null,
+            ]);
         }
-
-        return $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
     }
 }

@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, Search, Send, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, Search, Send, Trash2, X } from 'lucide-react';
 import { clients, managers, type CheckPoint, type Shipment } from '../data/mock';
-import { addShipmentCheckpoint, ApiError, getTrackingData, updateCheckpoint } from '../api';
+import { addShipmentCheckpoint, deleteCheckpoint, getTrackingData, handleApiLoadFailure, updateCheckpoint } from '../api';
+import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
+import PageLoading from '../components/PageLoading';
+import { useToast } from '../components/ToastProvider';
+import { showApiMutationError } from '../utils/apiErrors';
+import { hasRequiredStrings } from '../utils/formValidation';
+import { pluralPoints } from '../utils/shipmentLabels';
 
 const checkpointFieldLabels: Record<string, string> = {
   city: 'Город',
@@ -11,21 +18,6 @@ const checkpointFieldLabels: Record<string, string> = {
   status: 'Статус',
   note: 'Примечание',
 };
-
-function formatFieldErrors(errors: Record<string, string[]>): string[] {
-  return Object.entries(errors).flatMap(([field, messages]) =>
-    messages.map((message) => {
-      const label = checkpointFieldLabels[field] ?? field;
-      return `${label}: ${message}`;
-    }),
-  );
-}
-
-function pluralPoints(n: number): string {
-  if (n % 10 === 1 && n % 100 !== 11) return `${n} точка`;
-  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return `${n} точки`;
-  return `${n} точек`;
-}
 
 function toPlannedAt(value: string): string {
   if (!value) {
@@ -306,14 +298,16 @@ function WorldMap({ selected }: { selected: Shipment }) {
 
 export default function Tracking() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [allShipments, setAllShipments] = useState<Shipment[]>([]);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Shipment | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [checkpointUpdatingId, setCheckpointUpdatingId] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [checkpointErrors, setCheckpointErrors] = useState<string[]>([]);
+  const [checkpointDeleteConfirmId, setCheckpointDeleteConfirmId] = useState<string | null>(null);
+  const [checkpointDeletingId, setCheckpointDeletingId] = useState<string | null>(null);
+  const { showToast } = useToast();
   const [newPoint, setNewPoint] = useState<NewPoint>(emptyPoint);
   const [citySearch, setCitySearch] = useState('');
   const [insertAfter, setInsertAfter] = useState<number>(-1);
@@ -327,12 +321,18 @@ export default function Tracking() {
   };
 
   useEffect(() => {
+    setCheckpointDeleteConfirmId(null);
+  }, [selected?.id]);
+
+  useEffect(() => {
     getTrackingData()
       .then(({ shipments: data }) => {
         const mapped = data.map((s) => ({ ...s, checkpoints: [...s.checkpoints] }));
         setAllShipments(mapped);
         setSelected(mapped[1] ?? mapped[0] ?? null);
+        setLoadError(null);
       })
+      .catch((error) => setLoadError(handleApiLoadFailure(error).message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -348,18 +348,12 @@ export default function Tracking() {
     || city.country.toLowerCase().includes(citySearch.toLowerCase())
   );
 
+  if (loadError && !loading) {
+    return <ApiLoadErrorPanel message={loadError} />;
+  }
+
   if (loading) {
-    return (
-      <div style={{ padding: '20px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
-        <div style={{
-          width: 18, height: 18, borderRadius: '50%',
-          border: '2.5px solid #E2E8F0', borderTopColor: '#2563EB',
-          animation: 'spin 0.7s linear infinite',
-        }} />
-        Загрузка...
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   if (!selected) return null;
@@ -368,15 +362,28 @@ export default function Tracking() {
   const manager = managers.find((item) => item.id === selected.managerId);
   const progress = progressPercent(selected.checkpoints);
 
+  const openAddModal = () => {
+    setNewPoint(emptyPoint);
+    setCitySearch('');
+    setInsertAfter(-1);
+    setShowAddModal(true);
+  };
+
+  const closeAddModal = () => {
+    if (submitting) return;
+    setShowAddModal(false);
+    setNewPoint(emptyPoint);
+    setCitySearch('');
+    setInsertAfter(-1);
+  };
+
   const handleAddPoint = async () => {
-    if (!selected || !newPoint.city || !newPoint.address) return;
+    if (!selected || !hasRequiredStrings(newPoint.city, newPoint.address)) return;
 
     setSubmitting(true);
-    setCheckpointErrors([]);
-    setSuccessMessage('');
 
     try {
-      await addShipmentCheckpoint(selected.id, {
+      const { checkpoint } = await addShipmentCheckpoint(selected.id, {
         city: newPoint.city.trim(),
         country: newPoint.country.trim() || undefined,
         address: newPoint.address.trim(),
@@ -386,21 +393,36 @@ export default function Tracking() {
         insertAfter,
       });
       await refreshTracking(selected.id);
-      setSuccessMessage(`Точка ${newPoint.city} добавлена в маршрут ${selected.trackingNumber}`);
-      setShowAddModal(false);
-      setNewPoint(emptyPoint);
-      setCitySearch('');
-      setInsertAfter(-1);
-    } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        setCheckpointErrors(formatFieldErrors(error.validationErrors));
-      } else if (error instanceof ApiError) {
-        setCheckpointErrors([error.message]);
-      } else {
-        setCheckpointErrors(['Не удалось добавить точку. Проверьте подключение к API.']);
+      if (!checkpoint?.id) {
+        showToast('Точка создана, но ответ API не содержит id. Обновите страницу.', 'error');
+        return;
       }
+      showToast(`Точка ${newPoint.city} добавлена в маршрут ${selected.trackingNumber}`);
+      closeAddModal();
+    } catch (error) {
+      showApiMutationError(showToast, error, 'Не удалось добавить точку. Проверьте подключение к API.', {
+        fieldLabels: checkpointFieldLabels,
+      });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleCheckpointDelete = async (checkpoint: CheckPoint) => {
+    if (!selected) return;
+
+    setCheckpointDeletingId(checkpoint.id);
+    try {
+      await deleteCheckpoint(checkpoint.id);
+      await refreshTracking(selected.id);
+      setCheckpointDeleteConfirmId(null);
+      showToast(`Точка ${checkpoint.city} удалена из маршрута`);
+    } catch (error) {
+      showApiMutationError(showToast, error, 'Не удалось удалить точку. Проверьте подключение к API.', {
+        fieldLabels: checkpointFieldLabels,
+      });
+    } finally {
+      setCheckpointDeletingId(null);
     }
   };
 
@@ -408,21 +430,15 @@ export default function Tracking() {
     if (!selected) return;
 
     setCheckpointUpdatingId(checkpointId);
-    setCheckpointErrors([]);
-    setSuccessMessage('');
 
     try {
       await updateCheckpoint(checkpointId, { status });
       await refreshTracking(selected.id);
-      setSuccessMessage('Статус точки маршрута обновлён');
+      showToast('Статус точки маршрута обновлён');
     } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        setCheckpointErrors(formatFieldErrors(error.validationErrors));
-      } else if (error instanceof ApiError) {
-        setCheckpointErrors([error.message]);
-      } else {
-        setCheckpointErrors(['Не удалось обновить точку. Проверьте подключение к API.']);
-      }
+      showApiMutationError(showToast, error, 'Не удалось обновить точку. Проверьте подключение к API.', {
+        fieldLabels: checkpointFieldLabels,
+      });
     } finally {
       setCheckpointUpdatingId(null);
     }
@@ -430,34 +446,6 @@ export default function Tracking() {
 
   return (
     <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16, background: '#EEF0FB', minHeight: '100%' }}>
-      {successMessage && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: '#F0FDF4',
-          border: '1px solid #BBF7D0',
-          color: '#15803D',
-          fontSize: 13,
-          fontWeight: 700,
-        }}>
-          {successMessage}
-        </div>
-      )}
-
-      {checkpointErrors.length > 0 && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: '#FEF2F2',
-          border: '1px solid #FECACA',
-          color: '#B91C1C',
-          fontSize: 13,
-          fontWeight: 600,
-        }}>
-          {checkpointErrors.map((error) => <div key={error}>{error}</div>)}
-        </div>
-      )}
-
       <div style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', border: '1px solid #E6EAF5', display: 'flex', gap: 10 }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, background: '#F8FAFC', borderRadius: 12, padding: '10px 13px', border: '1px solid #E2E8F0' }}>
           <Search size={16} color="#94A3B8" />
@@ -570,11 +558,7 @@ export default function Tracking() {
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setCheckpointErrors([]);
-                  setSuccessMessage('');
-                  setShowAddModal(true);
-                }}
+                onClick={openAddModal}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 13, cursor: 'pointer' }}
               >
                 <Plus size={15} />
@@ -690,6 +674,62 @@ export default function Tracking() {
                         <Send size={11} />
                         Telegram: {telegramText}
                       </div>
+                      {checkpointDeleteConfirmId === checkpoint.id ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                          <div style={{ fontSize: 11, color: '#B91C1C', fontWeight: 800, maxWidth: 180, textAlign: 'right' }}>
+                            Удалить {checkpoint.city}?
+                          </div>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              type="button"
+                              onClick={() => setCheckpointDeleteConfirmId(null)}
+                              disabled={checkpointDeletingId === checkpoint.id}
+                              style={{
+                                padding: '5px 10px', borderRadius: 8, border: '1px solid #E2E8F0',
+                                background: '#fff', color: '#64748B', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                              }}
+                            >
+                              Отмена
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleCheckpointDelete(checkpoint)}
+                              disabled={checkpointDeletingId === checkpoint.id}
+                              style={{
+                                padding: '5px 10px', borderRadius: 8, border: 'none',
+                                background: checkpointDeletingId === checkpoint.id ? '#94A3B8' : '#DC2626',
+                                color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                              }}
+                            >
+                              {checkpointDeletingId === checkpoint.id ? 'Удаление...' : 'Удалить'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setCheckpointDeleteConfirmId(checkpoint.id)}
+                          disabled={checkpointDeletingId !== null || checkpointUpdatingId === checkpoint.id}
+                          aria-label={`Удалить точку ${checkpoint.city}`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '5px 9px',
+                            borderRadius: 8,
+                            border: '1px solid #FECACA',
+                            background: '#FEF2F2',
+                            color: '#B91C1C',
+                            fontSize: 10,
+                            fontWeight: 800,
+                            cursor: (checkpointDeletingId !== null || checkpointUpdatingId === checkpoint.id) ? 'not-allowed' : 'pointer',
+                            opacity: (checkpointDeletingId !== null || checkpointUpdatingId === checkpoint.id) ? 0.6 : 1,
+                          }}
+                        >
+                          <Trash2 size={12} />
+                          Удалить
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -698,11 +738,7 @@ export default function Tracking() {
 
             <button
               type="button"
-              onClick={() => {
-                setCheckpointErrors([]);
-                setSuccessMessage('');
-                setShowAddModal(true);
-              }}
+              onClick={openAddModal}
               style={{ width: '100%', marginTop: 4, padding: '14px 16px', borderRadius: 14, border: '2px dashed #BFDBFE', background: '#F0F7FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontWeight: 900, cursor: 'pointer' }}
             >
               <Plus size={16} />
@@ -712,33 +748,55 @@ export default function Tracking() {
         </section>
       </div>
 
-      {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.48)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 220, backdropFilter: 'blur(3px)', padding: 24 }}>
-          <div style={{ width: 1040, maxWidth: '96vw', background: '#fff', borderRadius: 22, maxHeight: '92vh', overflowY: 'auto', border: '1px solid #E5E7EB' }}>
-            <div style={{ padding: '26px 30px 18px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      {showAddModal && createPortal(
+        <div
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeAddModal();
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15,23,42,0.48)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 400,
+            backdropFilter: 'blur(3px)',
+            padding: 24,
+            isolation: 'isolate',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tracking-add-checkpoint-title"
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: 1040,
+              maxWidth: '96vw',
+              background: '#fff',
+              borderRadius: 22,
+              maxHeight: '92vh',
+              border: '1px solid #E5E7EB',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              position: 'relative',
+              zIndex: 1,
+              pointerEvents: 'auto',
+            }}
+          >
+            <div style={{ padding: '26px 30px 18px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
               <div>
-                <div style={{ fontSize: 21, color: '#111827', fontWeight: 950, letterSpacing: -0.4 }}>Добавить точку маршрута</div>
+                <div id="tracking-add-checkpoint-title" style={{ fontSize: 21, color: '#111827', fontWeight: 950, letterSpacing: -0.4 }}>Добавить точку маршрута</div>
                 <div style={{ fontSize: 13, color: '#94A3B8', marginTop: 6 }}>Груз: <strong style={{ color: '#2563EB' }}>{selected.trackingNumber}</strong> · {selected.origin} → {selected.destination}</div>
               </div>
-              <button type="button" onClick={() => !submitting && setShowAddModal(false)} disabled={submitting} style={{ width: 38, height: 38, borderRadius: 12, border: 'none', background: '#F8FAFC', color: '#64748B', cursor: submitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={19} /></button>
+              <button type="button" onClick={closeAddModal} disabled={submitting} style={{ width: 38, height: 38, borderRadius: 12, border: 'none', background: '#F8FAFC', color: '#64748B', cursor: submitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={19} /></button>
             </div>
 
-            {checkpointErrors.length > 0 && (
-              <div style={{
-                margin: '0 30px',
-                padding: '12px 16px',
-                borderRadius: 10,
-                background: '#FEF2F2',
-                border: '1px solid #FECACA',
-                color: '#B91C1C',
-                fontSize: 13,
-                fontWeight: 600,
-              }}>
-                {checkpointErrors.map((error) => <div key={error}>{error}</div>)}
-              </div>
-            )}
-
-            <div style={{ padding: '22px 30px 26px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ padding: '22px 30px 0', display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0, overflowY: 'auto' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <section style={{ background: '#F7F8FA', borderRadius: 18, padding: '18px', border: '1px solid #EEF2F7' }}>
                   <div style={{ fontSize: 14, color: '#111827', fontWeight: 950, marginBottom: 12 }}>Быстрый выбор города</div>
@@ -746,10 +804,12 @@ export default function Tracking() {
                     <Search size={16} color="#94A3B8" />
                     <input value={citySearch} onChange={(event) => setCitySearch(event.target.value)} placeholder="Алматы, Дубай, Шанхай..." style={{ border: 'none', background: 'transparent', outline: 'none', flex: 1, fontSize: 14, color: '#111827' }} />
                   </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', maxHeight: 168, overflowY: 'auto', paddingRight: 4 }}>
                     {filteredCities.map((item) => (
                       <button
+                        type="button"
                         key={`${item.city}-${item.country}`}
+                        onMouseDown={(event) => event.preventDefault()}
                         onClick={() => setNewPoint((current) => ({ ...current, city: item.city, country: item.country }))}
                         style={{ border: `1px solid ${newPoint.city === item.city ? '#2563EB' : '#E2E8F0'}`, background: newPoint.city === item.city ? '#DBEAFE' : '#fff', color: newPoint.city === item.city ? '#1D4ED8' : '#64748B', padding: '8px 13px', borderRadius: 999, fontSize: 12, fontWeight: 900, cursor: 'pointer' }}
                       >
@@ -825,41 +885,55 @@ export default function Tracking() {
                 </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 4 }}>
-                <button type="button" onClick={() => !submitting && setShowAddModal(false)} disabled={submitting} style={{ minWidth: 138, padding: '13px 22px', border: '1px solid #E2E8F0', background: '#fff', borderRadius: 14, fontWeight: 900, color: '#64748B', cursor: submitting ? 'not-allowed' : 'pointer', fontSize: 14 }}>Отмена</button>
-                <button
-                  type="button"
-                  onClick={() => void handleAddPoint()}
-                  disabled={submitting || !newPoint.city || !newPoint.address}
-                  style={{
-                    minWidth: 230,
-                    padding: '13px 22px',
-                    border: 'none',
-                    background: submitting || !newPoint.city || !newPoint.address ? '#E2E8F0' : '#2563EB',
-                    color: submitting || !newPoint.city || !newPoint.address ? '#94A3B8' : '#fff',
-                    borderRadius: 14,
-                    fontWeight: 950,
-                    cursor: submitting || !newPoint.city || !newPoint.address ? 'not-allowed' : 'pointer',
-                    fontSize: 14,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                  }}
-                >
-                  {submitting && (
-                    <span style={{
-                      width: 14, height: 14, borderRadius: '50%',
-                      border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
-                      animation: 'spin 0.7s linear infinite', display: 'inline-block',
-                    }} />
-                  )}
-                  {submitting ? 'Сохранение...' : '+ Добавить точку в маршрут'}
-                </button>
-              </div>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 12,
+              padding: '16px 30px 26px',
+              borderTop: '1px solid #F1F5F9',
+              background: '#fff',
+              flexShrink: 0,
+              position: 'relative',
+              zIndex: 2,
+            }}>
+              <button type="button" onClick={closeAddModal} disabled={submitting} style={{ minWidth: 138, padding: '13px 22px', border: '1px solid #E2E8F0', background: '#fff', borderRadius: 14, fontWeight: 900, color: '#64748B', cursor: submitting ? 'not-allowed' : 'pointer', fontSize: 14 }}>Отмена</button>
+              <button
+                type="button"
+                onClick={() => void handleAddPoint()}
+                disabled={submitting || !hasRequiredStrings(newPoint.city, newPoint.address)}
+                style={{
+                  minWidth: 230,
+                  padding: '13px 22px',
+                  border: 'none',
+                  background: submitting || !hasRequiredStrings(newPoint.city, newPoint.address) ? '#E2E8F0' : '#2563EB',
+                  color: submitting || !hasRequiredStrings(newPoint.city, newPoint.address) ? '#94A3B8' : '#fff',
+                  borderRadius: 14,
+                  fontWeight: 950,
+                  cursor: submitting || !hasRequiredStrings(newPoint.city, newPoint.address) ? 'not-allowed' : 'pointer',
+                  fontSize: 14,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  position: 'relative',
+                  zIndex: 3,
+                }}
+              >
+                {submitting && (
+                  <span style={{
+                    width: 14, height: 14, borderRadius: '50%',
+                    border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
+                    animation: 'spin 0.7s linear infinite', display: 'inline-block',
+                  }} />
+                )}
+                {submitting ? 'Сохранение...' : '+ Добавить точку в маршрут'}
+              </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

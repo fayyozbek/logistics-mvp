@@ -2,12 +2,15 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ValidatesApiInput;
 use App\Models\Checkpoint;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreCheckpointRequest extends FormRequest
 {
+    use ValidatesApiInput;
+
     public function authorize(): bool
     {
         return true;

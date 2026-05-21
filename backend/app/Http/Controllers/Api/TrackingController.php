@@ -12,7 +12,7 @@ class TrackingController extends Controller
     public function index(): JsonResponse
     {
         $shipments = Shipment::query()
-            ->with(['client', 'manager', 'checkpoints', 'financeRecord'])
+            ->withDetailRelations()
             ->orderByDesc('updated_at')
             ->get();
 

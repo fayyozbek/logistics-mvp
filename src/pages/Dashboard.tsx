@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -14,29 +14,13 @@ import {
   YAxis,
 } from 'recharts';
 import { CalendarDays, ChevronDown, PackageCheck, TrendingUp } from 'lucide-react';
-import { getDashboardData } from '../api';
+import { getDashboardData, handleApiLoadFailure } from '../api';
+import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
+import PageLoading from '../components/PageLoading';
 import type { DashboardData } from '../types/api';
+import { formatMoneyUsdCompact } from '../utils/numberFormat';
 
-// Static chart data for periods the API does not yet return.
-const moneyByWeek = [
-  { month: 'Пн', turnover: 28000, paid: 18000, shipments: 9, active: 2 },
-  { month: 'Вт', turnover: 36000, paid: 26000, shipments: 12, active: 3 },
-  { month: 'Ср', turnover: 31000, paid: 21000, shipments: 10, active: 3 },
-  { month: 'Чт', turnover: 42000, paid: 33000, shipments: 14, active: 4 },
-  { month: 'Пт', turnover: 51000, paid: 39000, shipments: 16, active: 5 },
-  { month: 'Сб', turnover: 24000, paid: 17000, shipments: 7, active: 2 },
-  { month: 'Вс', turnover: 18000, paid: 13000, shipments: 5, active: 1 },
-];
-
-const moneyByYear = [
-  { month: '2022', turnover: 920000, paid: 740000, shipments: 410, active: 42 },
-  { month: '2023', turnover: 1240000, paid: 990000, shipments: 540, active: 58 },
-  { month: '2024', turnover: 1680000, paid: 1320000, shipments: 690, active: 71 },
-  { month: '2025', turnover: 2140000, paid: 1760000, shipments: 820, active: 84 },
-  { month: '2026', turnover: 2370000, paid: 1900000, shipments: 910, active: 91 },
-];
-
-// Fallback month data shown while the API response is in flight.
+// Fallback chart data shown while the API response is in flight.
 const moneyByMonthFallback = [
   { month: 'Янв', turnover: 128000, paid: 94000, shipments: 42, active: 8 },
   { month: 'Фев', turnover: 156000, paid: 118000, shipments: 50, active: 10 },
@@ -83,9 +67,25 @@ const calendarEvents = [
 
 type ChartPeriod = 'Неделя' | 'Месяц' | 'Год';
 
-function formatMoney(value: number) {
-  if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-  return `$${Math.round(value / 1000)}k`;
+const CHART_PERIOD_API: Record<ChartPeriod, 'week' | 'month' | 'year'> = {
+  Неделя: 'week',
+  Месяц: 'month',
+  Год: 'year',
+};
+
+const CALENDAR_MONTHS = [
+  { value: '2026-04', label: 'Апрель 2026' },
+  { value: '2026-05', label: 'Май 2026' },
+];
+
+function daysInMonth(monthValue: string): number {
+  const [year, month] = monthValue.split('-').map(Number);
+  return new Date(year, month, 0).getDate();
+}
+
+function formatDateLabel(iso: string): string {
+  const date = new Date(`${iso}T12:00:00`);
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function StatCard({
@@ -126,18 +126,31 @@ function StatCard({
 
 function CalendarPopover({
   onClose,
-  range,
+  onApply,
+  calendarMonth,
+  onMonthChange,
+  dateFrom,
+  dateTo,
   onPickDate,
   onClear,
 }: {
   onClose: () => void;
-  range: { start: number | null; end: number | null };
-  onPickDate: (day: number) => void;
+  onApply: () => void;
+  calendarMonth: string;
+  onMonthChange: (month: string) => void;
+  dateFrom: string | null;
+  dateTo: string | null;
+  onPickDate: (isoDate: string) => void;
   onClear: () => void;
 }) {
-  const days = Array.from({ length: 30 }, (_, index) => index + 1);
-  const min = range.start && range.end ? Math.min(range.start, range.end) : range.start;
-  const max = range.start && range.end ? Math.max(range.start, range.end) : range.end;
+  const days = Array.from({ length: daysInMonth(calendarMonth) }, (_, index) => index + 1);
+
+  const isInRange = (isoDate: string) => {
+    if (!dateFrom || !dateTo) return false;
+    const start = dateFrom <= dateTo ? dateFrom : dateTo;
+    const end = dateFrom <= dateTo ? dateTo : dateFrom;
+    return isoDate >= start && isoDate <= end;
+  };
 
   return (
     <div style={{
@@ -145,6 +158,7 @@ function CalendarPopover({
       top: 46,
       right: 0,
       width: 430,
+      maxWidth: 'calc(100vw - 24px)',
       background: '#fff',
       borderRadius: 22,
       border: '1px solid #E2E8F0',
@@ -152,29 +166,40 @@ function CalendarPopover({
       zIndex: 20,
       boxShadow: '0 18px 60px rgba(15,23,42,0.16)',
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 10 }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 900, color: '#0F172A' }}>Сентябрь 2026</div>
-          <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
-            {range.start && range.end
-              ? `Период: ${Math.min(range.start, range.end)}-30.09.2026`.replace('30.09', `${Math.max(range.start, range.end)}.09`)
-              : range.start
-                ? `Выберите дату окончания после ${range.start}.09.2026`
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <select
+              value={calendarMonth}
+              onChange={(e) => onMonthChange(e.target.value)}
+              style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: '6px 10px', fontSize: 13, fontWeight: 800, color: '#0F172A', background: '#fff' }}
+            >
+              {CALENDAR_MONTHS.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 6 }}>
+            {dateFrom && dateTo
+              ? `Период: ${formatDateLabel(dateFrom)} — ${formatDateLabel(dateTo)}`
+              : dateFrom
+                ? `Выберите дату окончания после ${formatDateLabel(dateFrom)}`
                 : 'Выберите дату начала и дату окончания'}
           </div>
         </div>
-        <button onClick={onClose} style={{ border: 'none', background: '#F1F5F9', borderRadius: 9, width: 30, height: 30, cursor: 'pointer', color: '#64748B' }}>×</button>
+        <button type="button" onClick={onClose} style={{ border: 'none', background: '#F1F5F9', borderRadius: 9, width: 30, height: 30, cursor: 'pointer', color: '#64748B' }}>×</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 14 }}>
         {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((day) => (
           <div key={day} style={{ textAlign: 'center', fontSize: 10, color: '#94A3B8', fontWeight: 800 }}>{day}</div>
         ))}
         {days.map((day) => {
-          const event = calendarEvents.find((item) => item.day === day);
-          const inRange = !!min && !!max && day >= min && day <= max;
-          const isEdge = day === range.start || day === range.end;
+          const isoDate = `${calendarMonth}-${String(day).padStart(2, '0')}`;
+          const event = calendarEvents.find((item) => item.day === day && calendarMonth === '2026-04');
+          const inRange = isInRange(isoDate);
+          const isEdge = isoDate === dateFrom || isoDate === dateTo;
           return (
-            <button key={day} onClick={() => onPickDate(day)} style={{
+            <button key={day} type="button" onClick={() => onPickDate(isoDate)} style={{
               height: 36,
               borderRadius: 11,
               border: 'none',
@@ -204,10 +229,10 @@ function CalendarPopover({
         ))}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 14 }}>
-        <button onClick={onClear} style={{ flex: 1, border: '1px solid #E2E8F0', background: '#fff', borderRadius: 12, padding: '10px 12px', color: '#64748B', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
+        <button type="button" onClick={onClear} style={{ flex: 1, border: '1px solid #E2E8F0', background: '#fff', borderRadius: 12, padding: '10px 12px', color: '#64748B', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
           Сбросить
         </button>
-        <button onClick={onClose} style={{ flex: 1, border: 'none', background: '#0B4CB8', borderRadius: 12, padding: '10px 12px', color: '#fff', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
+        <button type="button" onClick={onApply} style={{ flex: 1, border: 'none', background: '#0B4CB8', borderRadius: 12, padding: '10px 12px', color: '#fff', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
           Применить
         </button>
       </div>
@@ -246,18 +271,37 @@ function PeriodTabs({ value, onChange }: { value: ChartPeriod; onChange: (value:
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('Месяц');
+  const [dateFrom, setDateFrom] = useState<string | null>(null);
+  const [dateTo, setDateTo] = useState<string | null>(null);
+  const [draftFrom, setDraftFrom] = useState<string | null>(null);
+  const [draftTo, setDraftTo] = useState<string | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState('2026-04');
+
+  const loadDashboard = useCallback(() => {
+    setLoading(true);
+    getDashboardData({
+      dateFrom: dateFrom ?? undefined,
+      dateTo: dateTo ?? undefined,
+      chartPeriod: CHART_PERIOD_API[chartPeriod],
+    })
+      .then((data) => {
+        setDashboardData(data);
+        setLoadError(null);
+      })
+      .catch((error) => {
+        setDashboardData(null);
+        setLoadError(handleApiLoadFailure(error).message);
+      })
+      .finally(() => setLoading(false));
+  }, [chartPeriod, dateFrom, dateTo]);
 
   useEffect(() => {
-    getDashboardData()
-      .then(setDashboardData)
-      .finally(() => setLoading(false));
-  }, []);
-
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [shipmentPeriod, setShipmentPeriod] = useState<ChartPeriod>('Год');
-  const [moneyPeriod, setMoneyPeriod] = useState<ChartPeriod>('Год');
-  const [dateRange, setDateRange] = useState<{ start: number | null; end: number | null }>({ start: 1, end: 20 });
+    loadDashboard();
+  }, [loadDashboard]);
 
   const summary = dashboardData?.summary;
   const monthlyTurnover = summary?.monthlyTurnover ?? 0;
@@ -266,47 +310,55 @@ export default function Dashboard() {
   const completedShipments = summary?.completedShipments ?? 0;
   const receivable = summary?.receivable ?? 0;
 
-  const moneyByMonth = dashboardData?.charts.moneyByMonth ?? moneyByMonthFallback;
+  const chartData = dashboardData?.charts.moneyByMonth ?? moneyByMonthFallback;
   const directionShare = dashboardData?.charts.directionShare ?? directionShareFallback;
-
-  const chartDataByPeriod: Record<ChartPeriod, typeof moneyByMonth> = {
-    Неделя: moneyByWeek,
-    Месяц: moneyByMonth,
-    Год: moneyByYear,
-  };
+  const isEmpty = !loading && monthlyTurnover === 0 && chartData.length === 0;
 
   const selectedPeriod = useMemo(() => {
-    if (dateRange.start && dateRange.end) {
-      const start = Math.min(dateRange.start, dateRange.end);
-      const end = Math.max(dateRange.start, dateRange.end);
-      return `${String(start).padStart(2, '0')} сен. 2026 - ${String(end).padStart(2, '0')} сен. 2026`;
+    if (dateFrom && dateTo) return `${formatDateLabel(dateFrom)} — ${formatDateLabel(dateTo)}`;
+    if (dateFrom) return `${formatDateLabel(dateFrom)} — выберите конец`;
+    return 'Весь период';
+  }, [dateFrom, dateTo]);
+
+  const handlePickDate = (isoDate: string) => {
+    if (!draftFrom || (draftFrom && draftTo)) {
+      setDraftFrom(isoDate);
+      setDraftTo(null);
+      return;
     }
-    if (dateRange.start) return `${String(dateRange.start).padStart(2, '0')} сен. 2026 - выберите конец`;
-    return 'Выберите период';
-  }, [dateRange]);
-
-  const shipmentChartData = chartDataByPeriod[shipmentPeriod];
-  const moneyChartData = chartDataByPeriod[moneyPeriod];
-
-  const handlePickDate = (day: number) => {
-    setDateRange((current) => {
-      if (!current.start || (current.start && current.end)) return { start: day, end: null };
-      return { start: current.start, end: day };
-    });
+    if (isoDate < draftFrom) {
+      setDraftTo(draftFrom);
+      setDraftFrom(isoDate);
+      return;
+    }
+    setDraftTo(isoDate);
   };
 
+  const openCalendar = () => {
+    setDraftFrom(dateFrom);
+    setDraftTo(dateTo);
+    setCalendarOpen(true);
+  };
+
+  const applyDateFilter = () => {
+    setDateFrom(draftFrom);
+    setDateTo(draftTo);
+    setCalendarOpen(false);
+  };
+
+  const clearDateFilter = () => {
+    setDraftFrom(null);
+    setDraftTo(null);
+    setDateFrom(null);
+    setDateTo(null);
+  };
+
+  if (loadError && !loading) {
+    return <ApiLoadErrorPanel message={loadError} />;
+  }
+
   if (loading) {
-    return (
-      <div style={{ padding: '22px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
-        <div style={{
-          width: 18, height: 18, borderRadius: '50%',
-          border: '2.5px solid #E2E8F0', borderTopColor: '#0B4CB8',
-          animation: 'spin 0.7s linear infinite',
-        }} />
-        Загрузка...
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
+    return <PageLoading padding="22px 28px" accentColor="#0B4CB8" />;
   }
 
   return (
@@ -318,7 +370,8 @@ export default function Dashboard() {
         </div>
         <div style={{ position: 'relative' }}>
           <button
-            onClick={() => setCalendarOpen((value) => !value)}
+            type="button"
+            onClick={() => (calendarOpen ? setCalendarOpen(false) : openCalendar())}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -339,30 +392,48 @@ export default function Dashboard() {
           {calendarOpen && (
             <CalendarPopover
               onClose={() => setCalendarOpen(false)}
-              range={dateRange}
+              onApply={applyDateFilter}
+              calendarMonth={calendarMonth}
+              onMonthChange={setCalendarMonth}
+              dateFrom={draftFrom}
+              dateTo={draftTo}
               onPickDate={handlePickDate}
-              onClear={() => setDateRange({ start: null, end: null })}
+              onClear={clearDateFilter}
             />
           )}
         </div>
       </div>
 
+      {isEmpty && (
+        <div style={{
+          padding: '14px 16px',
+          borderRadius: 14,
+          background: '#F8FAFC',
+          border: '1px solid #E2E8F0',
+          color: '#64748B',
+          fontSize: 13,
+          fontWeight: 700,
+        }}>
+          Нет данных за выбранный период. Измените диапазон дат или нажмите «Сбросить».
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr 1fr 1fr 1fr', gap: 16 }}>
-        <StatCard title="Месячный оборот" value={formatMoney(monthlyTurnover)} note="+18% к августу" bg="#DDEBFF" color="#0B4CB8" dark />
-        <StatCard title="Пришло денег" value={formatMoney(totalPaid)} note={monthlyTurnover > 0 ? `${Math.round((totalPaid / monthlyTurnover) * 100)}% собрано` : '—'} bg="#EAF2FF" color="#0B4CB8" />
+        <StatCard title="Месячный оборот" value={formatMoneyUsdCompact(monthlyTurnover)} note="+18% к августу" bg="#DDEBFF" color="#0B4CB8" dark />
+        <StatCard title="Пришло денег" value={formatMoneyUsdCompact(totalPaid)} note={monthlyTurnover > 0 ? `${Math.round((totalPaid / monthlyTurnover) * 100)}% собрано` : '—'} bg="#EAF2FF" color="#0B4CB8" />
         <StatCard title="Активные грузы" value={`${activeShipments}`} note={activeShipments + completedShipments > 0 ? `${Math.round((activeShipments / (activeShipments + completedShipments)) * 100)}% от всех` : '—'} bg="#F8FAFC" color="#2563EB" />
         <StatCard title="Завершено" value={`${completedShipments}`} note="за период" bg="#F8FAFC" color="#334155" />
-        <StatCard title="К получению" value={formatMoney(receivable)} note="по клиентам" bg="#EAF2FF" color="#1D4ED8" />
+        <StatCard title="К получению" value={formatMoneyUsdCompact(receivable)} note="по клиентам" bg="#EAF2FF" color="#1D4ED8" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
         <section style={{ background: '#fff', borderRadius: 22, padding: '20px 22px', border: '1px solid rgba(255,255,255,0.8)', minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontSize: 18, fontWeight: 950, color: '#111827' }}>Грузы по месяцам</div>
-            <PeriodTabs value={shipmentPeriod} onChange={setShipmentPeriod} />
+            <PeriodTabs value={chartPeriod} onChange={setChartPeriod} />
           </div>
           <ResponsiveContainer width="100%" height={235}>
-            <BarChart data={shipmentChartData} barSize={shipmentPeriod === 'Неделя' ? 36 : 28}>
+            <BarChart data={chartData} barSize={chartPeriod === 'Неделя' ? 36 : 28}>
               <CartesianGrid vertical={false} stroke="#EEF2FF" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
@@ -382,14 +453,14 @@ export default function Dashboard() {
         <section style={{ background: '#fff', borderRadius: 22, padding: '20px 22px', border: '1px solid rgba(255,255,255,0.8)', minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontSize: 18, fontWeight: 950, color: '#111827' }}>Оборот и оплаты</div>
-            <PeriodTabs value={moneyPeriod} onChange={setMoneyPeriod} />
+            <PeriodTabs value={chartPeriod} onChange={setChartPeriod} />
           </div>
           <ResponsiveContainer width="100%" height={235}>
-            <LineChart data={moneyChartData}>
+            <LineChart data={chartData}>
               <CartesianGrid vertical={false} stroke="#EEF2FF" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={(value) => `$${Number(value) / 1000}k`} />
-              <Tooltip contentStyle={{ borderRadius: 14, border: '1px solid #E2E8F0', fontSize: 12 }} formatter={(value) => `$${Number(value).toLocaleString()}`} />
+              <Tooltip contentStyle={{ borderRadius: 14, border: '1px solid #E2E8F0', fontSize: 12 }} formatter={(value) => formatMoneyUsdCompact(Number(value))} />
               <Line type="monotone" dataKey="turnover" stroke="#0B4CB8" strokeWidth={3} dot={false} name="Оборот" />
               <Line type="monotone" dataKey="paid" stroke="#93C5FD" strokeWidth={3} dot={false} name="Пришло денег" />
             </LineChart>

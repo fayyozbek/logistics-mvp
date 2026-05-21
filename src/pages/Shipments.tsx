@@ -1,17 +1,33 @@
 import { useEffect, useState } from 'react';
+import '../styles/shipments.css';
+import { LocationAutocomplete } from '../components/LocationAutocomplete';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { QuantityWithUnitField } from '../components/QuantityWithUnitField';
 import type { Client, Manager, Shipment, ShipmentStatus, TransportType } from '../data/mock';
-import { ApiError, createShipment, getManagers, getShipments, updateShipmentStatus } from '../api';
-import type { CreateShipmentPayload } from '../types/api';
-
-const statusColors: Record<string, string> = {
-  planned: '#F59E0B', in_transit: '#3B82F6', at_checkpoint: '#8B5CF6', delivered: '#10B981', delayed: '#EF4444',
-};
-const statusLabel: Record<string, string> = {
-  planned: 'Запланирован', in_transit: 'В пути', at_checkpoint: 'На пункте', delivered: 'Доставлен', delayed: 'Задержка',
-};
-const statusBg: Record<string, string> = {
-  planned: '#FEF3C7', in_transit: '#DBEAFE', at_checkpoint: '#EDE9FE', delivered: '#DCFCE7', delayed: '#FEE2E2',
-};
+import { normalizeLocationValue } from '../data/locations';
+import {
+  buildVolumePayload,
+  buildWeightPayload,
+  DEFAULT_VOLUME_UNIT,
+  DEFAULT_WEIGHT_UNIT,
+  formatShipmentVolumeDisplay,
+  formatShipmentWeightDisplay,
+  parseShipmentVolumeForForm,
+  parseShipmentWeightForForm,
+  validateVolumeField,
+  validateWeightField,
+  VOLUME_UNITS,
+  WEIGHT_UNITS,
+} from '../utils/shipmentUnits';
+import { ApiError, createShipment, deleteShipment, exportShipmentsCsv, getClients, getManagers, getShipments, handleApiLoadFailure, updateShipment, updateShipmentStatus } from '../api';
+import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
+import FormErrorList from '../components/FormErrorList';
+import PageLoading from '../components/PageLoading';
+import { formatFieldErrors, showApiMutationError } from '../utils/apiErrors';
+import { validateShipmentFormFields } from '../utils/formValidation';
+import { pluralPoints, shipmentStatusBg, shipmentStatusColors, shipmentStatusLabels } from '../utils/shipmentLabels';
+import { useToast } from '../components/ToastProvider';
+import type { CreateShipmentPayload, UpdateShipmentPayload } from '../types/api';
 
 function TruckIcon() {
   return (
@@ -118,7 +134,9 @@ interface CreateFormState {
   destination: string;
   cargo: string;
   weight: string;
+  weightUnit: string;
   volume: string;
+  volumeUnit: string;
   estimatedDelivery: string;
   telegramNotifications: boolean;
 }
@@ -131,10 +149,51 @@ const emptyCreateForm: CreateFormState = {
   destination: '',
   cargo: '',
   weight: '',
+  weightUnit: DEFAULT_WEIGHT_UNIT,
   volume: '',
+  volumeUnit: DEFAULT_VOLUME_UNIT,
   estimatedDelivery: '',
   telegramNotifications: false,
 };
+
+interface EditFormState {
+  clientId: string;
+  managerId: string;
+  type: TransportType;
+  origin: string;
+  destination: string;
+  cargo: string;
+  weight: string;
+  weightUnit: string;
+  volume: string;
+  volumeUnit: string;
+  plannedPickup: string;
+  estimatedDelivery: string;
+  notes: string;
+  telegramNotifications: boolean;
+}
+
+function shipmentToEditForm(shipment: Shipment): EditFormState {
+  const weight = parseShipmentWeightForForm(shipment.weight, shipment.weightUnit);
+  const volume = parseShipmentVolumeForForm(shipment.volume, shipment.volumeUnit);
+
+  return {
+    clientId: shipment.clientId,
+    managerId: shipment.managerId ?? '',
+    type: shipment.type,
+    origin: shipment.origin,
+    destination: shipment.destination,
+    cargo: shipment.cargo ?? '',
+    weight: weight.displayValue,
+    weightUnit: weight.unit,
+    volume: volume.displayValue,
+    volumeUnit: volume.unit,
+    plannedPickup: shipment.plannedPickup ?? '',
+    estimatedDelivery: shipment.estimatedDelivery ?? '',
+    notes: shipment.notes ?? '',
+    telegramNotifications: shipment.telegramNotifications,
+  };
+}
 
 const fieldLabels: Record<string, string> = {
   clientId: 'Клиент',
@@ -144,29 +203,17 @@ const fieldLabels: Record<string, string> = {
   destination: 'Куда',
   cargo: 'Груз',
   weight: 'Вес',
+  weightUnit: 'Ед. веса',
   volume: 'Объём',
+  volumeUnit: 'Ед. объёма',
   estimatedDelivery: 'Плановая дата',
   status: 'Статус',
   note: 'Комментарий',
 };
 
-function formatFieldErrors(errors: Record<string, string[]>): string[] {
-  return Object.entries(errors).flatMap(([field, messages]) =>
-    messages.map((message) => {
-      const label = fieldLabels[field] ?? field;
-      return `${label}: ${message}`;
-    }),
-  );
-}
-
-function pluralPoints(n: number): string {
-  if (n % 10 === 1 && n % 100 !== 11) return `${n} точка`;
-  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return `${n} точки`;
-  return `${n} точек`;
-}
-
 export default function Shipments() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [managers, setManagers] = useState<Manager[]>([]);
@@ -176,20 +223,41 @@ export default function Shipments() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createForm, setCreateForm] = useState<CreateFormState>(emptyCreateForm);
   const [submitting, setSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const { showToast } = useToast();
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [statusDraft, setStatusDraft] = useState<ShipmentStatus>('planned');
   const [statusNote, setStatusNote] = useState('');
   const [statusUpdating, setStatusUpdating] = useState(false);
-  const [statusSuccessMessage, setStatusSuccessMessage] = useState('');
   const [statusUpdateErrors, setStatusUpdateErrors] = useState<string[]>([]);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState<EditFormState | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editErrors, setEditErrors] = useState<string[]>([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteErrors, setDeleteErrors] = useState<string[]>([]);
+
+  const refreshClients = async () => {
+    const { clients: data } = await getClients();
+    setClients(data);
+  };
+
+  const refreshManagers = async () => {
+    const { managers: data } = await getManagers();
+    setManagers(data);
+  };
 
   useEffect(() => {
-    Promise.all([getShipments(), getManagers()])
-      .then(([shipmentsRes, managersRes]) => {
+    Promise.all([getShipments(), getManagers(), getClients()])
+      .then(([shipmentsRes, managersRes, clientsRes]) => {
         setShipments(shipmentsRes.shipments);
-        setClients(managersRes.clients);
         setManagers(managersRes.managers);
+        setClients(clientsRes.clients);
+        setLoadError(null);
+      })
+      .catch((error) => {
+        setLoadError(handleApiLoadFailure(error).message);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -199,7 +267,15 @@ export default function Shipments() {
       setStatusDraft(selected.status);
       setStatusNote('');
       setStatusUpdateErrors([]);
-      setStatusSuccessMessage('');
+      setEditMode(false);
+      setEditForm(shipmentToEditForm(selected));
+      setEditErrors([]);
+      setShowDeleteConfirm(false);
+      setDeleteErrors([]);
+    } else {
+      setEditMode(false);
+      setEditForm(null);
+      setShowDeleteConfirm(false);
     }
   }, [selected?.id]);
 
@@ -213,8 +289,6 @@ export default function Shipments() {
 
     setStatusUpdating(true);
     setStatusUpdateErrors([]);
-    setStatusSuccessMessage('');
-    setSuccessMessage('');
 
     try {
       const { shipment } = await updateShipmentStatus(selected.id, {
@@ -224,10 +298,10 @@ export default function Shipments() {
       mergeShipment(shipment);
       setStatusDraft(shipment.status);
       setStatusNote('');
-      setStatusSuccessMessage(`Статус ${shipment.trackingNumber} обновлён: ${statusLabel[shipment.status]}`);
+      showToast(`Статус ${shipment.trackingNumber} обновлён: ${shipmentStatusLabels[shipment.status]}`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
-        setStatusUpdateErrors(formatFieldErrors(error.validationErrors));
+        setStatusUpdateErrors(formatFieldErrors(error.validationErrors, fieldLabels));
       } else if (error instanceof ApiError) {
         setStatusUpdateErrors([error.message]);
       } else {
@@ -238,11 +312,129 @@ export default function Shipments() {
     }
   };
 
+  const openEditForm = () => {
+    if (!selected) return;
+    setEditForm(shipmentToEditForm(selected));
+    setEditErrors([]);
+    setShowDeleteConfirm(false);
+    setEditMode(true);
+  };
+
+  const closeEditForm = () => {
+    if (editSubmitting) return;
+    setEditMode(false);
+    setEditErrors([]);
+    if (selected) {
+      setEditForm(shipmentToEditForm(selected));
+    }
+  };
+
+  const handleEditSubmit = async () => {
+    if (!selected || !editForm) return;
+
+    setEditSubmitting(true);
+    setEditErrors([]);
+
+    const fieldErrors = validateShipmentFormFields({
+      clientId: editForm.clientId,
+      origin: editForm.origin,
+      destination: editForm.destination,
+    });
+    if (fieldErrors.length > 0) {
+      setEditErrors(fieldErrors);
+      setEditSubmitting(false);
+      return;
+    }
+
+    const weightError = validateWeightField(editForm.weight, editForm.weightUnit);
+    const volumeError = validateVolumeField(editForm.volume, editForm.volumeUnit);
+    if (weightError || volumeError) {
+      setEditErrors([weightError, volumeError].filter((msg): msg is string => Boolean(msg)));
+      setEditSubmitting(false);
+      return;
+    }
+
+    const payload: UpdateShipmentPayload = {
+      clientId: Number(editForm.clientId),
+      managerId: editForm.managerId ? Number(editForm.managerId) : null,
+      type: editForm.type,
+      origin: normalizeLocationValue(editForm.origin),
+      destination: normalizeLocationValue(editForm.destination),
+      cargo: editForm.cargo.trim() || undefined,
+      ...buildWeightPayload(editForm.weight, editForm.weightUnit),
+      ...buildVolumePayload(editForm.volume, editForm.volumeUnit),
+      plannedPickup: editForm.plannedPickup || undefined,
+      estimatedDelivery: editForm.estimatedDelivery || undefined,
+      notes: editForm.notes.trim() || undefined,
+      telegramNotifications: editForm.telegramNotifications,
+    };
+
+    try {
+      const { shipment } = await updateShipment(selected.id, payload);
+      mergeShipment(shipment);
+      setEditMode(false);
+      setEditForm(shipmentToEditForm(shipment));
+      showToast(`Груз ${shipment.trackingNumber} обновлён`);
+    } catch (error) {
+      if (error instanceof ApiError && error.validationErrors) {
+        setEditErrors(formatFieldErrors(error.validationErrors, fieldLabels));
+      } else if (error instanceof ApiError) {
+        setEditErrors([error.message]);
+      } else {
+        setEditErrors(['Не удалось обновить груз. Проверьте подключение к API.']);
+      }
+      showApiMutationError(showToast, error, 'Не удалось обновить груз. Проверьте подключение к API.', {
+        fieldLabels,
+      });
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selected) return;
+
+    const deletedId = selected.id;
+    const deletedTracking = selected.trackingNumber;
+
+    setDeleteSubmitting(true);
+    setDeleteErrors([]);
+
+    try {
+      await deleteShipment(deletedId);
+      const remaining = shipments.filter((item) => item.id !== deletedId);
+      setShipments(remaining);
+      setSelected(null);
+      setEditMode(false);
+      setShowDeleteConfirm(false);
+      showToast(`Груз ${deletedTracking} удалён`);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setDeleteErrors([error.message]);
+      } else {
+        setDeleteErrors(['Не удалось удалить груз. Проверьте подключение к API.']);
+      }
+      showApiMutationError(showToast, error, 'Не удалось удалить груз. Проверьте подключение к API.');
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      await exportShipmentsCsv();
+    } catch (error) {
+      showApiMutationError(showToast, error, 'Не удалось экспортировать грузы. Проверьте подключение к API.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const openCreateForm = () => {
     setCreateForm(emptyCreateForm);
     setFormErrors([]);
-    setSuccessMessage('');
-    setStatusSuccessMessage('');
+    void Promise.all([refreshClients(), refreshManagers()]);
     setShowCreateForm(true);
   };
 
@@ -255,18 +447,35 @@ export default function Shipments() {
   const handleCreateSubmit = async () => {
     setSubmitting(true);
     setFormErrors([]);
-    setSuccessMessage('');
-    setStatusSuccessMessage('');
+
+    const fieldErrors = validateShipmentFormFields({
+      clientId: createForm.clientId,
+      origin: createForm.origin,
+      destination: createForm.destination,
+    });
+    if (fieldErrors.length > 0) {
+      setFormErrors(fieldErrors);
+      setSubmitting(false);
+      return;
+    }
+
+    const weightError = validateWeightField(createForm.weight, createForm.weightUnit);
+    const volumeError = validateVolumeField(createForm.volume, createForm.volumeUnit);
+    if (weightError || volumeError) {
+      setFormErrors([weightError, volumeError].filter((msg): msg is string => Boolean(msg)));
+      setSubmitting(false);
+      return;
+    }
 
     const payload: CreateShipmentPayload = {
       clientId: Number(createForm.clientId),
       managerId: createForm.managerId ? Number(createForm.managerId) : undefined,
       type: createForm.type,
-      origin: createForm.origin.trim(),
-      destination: createForm.destination.trim(),
+      origin: normalizeLocationValue(createForm.origin),
+      destination: normalizeLocationValue(createForm.destination),
       cargo: createForm.cargo.trim() || undefined,
-      weight: createForm.weight.trim() || undefined,
-      volume: createForm.volume.trim() || undefined,
+      ...buildWeightPayload(createForm.weight, createForm.weightUnit),
+      ...buildVolumePayload(createForm.volume, createForm.volumeUnit),
       estimatedDelivery: createForm.estimatedDelivery || undefined,
       telegramNotifications: createForm.telegramNotifications,
     };
@@ -299,15 +508,18 @@ export default function Shipments() {
       setSelected(shipment);
       setShowCreateForm(false);
       setCreateForm(emptyCreateForm);
-      setSuccessMessage(`Груз ${shipment.trackingNumber} успешно создан`);
+      showToast(`Груз ${shipment.trackingNumber} успешно создан`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
-        setFormErrors(formatFieldErrors(error.validationErrors));
+        setFormErrors(formatFieldErrors(error.validationErrors, fieldLabels));
       } else if (error instanceof ApiError) {
         setFormErrors([error.message]);
       } else {
         setFormErrors(['Не удалось создать груз. Проверьте подключение к API.']);
       }
+      showApiMutationError(showToast, error, 'Не удалось создать груз. Проверьте подключение к API.', {
+        fieldLabels,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -318,41 +530,406 @@ export default function Shipments() {
     (typeFilter === 'all' || s.type === typeFilter)
   );
 
-  if (loading) {
-    return (
-      <div style={{ padding: '20px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
-        <div style={{
-          width: 18, height: 18, borderRadius: '50%',
-          border: '2.5px solid #E2E8F0', borderTopColor: '#3B82F6',
-          animation: 'spin 0.7s linear infinite',
-        }} />
-        Загрузка...
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
+  const isCompact = useMediaQuery('(max-width: 1023px)');
+
+  useEffect(() => {
+    if (!isCompact || !selected) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isCompact, selected]);
+
+  useEffect(() => {
+    if (!showCreateForm) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showCreateForm]);
+
+  if (loadError && !loading) {
+    return <ApiLoadErrorPanel message={loadError} />;
   }
 
+  if (loading) {
+    return <PageLoading className="shipments-page" />;
+  }
+
+  const renderDetailPanel = () => {
+    if (!selected) return null;
+
+    return (
+      <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <TypeIcon type={selected.type} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>{selected.trackingNumber}</div>
+                  <div style={{ fontSize: 11, color: '#94A3B8' }}>{typeLabel[selected.type]}</div>
+                </div>
+              </div>
+              <button type="button" onClick={() => setSelected(null)} style={{
+                background: '#F1F5F9', border: 'none', cursor: 'pointer',
+                width: 36, height: 36, borderRadius: 7,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#64748B', fontSize: 16, fontWeight: 700,
+              }}>×</button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={openEditForm}
+                disabled={editSubmitting || deleteSubmitting || showDeleteConfirm}
+                style={{
+                  flex: '1 1 120px', padding: '10px 12px', borderRadius: 8, border: '1px solid #BFDBFE',
+                  background: editMode ? '#DBEAFE' : '#F0F7FF', color: '#1D4ED8',
+                  fontSize: 12, fontWeight: 700, cursor: editSubmitting || deleteSubmitting ? 'not-allowed' : 'pointer',
+                  minHeight: 40,
+                }}
+              >
+                Редактировать
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteConfirm(true);
+                  setEditMode(false);
+                  setDeleteErrors([]);
+                }}
+                disabled={editSubmitting || deleteSubmitting}
+                style={{
+                  flex: '1 1 120px', padding: '10px 12px', borderRadius: 8, border: '1px solid #FECACA',
+                  background: '#FEF2F2', color: '#B91C1C',
+                  fontSize: 12, fontWeight: 700, cursor: editSubmitting || deleteSubmitting ? 'not-allowed' : 'pointer',
+                  minHeight: 40,
+                }}
+              >
+                Удалить
+              </button>
+            </div>
+
+            {showDeleteConfirm && (
+              <div style={{ marginBottom: 14, padding: '12px', borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#991B1B', marginBottom: 8 }}>
+                  Удалить груз {selected.trackingNumber}? Это действие нельзя отменить.
+                </div>
+                {deleteErrors.length > 0 && (
+                  <div style={{ fontSize: 11, color: '#B91C1C', marginBottom: 8 }}>
+                    {deleteErrors.map((error) => <div key={error}>{error}</div>)}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!deleteSubmitting) setShowDeleteConfirm(false);
+                    }}
+                    disabled={deleteSubmitting}
+                    style={{
+                      flex: '1 1 120px', padding: '10px 12px', borderRadius: 8, border: '1px solid #E2E8F0',
+                      background: '#fff', color: '#64748B', fontSize: 12, fontWeight: 600,
+                      cursor: deleteSubmitting ? 'not-allowed' : 'pointer', minHeight: 40,
+                    }}
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteConfirm()}
+                    disabled={deleteSubmitting}
+                    style={{
+                      flex: '1 1 120px', padding: '10px 12px', borderRadius: 8, border: 'none',
+                      background: deleteSubmitting ? '#94A3B8' : '#DC2626', color: '#fff',
+                      fontSize: 12, fontWeight: 700, cursor: deleteSubmitting ? 'not-allowed' : 'pointer', minHeight: 40,
+                    }}
+                  >
+                    {deleteSubmitting ? 'Удаление...' : 'Да, удалить'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {editMode && editForm ? (
+              <div className="shipments-edit-form">
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Редактирование груза</div>
+
+                <FormErrorList errors={editErrors} fontSize={11} padding="8px 10px" marginBottom={10} />
+
+                <div className="shipments-edit-form-fields">
+                  <label>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Клиент *</div>
+                    <select
+                      value={editForm.clientId}
+                      onChange={(e) => setEditForm((f) => f && ({ ...f, clientId: e.target.value }))}
+                      disabled={editSubmitting}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                    >
+                      {clients.map((c) => <option key={c.id} value={c.id}>{c.company}</option>)}
+                    </select>
+                  </label>
+
+                  <label>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Менеджер</div>
+                    <select
+                      value={editForm.managerId}
+                      onChange={(e) => setEditForm((f) => f && ({ ...f, managerId: e.target.value }))}
+                      disabled={editSubmitting}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                    >
+                      <option value="">Не назначен</option>
+                      {managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                  </label>
+
+                  <label>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Тип перевозки *</div>
+                    <select
+                      value={editForm.type}
+                      onChange={(e) => setEditForm((f) => f && ({ ...f, type: e.target.value as TransportType }))}
+                      disabled={editSubmitting}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                    >
+                      {transportTypes.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </label>
+
+                  <div className="shipments-form-grid-2">
+                    <LocationAutocomplete
+                      label="Откуда *"
+                      value={editForm.origin}
+                      onChange={(origin) => setEditForm((f) => f && ({ ...f, origin }))}
+                      disabled={editSubmitting}
+                    />
+                    <LocationAutocomplete
+                      label="Куда *"
+                      value={editForm.destination}
+                      onChange={(destination) => setEditForm((f) => f && ({ ...f, destination }))}
+                      disabled={editSubmitting}
+                    />
+                  </div>
+
+                  <label>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Груз</div>
+                    <input
+                      value={editForm.cargo}
+                      onChange={(e) => setEditForm((f) => f && ({ ...f, cargo: e.target.value }))}
+                      disabled={editSubmitting}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                    />
+                  </label>
+
+                  <QuantityWithUnitField
+                    quantityLabel="Вес"
+                    unitLabel="Ед. веса"
+                    value={editForm.weight}
+                    unit={editForm.weightUnit}
+                    units={WEIGHT_UNITS.map((u) => ({ value: u, label: u }))}
+                    onValueChange={(weight) => setEditForm((f) => f && ({ ...f, weight }))}
+                    onUnitChange={(weightUnit) => setEditForm((f) => f && ({ ...f, weightUnit }))}
+                    disabled={editSubmitting}
+                    placeholder="2 400"
+                  />
+
+                  <QuantityWithUnitField
+                    quantityLabel="Объём"
+                    unitLabel="Ед. объёма"
+                    value={editForm.volume}
+                    unit={editForm.volumeUnit}
+                    units={VOLUME_UNITS.map((u) => ({ value: u, label: u === 'm3' ? 'm³' : u }))}
+                    onValueChange={(volume) => setEditForm((f) => f && ({ ...f, volume }))}
+                    onUnitChange={(volumeUnit) => setEditForm((f) => f && ({ ...f, volumeUnit }))}
+                    disabled={editSubmitting}
+                    placeholder="18"
+                  />
+
+                  <div className="shipments-form-grid-2">
+                    <label>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Плановый забор</div>
+                      <input
+                        type="date"
+                        value={editForm.plannedPickup}
+                        onChange={(e) => setEditForm((f) => f && ({ ...f, plannedPickup: e.target.value }))}
+                        disabled={editSubmitting}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                      />
+                    </label>
+                    <label>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Плановая доставка</div>
+                      <input
+                        type="date"
+                        value={editForm.estimatedDelivery}
+                        onChange={(e) => setEditForm((f) => f && ({ ...f, estimatedDelivery: e.target.value }))}
+                        disabled={editSubmitting}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                      />
+                    </label>
+                  </div>
+
+                  <label>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Примечание</div>
+                    <textarea
+                      value={editForm.notes}
+                      onChange={(e) => setEditForm((f) => f && ({ ...f, notes: e.target.value }))}
+                      disabled={editSubmitting}
+                      rows={2}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none', resize: 'none', fontFamily: 'inherit' }}
+                    />
+                  </label>
+                </div>
+
+                <div className="shipments-form-actions" style={{ marginTop: 12 }}>
+                  <button type="button" onClick={closeEditForm} disabled={editSubmitting} style={{
+                    flex: '1 1 120px', padding: '10px 12px', borderRadius: 8, border: '1px solid #E2E8F0',
+                    background: '#fff', color: '#64748B', fontSize: 12, fontWeight: 600,
+                    cursor: editSubmitting ? 'not-allowed' : 'pointer', minHeight: 44,
+                  }}>
+                    Отмена
+                  </button>
+                  <button type="button" onClick={() => void handleEditSubmit()} disabled={editSubmitting} style={{
+                    flex: '1 1 120px', padding: '10px 12px', borderRadius: 8, border: 'none',
+                    background: editSubmitting ? '#94A3B8' : '#3B82F6', color: '#fff',
+                    fontSize: 12, fontWeight: 700, cursor: editSubmitting ? 'not-allowed' : 'pointer', minHeight: 44,
+                  }}>
+                    {editSubmitting ? 'Сохранение...' : 'Сохранить'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
+              {[
+                { icon: '🏢', label: 'Клиент', value: clients.find(c => c.id === selected.clientId)?.company },
+                { icon: '👤', label: 'Менеджер', value: managers.find(m => m.id === selected.managerId)?.name },
+                { icon: '📦', label: 'Груз', value: selected.cargo },
+                {
+                  icon: '⚖',
+                  label: 'Вес / Объём',
+                  value: [formatShipmentWeightDisplay(selected.weight, selected.weightUnit), formatShipmentVolumeDisplay(selected.volume, selected.volumeUnit)]
+                    .filter(Boolean)
+                    .join(' · ') || undefined,
+                },
+                { icon: '📅', label: 'Плановая дата', value: selected.estimatedDelivery },
+              ].filter(({ value }) => value).map(({ icon, label, value }) => (
+                <div key={label} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+                  padding: '7px 10px', borderRadius: 8, background: '#F8FAFC',
+                }}>
+                  <div style={{ display: 'flex', gap: 7, alignItems: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: 13 }}>{icon}</span>
+                    <span style={{ fontSize: 11, color: '#94A3B8' }}>{label}</span>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', textAlign: 'right', wordBreak: 'break-word' }}>{value}</span>
+                </div>
+              ))}
+            </div>
+            )}
+
+            <div style={{ marginBottom: 18, padding: '14px', borderRadius: 10, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Обновить статус</div>
+
+              <FormErrorList errors={statusUpdateErrors} fontSize={11} padding="8px 10px" marginBottom={10} />
+
+              <label style={{ display: 'block', marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Статус</div>
+                <select
+                  value={statusDraft}
+                  onChange={(e) => setStatusDraft(e.target.value as ShipmentStatus)}
+                  disabled={statusUpdating}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                >
+                  {statusOptions.map(({ value, label }) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label style={{ display: 'block', marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Комментарий</div>
+                <textarea
+                  value={statusNote}
+                  onChange={(e) => setStatusNote(e.target.value)}
+                  disabled={statusUpdating}
+                  rows={2}
+                  placeholder="Необязательно"
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none', resize: 'none', fontFamily: 'inherit' }}
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={() => void handleStatusUpdate(statusDraft, statusNote)}
+                disabled={statusUpdating}
+                style={{
+                  width: '100%', padding: '11px 14px', background: statusUpdating ? '#94A3B8' : '#3B82F6', color: '#fff',
+                  border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12,
+                  cursor: statusUpdating ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 40,
+                }}
+              >
+                {statusUpdating && (
+                  <span style={{
+                    width: 12, height: 12, borderRadius: '50%',
+                    border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
+                    animation: 'spin 0.7s linear infinite', display: 'inline-block',
+                  }} />
+                )}
+                {statusUpdating ? 'Сохранение...' : 'Сохранить статус'}
+              </button>
+            </div>
+
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 12 }}>
+              Маршрут · {pluralPoints(selected.checkpoints.length)}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {selected.checkpoints.map((cp, i) => (
+                <div key={cp.id} style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div style={{
+                      width: 14, height: 14, borderRadius: '50%', flexShrink: 0, marginTop: 3,
+                      background: cp.status === 'passed' ? '#10B981' : cp.status === 'current' ? '#fff' : '#E2E8F0',
+                      border: cp.status === 'current' ? '3px solid #3B82F6' : cp.status === 'passed' ? '2px solid #10B981' : '2px solid #E2E8F0',
+                    }} />
+                    {i < selected.checkpoints.length - 1 && (
+                      <div style={{
+                        width: 2, flex: 1, minHeight: 22,
+                        background: cp.status === 'passed' ? '#D1FAE5' : '#F1F5F9',
+                        margin: '3px 0',
+                      }} />
+                    )}
+                  </div>
+                  <div style={{ flex: 1, paddingBottom: 14, minWidth: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: cp.status === 'upcoming' ? '#94A3B8' : '#0F172A' }}>
+                          {cp.city}, {cp.country}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>{cp.address}</div>
+                        {cp.note && (
+                          <div style={{ fontSize: 10, color: '#F59E0B', marginTop: 4, background: '#FFFBEB', padding: '2px 7px', borderRadius: 5, display: 'inline-block' }}>
+                            ⚠ {cp.note}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 10, color: cp.arrivedAt ? '#10B981' : '#94A3B8', textAlign: 'right', flexShrink: 0 }}>
+                        {cp.arrivedAt ? `✓ ${cp.arrivedAt}` : cp.plannedAt}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+      </>
+    );
+  };
+
   return (
-    <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div className="shipments-page">
 
-      {(successMessage || statusSuccessMessage) && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: '#F0FDF4',
-          border: '1px solid #BBF7D0',
-          color: '#15803D',
-          fontSize: 13,
-          fontWeight: 700,
-        }}>
-          {successMessage || statusSuccessMessage}
-        </div>
-      )}
-
-      {/* Filters bar */}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        {/* Status filter */}
-        <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 10, padding: '4px', border: '1px solid #E2E8F0' }}>
+      <div className="shipments-toolbar">
+        <div className="shipments-filter-group">
           {filterLabels.map(({ v, l }) => (
             <button key={v} onClick={() => setFilter(v)} style={{
               padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
@@ -364,8 +941,7 @@ export default function Shipments() {
           ))}
         </div>
 
-        {/* Type filter */}
-        <div style={{ display: 'flex', gap: 2, background: '#fff', borderRadius: 10, padding: '4px', border: '1px solid #E2E8F0' }}>
+        <div className="shipments-filter-group">
           {typeFilters.map(({ v, l }) => (
             <button key={v} onClick={() => setTypeFilter(v)} style={{
               padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
@@ -385,7 +961,20 @@ export default function Shipments() {
           ))}
         </div>
 
-        <div style={{ marginLeft: 'auto' }}>
+        <div className="shipments-toolbar-actions">
+          <button
+            type="button"
+            onClick={() => void handleExportCsv()}
+            disabled={exporting}
+            style={{
+              padding: '9px 16px', background: '#fff', color: '#334155',
+              border: '1px solid #E2E8F0', borderRadius: 9, fontSize: 13, fontWeight: 600,
+              cursor: exporting ? 'not-allowed' : 'pointer',
+              opacity: exporting ? 0.7 : 1,
+            }}
+          >
+            {exporting ? 'Экспорт...' : 'Экспорт грузов'}
+          </button>
           <button
             type="button"
             onClick={openCreateForm}
@@ -401,9 +990,8 @@ export default function Shipments() {
         </div>
       </div>
 
-      {/* List + Detail */}
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="shipments-layout">
+        <div className="shipments-list">
           {filtered.map(s => {
             const client = clients.find(c => c.id === s.clientId);
             const manager = managers.find(m => m.id === s.managerId);
@@ -414,33 +1002,26 @@ export default function Shipments() {
               <div
                 key={s.id}
                 onClick={() => setSelected(isSelected ? null : s)}
+                className="shipments-card"
                 style={{
-                  background: '#fff',
-                  borderRadius: 14,
-                  padding: '18px 22px 16px',
                   border: `1.5px solid ${isSelected ? '#3B82F6' : '#EEF2FF'}`,
-                  cursor: 'pointer',
-                  transition: 'border-color 0.15s, box-shadow 0.15s',
                   boxShadow: isSelected ? '0 0 0 3px rgba(59,130,246,0.1)' : 'none',
                 }}
               >
-                {/* Top row */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  {/* Icon */}
+                <div className="shipments-card-top">
                   <div style={{ flexShrink: 0 }}>
                     <TypeIcon type={s.type} />
                   </div>
 
-                  {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="shipments-card-info">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', letterSpacing: -0.3 }}>
                         {s.trackingNumber}
                       </span>
                       <span style={{
                         fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
-                        background: statusBg[s.status], color: statusColors[s.status],
-                      }}>{statusLabel[s.status]}</span>
+                        background: shipmentStatusBg[s.status], color: shipmentStatusColors[s.status],
+                      }}>{shipmentStatusLabels[s.status]}</span>
                       {s.telegramNotifications && (
                         <span style={{
                           fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
@@ -467,15 +1048,16 @@ export default function Shipments() {
                     </div>
                   </div>
 
-                  {/* Right meta */}
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div className="shipments-card-meta">
                     <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{client?.company}</div>
                     <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
                       <span style={{ fontWeight: 500 }}>Менеджер:</span> {manager?.name.split(' ').slice(0, 2).join(' ')}
                     </div>
                     {(s.weight || s.volume) && (
                       <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }}>
-                        {[s.weight, s.volume].filter(Boolean).join(' · ')}
+                        {[formatShipmentWeightDisplay(s.weight, s.weightUnit), formatShipmentVolumeDisplay(s.volume, s.volumeUnit)]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </div>
                     )}
                   </div>
@@ -551,177 +1133,45 @@ export default function Shipments() {
           })}
         </div>
 
-        {/* Detail panel */}
-        {selected && (
-          <div style={{
-            width: 340, background: '#fff', borderRadius: 14, padding: '22px',
-            border: '1px solid #E2E8F0', alignSelf: 'flex-start',
-            position: 'sticky', top: 20,
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                <TypeIcon type={selected.type} />
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>{selected.trackingNumber}</div>
-                  <div style={{ fontSize: 11, color: '#94A3B8' }}>{typeLabel[selected.type]}</div>
-                </div>
-              </div>
-              <button onClick={() => setSelected(null)} style={{
-                background: '#F1F5F9', border: 'none', cursor: 'pointer',
-                width: 28, height: 28, borderRadius: 7,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#64748B', fontSize: 16, fontWeight: 700,
-              }}>×</button>
-            </div>
-
-            {/* Details grid */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
-              {[
-                { icon: '🏢', label: 'Клиент', value: clients.find(c => c.id === selected.clientId)?.company },
-                { icon: '👤', label: 'Менеджер', value: managers.find(m => m.id === selected.managerId)?.name },
-                { icon: '📦', label: 'Груз', value: selected.cargo },
-                { icon: '⚖', label: 'Вес / Объём', value: [selected.weight, selected.volume].filter(Boolean).join(' · ') || undefined },
-                { icon: '📅', label: 'Плановая дата', value: selected.estimatedDelivery },
-              ].filter(({ value }) => value).map(({ icon, label, value }) => (
-                <div key={label} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '7px 10px', borderRadius: 8, background: '#F8FAFC',
-                }}>
-                  <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
-                    <span style={{ fontSize: 13 }}>{icon}</span>
-                    <span style={{ fontSize: 11, color: '#94A3B8' }}>{label}</span>
-                  </div>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', maxWidth: 160, textAlign: 'right' }}>{value}</span>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ marginBottom: 18, padding: '14px', borderRadius: 10, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Обновить статус</div>
-
-              {statusUpdateErrors.length > 0 && (
-                <div style={{ padding: '8px 10px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 11, marginBottom: 10 }}>
-                  {statusUpdateErrors.map((error) => <div key={error}>{error}</div>)}
-                </div>
-              )}
-
-              <label style={{ display: 'block', marginBottom: 10 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Статус</div>
-                <select
-                  value={statusDraft}
-                  onChange={(e) => setStatusDraft(e.target.value as ShipmentStatus)}
-                  disabled={statusUpdating}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
-                >
-                  {statusOptions.map(({ value, label }) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label style={{ display: 'block', marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Комментарий</div>
-                <textarea
-                  value={statusNote}
-                  onChange={(e) => setStatusNote(e.target.value)}
-                  disabled={statusUpdating}
-                  rows={2}
-                  placeholder="Необязательно"
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none', resize: 'none', fontFamily: 'inherit' }}
-                />
-              </label>
-
-              <button
-                type="button"
-                onClick={() => void handleStatusUpdate(statusDraft, statusNote)}
-                disabled={statusUpdating}
-                style={{
-                  width: '100%', padding: '9px 14px', background: statusUpdating ? '#94A3B8' : '#3B82F6', color: '#fff',
-                  border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12,
-                  cursor: statusUpdating ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                }}
-              >
-                {statusUpdating && (
-                  <span style={{
-                    width: 12, height: 12, borderRadius: '50%',
-                    border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
-                    animation: 'spin 0.7s linear infinite', display: 'inline-block',
-                  }} />
-                )}
-                {statusUpdating ? 'Сохранение...' : 'Сохранить статус'}
-              </button>
-            </div>
-
-            {/* Route timeline */}
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 12 }}>
-              Маршрут · {pluralPoints(selected.checkpoints.length)}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {selected.checkpoints.map((cp, i) => (
-                <div key={cp.id} style={{ display: 'flex', gap: 12 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div style={{
-                      width: 14, height: 14, borderRadius: '50%', flexShrink: 0, marginTop: 3,
-                      background: cp.status === 'passed' ? '#10B981' : cp.status === 'current' ? '#fff' : '#E2E8F0',
-                      border: cp.status === 'current' ? '3px solid #3B82F6' : cp.status === 'passed' ? '2px solid #10B981' : '2px solid #E2E8F0',
-                    }} />
-                    {i < selected.checkpoints.length - 1 && (
-                      <div style={{
-                        width: 2, flex: 1, minHeight: 22,
-                        background: cp.status === 'passed' ? '#D1FAE5' : '#F1F5F9',
-                        margin: '3px 0',
-                      }} />
-                    )}
-                  </div>
-                  <div style={{ flex: 1, paddingBottom: 14 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: cp.status === 'upcoming' ? '#94A3B8' : '#0F172A' }}>
-                          {cp.city}, {cp.country}
-                        </div>
-                        <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>{cp.address}</div>
-                        {cp.note && (
-                          <div style={{ fontSize: 10, color: '#F59E0B', marginTop: 4, background: '#FFFBEB', padding: '2px 7px', borderRadius: 5, display: 'inline-block' }}>
-                            ⚠ {cp.note}
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 10, color: cp.arrivedAt ? '#10B981' : '#94A3B8', textAlign: 'right', flexShrink: 0, marginLeft: 8 }}>
-                        {cp.arrivedAt ? `✓ ${cp.arrivedAt}` : cp.plannedAt}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {selected && !isCompact && (
+          <div className="shipments-detail">
+            {renderDetailPanel()}
           </div>
         )}
       </div>
 
+      {selected && isCompact && (
+        <>
+          <button
+            type="button"
+            className="shipments-detail-backdrop"
+            aria-label="Закрыть детали груза"
+            onClick={() => setSelected(null)}
+          />
+          <div className="shipments-detail shipments-detail--drawer">
+            {renderDetailPanel()}
+          </div>
+        </>
+      )}
+
       {showCreateForm && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.48)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(3px)', padding: 24,
-        }}>
-          <div style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: '96vw', maxHeight: '92vh', overflowY: 'auto', border: '1px solid #E2E8F0' }}>
-            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="shipments-form-overlay" role="dialog" aria-modal="true" aria-labelledby="create-shipment-title">
+          <div className="shipments-create-modal">
+            <div className="shipments-form-header">
               <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>Новый груз</div>
+                <div id="create-shipment-title" style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>Новый груз</div>
                 <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 3 }}>Создание отправления</div>
               </div>
-              <button type="button" onClick={closeCreateForm} disabled={submitting} style={{
+              <button type="button" onClick={closeCreateForm} disabled={submitting} aria-label="Закрыть" style={{
                 background: '#F1F5F9', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer',
-                width: 28, height: 28, borderRadius: 7, color: '#64748B', fontSize: 16, fontWeight: 700,
+                width: 36, height: 36, borderRadius: 7, color: '#64748B', fontSize: 16, fontWeight: 700,
+                flexShrink: 0,
               }}>×</button>
             </div>
 
-            <div style={{ padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {formErrors.length > 0 && (
-                <div style={{ padding: '10px 12px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 12 }}>
-                  {formErrors.map((error) => <div key={error}>{error}</div>)}
-                </div>
-              )}
+            <div className="shipments-form-body">
+              <div className="shipments-form-fields">
+              <FormErrorList errors={formErrors} marginBottom={0} />
 
               <label>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Клиент *</div>
@@ -758,25 +1208,21 @@ export default function Shipments() {
                 </select>
               </label>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <label>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Откуда *</div>
-                  <input
-                    value={createForm.origin}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, origin: e.target.value }))}
-                    placeholder="Алматы"
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
-                  />
-                </label>
-                <label>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Куда *</div>
-                  <input
-                    value={createForm.destination}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, destination: e.target.value }))}
-                    placeholder="Ташкент"
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
-                  />
-                </label>
+              <div className="shipments-create-form-grid">
+                <LocationAutocomplete
+                  label="Откуда *"
+                  value={createForm.origin}
+                  onChange={(origin) => setCreateForm((f) => ({ ...f, origin }))}
+                  placeholder="Almaty"
+                  inputStyle={{ padding: '9px 12px', fontSize: 13, background: '#F8FAFC' }}
+                />
+                <LocationAutocomplete
+                  label="Куда *"
+                  value={createForm.destination}
+                  onChange={(destination) => setCreateForm((f) => ({ ...f, destination }))}
+                  placeholder="Tashkent"
+                  inputStyle={{ padding: '9px 12px', fontSize: 13, background: '#F8FAFC' }}
+                />
               </div>
 
               <label>
@@ -789,26 +1235,31 @@ export default function Shipments() {
                 />
               </label>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <label>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Вес</div>
-                  <input
-                    value={createForm.weight}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, weight: e.target.value }))}
-                    placeholder="2 400 кг"
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
-                  />
-                </label>
-                <label>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Объём</div>
-                  <input
-                    value={createForm.volume}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, volume: e.target.value }))}
-                    placeholder="18 м³"
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
-                  />
-                </label>
-              </div>
+              <QuantityWithUnitField
+                quantityLabel="Вес"
+                unitLabel="Ед. веса"
+                value={createForm.weight}
+                unit={createForm.weightUnit}
+                units={WEIGHT_UNITS.map((u) => ({ value: u, label: u }))}
+                onValueChange={(weight) => setCreateForm((f) => ({ ...f, weight }))}
+                onUnitChange={(weightUnit) => setCreateForm((f) => ({ ...f, weightUnit }))}
+                placeholder="2 400"
+                quantityStyle={{ padding: '9px 12px', fontSize: 13, background: '#F8FAFC' }}
+                unitStyle={{ padding: '9px 12px', fontSize: 13, background: '#F8FAFC' }}
+              />
+
+              <QuantityWithUnitField
+                quantityLabel="Объём"
+                unitLabel="Ед. объёма"
+                value={createForm.volume}
+                unit={createForm.volumeUnit}
+                units={VOLUME_UNITS.map((u) => ({ value: u, label: u === 'm3' ? 'm³' : u }))}
+                onValueChange={(volume) => setCreateForm((f) => ({ ...f, volume }))}
+                onUnitChange={(volumeUnit) => setCreateForm((f) => ({ ...f, volumeUnit }))}
+                placeholder="18"
+                quantityStyle={{ padding: '9px 12px', fontSize: 13, background: '#F8FAFC' }}
+                unitStyle={{ padding: '9px 12px', fontSize: 13, background: '#F8FAFC' }}
+              />
 
               <label>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Плановая дата доставки</div>
@@ -820,7 +1271,7 @@ export default function Shipments() {
                 />
               </label>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', minHeight: 44 }}>
                 <input
                   type="checkbox"
                   checked={createForm.telegramNotifications}
@@ -828,19 +1279,20 @@ export default function Shipments() {
                 />
                 <span style={{ fontSize: 12, color: '#64748B' }}>Telegram-уведомления</span>
               </label>
+              </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+              <div className="shipments-form-actions">
                 <button type="button" onClick={closeCreateForm} disabled={submitting} style={{
-                  padding: '9px 18px', background: '#fff', color: '#64748B', border: '1px solid #E2E8F0',
-                  borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: submitting ? 'not-allowed' : 'pointer',
+                  flex: '1 1 120px', padding: '10px 18px', background: '#fff', color: '#64748B', border: '1px solid #E2E8F0',
+                  borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: submitting ? 'not-allowed' : 'pointer', minHeight: 44,
                 }}>
                   Отмена
                 </button>
                 <button type="button" onClick={handleCreateSubmit} disabled={submitting} style={{
-                  padding: '9px 20px', background: submitting ? '#94A3B8' : '#3B82F6', color: '#fff',
+                  flex: '1 1 160px', padding: '10px 20px', background: submitting ? '#94A3B8' : '#3B82F6', color: '#fff',
                   border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13,
                   cursor: submitting ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 8,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44,
                 }}>
                   {submitting && (
                     <span style={{

@@ -44,7 +44,7 @@ class FinanceRecord extends Model
 
     public function shipment(): BelongsTo
     {
-        return $this->belongsTo(Shipment::class);
+        return $this->belongsTo(Shipment::class)->withTrashed();
     }
 
     public function client(): BelongsTo

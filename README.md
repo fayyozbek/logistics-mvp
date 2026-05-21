@@ -16,6 +16,18 @@ VITE_API_BASE_URL=http://127.0.0.1:8000/api npm run dev -- --host localhost --po
 
 Open **http://localhost:5173** in a browser.
 
+**Stakeholder demo (production):** see [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) for
+pre-demo checks and a step-by-step walkthrough of
+https://logistics-mvp-sigma.vercel.app.
+
+**MVP+ client demo scope:** see [docs/MVP_PLUS_SCOPE.md](docs/MVP_PLUS_SCOPE.md) for
+the fuller operational demo (CRUD, Excel, validation, autocomplete) and what stays
+out of scope (auth, payments, Telegram send, PDF).
+
+**Cursor AI guardrails:** see [.cursor/README.md](.cursor/README.md),
+[docs/CURSOR_SKILLS_GUIDE.md](docs/CURSOR_SKILLS_GUIDE.md), and
+[docs/AI_WORKFLOW.md](docs/AI_WORKFLOW.md) for shared rules, skills, and team workflow.
+
 > **Without a running backend** the app still works — every read request
 > falls back to `src/data/mock.ts` automatically. Write actions (add
 > checkpoint, update status, save Telegram settings) will show an error
@@ -215,6 +227,8 @@ Open your Vercel URL — the app should load live data from the Render API.
 | `src/data/mock.ts` | Mock data (offline fallback) |
 | `backend/` | Laravel JSON API |
 | `docs/` | Project documentation |
+| `docs/DEMO_SCRIPT.md` | Stakeholder demo script (production URLs) |
+| `docs/MVP_PLUS_SCOPE.md` | MVP+ client demo scope, QA matrix, implementation order |
 | `.env.example` | Frontend environment template |
 | `backend/.env.example` | Backend environment template |
 | `render.yaml` | Render Postgres database blueprint |

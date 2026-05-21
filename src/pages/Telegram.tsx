@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { managers, clients, type Shipment } from '../data/mock';
-import { ApiError, getTelegramSettings, updateTelegramSettings } from '../api';
+import { getTelegramSettings, handleApiLoadFailure, updateTelegramSettings } from '../api';
+import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
+import PageLoading from '../components/PageLoading';
+import { showApiMutationError } from '../utils/apiErrors';
+import { shipmentStatusColors, shipmentStatusLabels } from '../utils/shipmentLabels';
+import { useToast } from '../components/ToastProvider';
 import type { TelegramEventFlags } from '../types/api';
 
 const notifTypes = [
@@ -20,15 +25,6 @@ const settingsFieldLabels: Record<string, string> = {
   eventFlags: 'Типы уведомлений',
 };
 
-function formatFieldErrors(errors: Record<string, string[]>): string[] {
-  return Object.entries(errors).flatMap(([field, messages]) =>
-    messages.map((message) => {
-      const label = settingsFieldLabels[field] ?? field;
-      return `${label}: ${message}`;
-    }),
-  );
-}
-
 const mockLogs = [
   { id: 1, time: '19 мая, 15:42', shipment: 'LGX-2026-0498', type: 'checkpoint', text: '✈ Груз прибыл в аэропорт Стамбул (IST). Транзит.', manager: 'Дина Сейткали', status: 'sent' },
   { id: 2, time: '19 мая, 14:10', shipment: 'LGX-2026-0512', type: 'delay', text: '⚠️ Задержка! LGX-2026-0387 ожидает документов в Актобе.', manager: 'Алексей Морозов', status: 'sent' },
@@ -45,6 +41,7 @@ function buildEventFlags(toggles: Record<string, boolean>): TelegramEventFlags {
 
 export default function Telegram() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [tgShipments, setTgShipments] = useState<Shipment[]>([]);
   const [token, setToken] = useState('');
   const [tokenTouched, setTokenTouched] = useState(false);
@@ -56,8 +53,7 @@ export default function Telegram() {
   const [testMsg, setTestMsg] = useState('');
   const [testSent, setTestSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [settingsErrors, setSettingsErrors] = useState<string[]>([]);
+  const { showToast } = useToast();
 
   useEffect(() => {
     getTelegramSettings()
@@ -76,7 +72,9 @@ export default function Telegram() {
             }));
           }
         }
+        setLoadError(null);
       })
+      .catch((error) => setLoadError(handleApiLoadFailure(error).message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -126,21 +124,15 @@ export default function Telegram() {
 
   const handleSaveSettings = async (overrides?: Parameters<typeof buildPayload>[0]) => {
     setSubmitting(true);
-    setSettingsErrors([]);
-    setSuccessMessage('');
 
     try {
       const { settings } = await updateTelegramSettings(buildPayload(overrides));
       applySettingsResponse(settings);
-      setSuccessMessage('Настройки Telegram сохранены');
+      showToast('Настройки Telegram сохранены');
     } catch (error) {
-      if (error instanceof ApiError && error.validationErrors) {
-        setSettingsErrors(formatFieldErrors(error.validationErrors));
-      } else if (error instanceof ApiError) {
-        setSettingsErrors([error.message]);
-      } else {
-        setSettingsErrors(['Не удалось сохранить настройки. Проверьте подключение к API.']);
-      }
+      showApiMutationError(showToast, error, 'Не удалось сохранить настройки. Проверьте подключение к API.', {
+        fieldLabels: settingsFieldLabels,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -152,50 +144,16 @@ export default function Telegram() {
     void handleSaveSettings({ connected: nextConnected });
   };
 
+  if (loadError && !loading) {
+    return <ApiLoadErrorPanel message={loadError} />;
+  }
+
   if (loading) {
-    return (
-      <div style={{ padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
-        <div style={{
-          width: 18, height: 18, borderRadius: '50%',
-          border: '2.5px solid #E2E8F0', borderTopColor: '#0088cc',
-          animation: 'spin 0.7s linear infinite',
-        }} />
-        Загрузка...
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
+    return <PageLoading padding="24px 28px" accentColor="#0088cc" />;
   }
 
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {successMessage && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: '#F0FDF4',
-          border: '1px solid #BBF7D0',
-          color: '#15803D',
-          fontSize: 13,
-          fontWeight: 700,
-        }}>
-          {successMessage}
-        </div>
-      )}
-
-      {settingsErrors.length > 0 && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: '#FEF2F2',
-          border: '1px solid #FECACA',
-          color: '#B91C1C',
-          fontSize: 13,
-          fontWeight: 600,
-        }}>
-          {settingsErrors.map((error) => <div key={error}>{error}</div>)}
-        </div>
-      )}
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         {/* Bot Config */}
         <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0' }}>
@@ -345,13 +303,11 @@ export default function Telegram() {
           {tgShipments.map(s => {
             const client = clients.find(c => c.id === s.clientId);
             const manager = managers.find(m => m.id === s.managerId);
-            const statusC: Record<string, string> = { planned: '#F59E0B', in_transit: '#3B82F6', delivered: '#10B981', delayed: '#EF4444', at_checkpoint: '#8B5CF6' };
-            const statusL: Record<string, string> = { planned: 'Запланирован', in_transit: 'В пути', delivered: 'Доставлен', delayed: 'Задержка', at_checkpoint: 'На пункте' };
             return (
               <div key={s.id} style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#F8FAFC' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>{s.trackingNumber}</div>
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: statusC[s.status] + '20', color: statusC[s.status] }}>{statusL[s.status]}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: shipmentStatusColors[s.status] + '20', color: shipmentStatusColors[s.status] }}>{shipmentStatusLabels[s.status]}</span>
                 </div>
                 <div style={{ fontSize: 11, color: '#64748B', marginTop: 3 }}>{s.origin} → {s.destination}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 10, color: '#94A3B8' }}>

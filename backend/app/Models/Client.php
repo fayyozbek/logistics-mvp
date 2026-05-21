@@ -18,6 +18,8 @@ class Client extends Model
         'email',
         'phone',
         'country',
+        'city',
+        'address',
     ];
 
     public function shipments(): HasMany

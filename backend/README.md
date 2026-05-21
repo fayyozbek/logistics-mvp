@@ -48,15 +48,34 @@ php artisan test
 | GET | `/api/shipments` | Shipment list |
 | POST | `/api/shipments` | Create shipment |
 | GET | `/api/shipments/{id}` | Single shipment |
+| PATCH | `/api/shipments/{id}` | Update shipment fields |
+| DELETE | `/api/shipments/{id}` | Delete shipment (cascades checkpoints and finance) |
 | PATCH | `/api/shipments/{id}/status` | Update shipment status |
 | POST | `/api/shipments/{id}/checkpoints` | Add checkpoint |
 | PATCH | `/api/checkpoints/{id}` | Update checkpoint |
 | GET | `/api/tracking` | Tracking view |
+| GET | `/api/clients` | Partner/client list |
+| POST | `/api/clients` | Create partner/client |
+| GET | `/api/clients/{id}` | Single partner/client |
+| PATCH | `/api/clients/{id}` | Update partner/client |
+| DELETE | `/api/clients/{id}` | Delete partner/client (blocked if referenced) |
 | GET | `/api/managers` | Manager list |
+| GET | `/api/managers/overview` | Managers page bundle (managers + clients + shipments) |
+| POST | `/api/managers` | Create manager |
+| GET | `/api/managers/{id}` | Single manager |
+| PATCH | `/api/managers/{id}` | Update manager |
+| DELETE | `/api/managers/{id}` | Delete manager (blocked if active shipments assigned) |
 | GET | `/api/finance` | Finance records |
 | PATCH | `/api/finance/{id}/status` | Update finance status |
 | GET | `/api/telegram/settings` | Telegram bot settings |
 | PATCH | `/api/telegram/settings` | Save Telegram settings |
+
+## Tracking numbers
+
+Auto-generated numbers use the format `LGX-YYYY-NNNN` (e.g. `LGX-2026-0562`).
+A persistent `tracking_number_counters` table stores the last sequence per calendar
+year so numbers are **monotonic** and are **not reused** when shipments are deleted.
+Demo seeders sync the counter from existing demo shipments after `ShipmentSeeder`.
 
 ## Finance amounts (MVP)
 

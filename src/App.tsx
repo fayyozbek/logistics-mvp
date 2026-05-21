@@ -1,23 +1,27 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import ApiUnavailableBanner from './components/ApiUnavailableBanner';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './pages/Dashboard';
 import Shipments from './pages/Shipments';
 import Tracking from './pages/Tracking';
 import Managers from './pages/Managers';
+import Clients from './pages/Clients';
 import Finance from './pages/Finance';
 import Telegram from './pages/Telegram';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
 import Archive from './pages/Archive';
+import { useMediaQuery } from './hooks/useMediaQuery';
 
-export type Page = 'dashboard' | 'shipments' | 'tracking' | 'managers' | 'finance' | 'users' | 'archive' | 'telegram' | 'settings';
+export type Page = 'dashboard' | 'shipments' | 'tracking' | 'managers' | 'clients' | 'finance' | 'users' | 'archive' | 'telegram' | 'settings';
 
 const pageTitles: Record<Page, { title: string; subtitle: string }> = {
   dashboard: { title: 'Дашборд', subtitle: 'Общая сводка по грузам и финансам' },
   shipments: { title: 'Грузы', subtitle: 'Управление и мониторинг отправлений' },
   tracking: { title: 'Отслеживание', subtitle: 'Реальное время · маршруты и контрольные точки' },
   managers: { title: 'Менеджеры', subtitle: 'Команда, регионы и активные грузы' },
+  clients: { title: 'Партнёры', subtitle: 'Клиенты и контрагенты для создания грузов' },
   finance: { title: 'Финансы', subtitle: 'Счета, оплаты и задолженности по клиентам' },
   users: { title: 'Пользователи', subtitle: 'Роли, Telegram-доступы, логины и права аккаунта' },
   archive: { title: 'Архив', subtitle: 'Завершённые проекты, партнёры и активность по периодам' },
@@ -27,18 +31,51 @@ const pageTitles: Record<Page, { title: string; subtitle: string }> = {
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const isMobileNav = useMediaQuery('(max-width: 1023px)');
   const { title, subtitle } = pageTitles[page];
 
+  useEffect(() => {
+    if (!isMobileNav) setMobileNavOpen(false);
+  }, [isMobileNav]);
+
+  useEffect(() => {
+    if (!isMobileNav || !mobileNavOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileNav, mobileNavOpen]);
+
+  const handleNavigate = (nextPage: Page) => {
+    setPage(nextPage);
+    if (isMobileNav) setMobileNavOpen(false);
+  };
+
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#F0F2F8' }}>
-      <Sidebar currentPage={page} onNavigate={setPage} />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflowX: 'hidden' }}>
-        <Header title={title} subtitle={subtitle} />
-        <main style={{ flex: 1, overflowY: 'auto' }}>
+    <div className="app-shell">
+      <Sidebar
+        currentPage={page}
+        onNavigate={handleNavigate}
+        isMobile={isMobileNav}
+        mobileOpen={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+      />
+      <div className="app-main">
+        <Header
+          title={title}
+          subtitle={subtitle}
+          showMenuButton={isMobileNav}
+          onMenuClick={() => setMobileNavOpen(true)}
+        />
+        <ApiUnavailableBanner />
+        <main className="app-main-content">
           {page === 'dashboard' && <Dashboard />}
           {page === 'shipments' && <Shipments />}
           {page === 'tracking' && <Tracking />}
           {page === 'managers' && <Managers />}
+          {page === 'clients' && <Clients />}
           {page === 'finance' && <Finance />}
           {page === 'users' && <Users />}
           {page === 'archive' && <Archive />}

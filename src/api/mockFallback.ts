@@ -6,13 +6,17 @@ import {
   shipments,
   transportShare,
 } from '../data/mock';
+import { buildFinanceReport } from '../utils/financeReport';
 import type {
   DashboardData,
+  DashboardQuery,
+  FinanceReportResponse,
   FinanceResponse,
   ManagersResponse,
   ShipmentResponse,
   ShipmentsResponse,
   TelegramSettingsResponse,
+  ClientsResponse,
   TrackingResponse,
 } from '../types/api';
 
@@ -26,11 +30,52 @@ const directionShare = [
   { name: 'ОАЭ', value: 10, color: '#CBD5E1' },
 ];
 
-export function getDashboardDataMock(): DashboardData {
-  const monthlyTurnover = financeRecords.reduce((sum, record) => sum + record.totalAmount, 0);
-  const totalPaid = financeRecords.reduce((sum, record) => sum + record.paidAmount, 0);
-  const activeShipments = shipments.filter((shipment) => ACTIVE_STATUSES.has(shipment.status)).length;
-  const completedShipments = shipments.filter((shipment) => shipment.status === 'delivered').length;
+function inDateRange(date: string, from?: string, to?: string): boolean {
+  if (from && date < from) return false;
+  if (to && date > to) return false;
+  return true;
+}
+
+const MONTH_LABELS: Record<string, string> = {
+  '01': 'Янв', '02': 'Фев', '03': 'Мар', '04': 'Апр', '05': 'Май', '06': 'Июн',
+  '07': 'Июл', '08': 'Авг', '09': 'Сен', '10': 'Окт', '11': 'Ноя', '12': 'Дек',
+};
+
+function buildMoneyByMonth(
+  records: typeof financeRecords,
+  scopedShipments: typeof shipments,
+): DashboardData['charts']['moneyByMonth'] {
+  const buckets = new Map<string, { turnover: number; paid: number; shipments: number }>();
+
+  records.forEach((record) => {
+    const period = record.invoiceDate.slice(0, 7);
+    const current = buckets.get(period) ?? { turnover: 0, paid: 0, shipments: 0 };
+    current.turnover += record.totalAmount;
+    current.paid += record.paidAmount;
+    current.shipments += 1;
+    buckets.set(period, current);
+  });
+
+  return [...buckets.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([period, values]) => ({
+      month: MONTH_LABELS[period.slice(5, 7)] ?? period,
+      turnover: values.turnover,
+      paid: values.paid,
+      shipments: values.shipments,
+      active: scopedShipments.filter((shipment) => ACTIVE_STATUSES.has(shipment.status) && shipment.createdAt.startsWith(period)).length,
+    }));
+}
+
+export function getDashboardDataMock(query?: DashboardQuery): DashboardData {
+  const filteredFinance = financeRecords.filter((record) => inDateRange(record.invoiceDate, query?.dateFrom, query?.dateTo));
+  const filteredShipments = shipments.filter((shipment) => inDateRange(shipment.createdAt, query?.dateFrom, query?.dateTo));
+
+  const monthlyTurnover = filteredFinance.reduce((sum, record) => sum + record.totalAmount, 0);
+  const totalPaid = filteredFinance.reduce((sum, record) => sum + record.paidAmount, 0);
+  const activeShipments = filteredShipments.filter((shipment) => ACTIVE_STATUSES.has(shipment.status)).length;
+  const completedShipments = filteredShipments.filter((shipment) => shipment.status === 'delivered').length;
+  const moneyByMonth = buildMoneyByMonth(filteredFinance, filteredShipments);
 
   return {
     summary: {
@@ -40,28 +85,21 @@ export function getDashboardDataMock(): DashboardData {
       completedShipments,
       receivable: monthlyTurnover - totalPaid,
     },
-    monthlyStats: monthlyStats.map((stat) => ({
-      month: stat.month,
-      shipments: stat.shipments,
-      revenue: stat.revenue,
-    })),
+    monthlyStats: monthlyStats
+      .filter((stat) => inDateRange(`${stat.month}-01`, query?.dateFrom, query?.dateTo))
+      .map((stat) => ({
+        month: stat.month,
+        shipments: stat.shipments,
+        revenue: stat.revenue,
+      })),
     transportShare,
     managers: managers.map((manager) => ({
       name: manager.name,
       activeShipments: manager.activeShipments,
     })),
     charts: {
-      moneyByMonth: [
-        { month: 'Апр', turnover: 212000, paid: 166000, shipments: 64, active: 14 },
-        {
-          month: 'Май',
-          turnover: monthlyTurnover,
-          paid: totalPaid,
-          shipments: shipments.length,
-          active: activeShipments,
-        },
-      ],
-      directionShare,
+      moneyByMonth,
+      directionShare: moneyByMonth.length > 0 ? directionShare : [],
     },
   };
 }
@@ -82,12 +120,20 @@ export function getTrackingDataMock(): TrackingResponse {
   return { shipments };
 }
 
+export function getClientsMock(): ClientsResponse {
+  return { clients };
+}
+
 export function getManagersMock(): ManagersResponse {
   return { managers, clients, shipments };
 }
 
 export function getFinanceMock(): FinanceResponse {
   return { financeRecords, clients };
+}
+
+export function getFinanceReportMock(): FinanceReportResponse {
+  return { report: buildFinanceReport(financeRecords) };
 }
 
 export function getTelegramSettingsMock(): TelegramSettingsResponse {

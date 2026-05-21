@@ -1,0 +1,29 @@
+---
+description: API contracts, adapters, and ID flow after writes
+alwaysApply: true
+---
+
+# API contract and ID flow
+
+## Adapters (`src/api/`)
+
+- Do not change request payload keys or response parsing without explicit task scope.
+- Writes use `configuredPost` / `configuredPatch` / `configuredDelete` when API is configured.
+- Reads use `requestWithMockFallback` only when API is **not** configured.
+
+## After create/update
+
+- Use returned `id` from `{ shipment, manager, client, checkpoint, financeRecord }` wrappers.
+- Update `selected` entity and list state from API response or reload endpoint.
+- UI must reflect new data without requiring a full page reload.
+
+## Deletes
+
+- Call `DELETE` with actual entity id.
+- On 422 blocked delete, show Russian message (active shipments, linked records).
+- On success, remove from list and clear selection as implemented per page.
+
+## Mock fallback
+
+- Unconfigured API: mock reads allowed; writes show configuration error.
+- Configured API + failed fetch: show `API_UNAVAILABLE_MESSAGE` / `ApiLoadErrorPanel`, not mock data.

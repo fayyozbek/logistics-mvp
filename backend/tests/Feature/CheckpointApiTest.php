@@ -110,4 +110,39 @@ class CheckpointApiTest extends TestCase
         ])
             ->assertNotFound();
     }
+
+    public function test_can_delete_checkpoint(): void
+    {
+        $checkpoint = Checkpoint::query()->firstOrFail();
+        $shipment = $checkpoint->shipment;
+        $initialCount = $shipment->checkpoints()->count();
+
+        $this->deleteJson("/api/checkpoints/{$checkpoint->id}")
+            ->assertOk()
+            ->assertJsonPath('checkpointId', (string) $checkpoint->id)
+            ->assertJsonPath('message', 'Checkpoint deleted.');
+
+        $this->assertDatabaseMissing('checkpoints', ['id' => $checkpoint->id]);
+        $this->assertSame($initialCount - 1, $shipment->checkpoints()->count());
+        $this->assertDatabaseHas('shipments', ['id' => $shipment->id]);
+    }
+
+    public function test_deleting_checkpoint_resequences_remaining(): void
+    {
+        $shipment = Shipment::query()->with('checkpoints')->firstOrFail();
+        $checkpoints = $shipment->checkpoints()->orderBy('sequence')->get();
+        $this->assertGreaterThanOrEqual(2, $checkpoints->count());
+
+        $middle = $checkpoints->get(1);
+        $this->deleteJson("/api/checkpoints/{$middle->id}")->assertOk();
+
+        $remaining = $shipment->checkpoints()->orderBy('sequence')->pluck('sequence')->all();
+        $this->assertSame(range(1, count($remaining)), $remaining);
+    }
+
+    public function test_checkpoint_not_found_when_deleting(): void
+    {
+        $this->deleteJson('/api/checkpoints/99999')
+            ->assertNotFound();
+    }
 }

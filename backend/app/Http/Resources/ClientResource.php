@@ -2,10 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Client;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\Client */
+/** @mixin Client */
 class ClientResource extends JsonResource
 {
     /**
@@ -20,6 +21,8 @@ class ClientResource extends JsonResource
             'email' => $this->email,
             'phone' => $this->phone,
             'country' => $this->country,
+            'city' => $this->city,
+            'address' => $this->address,
         ];
     }
 }

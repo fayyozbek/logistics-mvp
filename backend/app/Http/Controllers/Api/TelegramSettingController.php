@@ -8,17 +8,20 @@ use App\Http\Resources\ShipmentResource;
 use App\Http\Resources\TelegramSettingResource;
 use App\Models\Shipment;
 use App\Models\TelegramSetting;
+use App\Support\MapsValidatedAttributes;
 use Illuminate\Http\JsonResponse;
 
 class TelegramSettingController extends Controller
 {
+    use MapsValidatedAttributes;
+
     public function show(): JsonResponse
     {
         $setting = TelegramSetting::query()->first();
 
         $shipments = Shipment::query()
             ->where('telegram_notifications', true)
-            ->with(['client', 'manager'])
+            ->withSummaryRelations()
             ->orderByDesc('created_at')
             ->get();
 
@@ -34,25 +37,7 @@ class TelegramSettingController extends Controller
     {
         $validated = $request->validated();
         $setting = TelegramSetting::query()->firstOrFail();
-
-        $updates = [];
-
-        if (array_key_exists('chatId', $validated)) {
-            $updates['chat_id'] = $validated['chatId'];
-        }
-
-        if (array_key_exists('connected', $validated)) {
-            $updates['connected'] = $validated['connected'];
-        }
-
-        $botToken = $validated['botToken'] ?? null;
-        if (is_string($botToken) && $botToken !== '' && ! str_contains($botToken, '•')) {
-            $updates['bot_token'] = $botToken;
-        }
-
-        if (array_key_exists('eventFlags', $validated)) {
-            $updates['event_flags'] = $validated['eventFlags'];
-        }
+        $updates = $this->buildSettingsUpdates($validated);
 
         if ($updates !== []) {
             $setting->update($updates);
@@ -63,5 +48,28 @@ class TelegramSettingController extends Controller
         return response()->json([
             'settings' => (new TelegramSettingResource($setting))->resolve(),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function buildSettingsUpdates(array $validated): array
+    {
+        $updates = $this->mapValidatedAttributes($validated, [
+            'chatId' => 'chat_id',
+            'connected' => 'connected',
+        ]);
+
+        $botToken = $validated['botToken'] ?? null;
+        if (is_string($botToken) && $botToken !== '' && ! str_contains($botToken, '•')) {
+            $updates['bot_token'] = $botToken;
+        }
+
+        if (array_key_exists('eventFlags', $validated)) {
+            $updates['event_flags'] = $validated['eventFlags'];
+        }
+
+        return $updates;
     }
 }
