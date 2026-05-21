@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, Search, Send, X } from 'lucide-react';
 import { clients, managers, type CheckPoint, type Shipment } from '../data/mock';
 import { addShipmentCheckpoint, ApiError, getTrackingData, updateCheckpoint } from '../api';
@@ -368,15 +369,32 @@ export default function Tracking() {
   const manager = managers.find((item) => item.id === selected.managerId);
   const progress = progressPercent(selected.checkpoints);
 
+  const openAddModal = () => {
+    setCheckpointErrors([]);
+    setSuccessMessage('');
+    setNewPoint(emptyPoint);
+    setCitySearch('');
+    setInsertAfter(-1);
+    setShowAddModal(true);
+  };
+
+  const closeAddModal = () => {
+    if (submitting) return;
+    setShowAddModal(false);
+    setNewPoint(emptyPoint);
+    setCitySearch('');
+    setInsertAfter(-1);
+  };
+
   const handleAddPoint = async () => {
-    if (!selected || !newPoint.city || !newPoint.address) return;
+    if (!selected || !newPoint.city.trim() || !newPoint.address.trim()) return;
 
     setSubmitting(true);
     setCheckpointErrors([]);
     setSuccessMessage('');
 
     try {
-      await addShipmentCheckpoint(selected.id, {
+      const { checkpoint } = await addShipmentCheckpoint(selected.id, {
         city: newPoint.city.trim(),
         country: newPoint.country.trim() || undefined,
         address: newPoint.address.trim(),
@@ -386,11 +404,12 @@ export default function Tracking() {
         insertAfter,
       });
       await refreshTracking(selected.id);
+      if (!checkpoint?.id) {
+        setCheckpointErrors(['Точка создана, но ответ API не содержит id. Обновите страницу.']);
+        return;
+      }
       setSuccessMessage(`Точка ${newPoint.city} добавлена в маршрут ${selected.trackingNumber}`);
-      setShowAddModal(false);
-      setNewPoint(emptyPoint);
-      setCitySearch('');
-      setInsertAfter(-1);
+      closeAddModal();
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
         setCheckpointErrors(formatFieldErrors(error.validationErrors));
@@ -570,11 +589,7 @@ export default function Tracking() {
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setCheckpointErrors([]);
-                  setSuccessMessage('');
-                  setShowAddModal(true);
-                }}
+                onClick={openAddModal}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 18px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 13, cursor: 'pointer' }}
               >
                 <Plus size={15} />
@@ -698,11 +713,7 @@ export default function Tracking() {
 
             <button
               type="button"
-              onClick={() => {
-                setCheckpointErrors([]);
-                setSuccessMessage('');
-                setShowAddModal(true);
-              }}
+              onClick={openAddModal}
               style={{ width: '100%', marginTop: 4, padding: '14px 16px', borderRadius: 14, border: '2px dashed #BFDBFE', background: '#F0F7FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontWeight: 900, cursor: 'pointer' }}
             >
               <Plus size={16} />
@@ -712,15 +723,52 @@ export default function Tracking() {
         </section>
       </div>
 
-      {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.48)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 220, backdropFilter: 'blur(3px)', padding: 24 }}>
-          <div style={{ width: 1040, maxWidth: '96vw', background: '#fff', borderRadius: 22, maxHeight: '92vh', overflowY: 'auto', border: '1px solid #E5E7EB' }}>
-            <div style={{ padding: '26px 30px 18px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      {showAddModal && createPortal(
+        <div
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeAddModal();
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15,23,42,0.48)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 400,
+            backdropFilter: 'blur(3px)',
+            padding: 24,
+            isolation: 'isolate',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tracking-add-checkpoint-title"
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: 1040,
+              maxWidth: '96vw',
+              background: '#fff',
+              borderRadius: 22,
+              maxHeight: '92vh',
+              border: '1px solid #E5E7EB',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              position: 'relative',
+              zIndex: 1,
+              pointerEvents: 'auto',
+            }}
+          >
+            <div style={{ padding: '26px 30px 18px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
               <div>
-                <div style={{ fontSize: 21, color: '#111827', fontWeight: 950, letterSpacing: -0.4 }}>Добавить точку маршрута</div>
+                <div id="tracking-add-checkpoint-title" style={{ fontSize: 21, color: '#111827', fontWeight: 950, letterSpacing: -0.4 }}>Добавить точку маршрута</div>
                 <div style={{ fontSize: 13, color: '#94A3B8', marginTop: 6 }}>Груз: <strong style={{ color: '#2563EB' }}>{selected.trackingNumber}</strong> · {selected.origin} → {selected.destination}</div>
               </div>
-              <button type="button" onClick={() => !submitting && setShowAddModal(false)} disabled={submitting} style={{ width: 38, height: 38, borderRadius: 12, border: 'none', background: '#F8FAFC', color: '#64748B', cursor: submitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={19} /></button>
+              <button type="button" onClick={closeAddModal} disabled={submitting} style={{ width: 38, height: 38, borderRadius: 12, border: 'none', background: '#F8FAFC', color: '#64748B', cursor: submitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={19} /></button>
             </div>
 
             {checkpointErrors.length > 0 && (
@@ -733,12 +781,13 @@ export default function Tracking() {
                 color: '#B91C1C',
                 fontSize: 13,
                 fontWeight: 600,
+                flexShrink: 0,
               }}>
                 {checkpointErrors.map((error) => <div key={error}>{error}</div>)}
               </div>
             )}
 
-            <div style={{ padding: '22px 30px 26px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ padding: '22px 30px 0', display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0, overflowY: 'auto' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <section style={{ background: '#F7F8FA', borderRadius: 18, padding: '18px', border: '1px solid #EEF2F7' }}>
                   <div style={{ fontSize: 14, color: '#111827', fontWeight: 950, marginBottom: 12 }}>Быстрый выбор города</div>
@@ -746,10 +795,12 @@ export default function Tracking() {
                     <Search size={16} color="#94A3B8" />
                     <input value={citySearch} onChange={(event) => setCitySearch(event.target.value)} placeholder="Алматы, Дубай, Шанхай..." style={{ border: 'none', background: 'transparent', outline: 'none', flex: 1, fontSize: 14, color: '#111827' }} />
                   </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', maxHeight: 168, overflowY: 'auto', paddingRight: 4 }}>
                     {filteredCities.map((item) => (
                       <button
+                        type="button"
                         key={`${item.city}-${item.country}`}
+                        onMouseDown={(event) => event.preventDefault()}
                         onClick={() => setNewPoint((current) => ({ ...current, city: item.city, country: item.country }))}
                         style={{ border: `1px solid ${newPoint.city === item.city ? '#2563EB' : '#E2E8F0'}`, background: newPoint.city === item.city ? '#DBEAFE' : '#fff', color: newPoint.city === item.city ? '#1D4ED8' : '#64748B', padding: '8px 13px', borderRadius: 999, fontSize: 12, fontWeight: 900, cursor: 'pointer' }}
                       >
@@ -825,41 +876,55 @@ export default function Tracking() {
                 </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 4 }}>
-                <button type="button" onClick={() => !submitting && setShowAddModal(false)} disabled={submitting} style={{ minWidth: 138, padding: '13px 22px', border: '1px solid #E2E8F0', background: '#fff', borderRadius: 14, fontWeight: 900, color: '#64748B', cursor: submitting ? 'not-allowed' : 'pointer', fontSize: 14 }}>Отмена</button>
-                <button
-                  type="button"
-                  onClick={() => void handleAddPoint()}
-                  disabled={submitting || !newPoint.city || !newPoint.address}
-                  style={{
-                    minWidth: 230,
-                    padding: '13px 22px',
-                    border: 'none',
-                    background: submitting || !newPoint.city || !newPoint.address ? '#E2E8F0' : '#2563EB',
-                    color: submitting || !newPoint.city || !newPoint.address ? '#94A3B8' : '#fff',
-                    borderRadius: 14,
-                    fontWeight: 950,
-                    cursor: submitting || !newPoint.city || !newPoint.address ? 'not-allowed' : 'pointer',
-                    fontSize: 14,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                  }}
-                >
-                  {submitting && (
-                    <span style={{
-                      width: 14, height: 14, borderRadius: '50%',
-                      border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
-                      animation: 'spin 0.7s linear infinite', display: 'inline-block',
-                    }} />
-                  )}
-                  {submitting ? 'Сохранение...' : '+ Добавить точку в маршрут'}
-                </button>
-              </div>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 12,
+              padding: '16px 30px 26px',
+              borderTop: '1px solid #F1F5F9',
+              background: '#fff',
+              flexShrink: 0,
+              position: 'relative',
+              zIndex: 2,
+            }}>
+              <button type="button" onClick={closeAddModal} disabled={submitting} style={{ minWidth: 138, padding: '13px 22px', border: '1px solid #E2E8F0', background: '#fff', borderRadius: 14, fontWeight: 900, color: '#64748B', cursor: submitting ? 'not-allowed' : 'pointer', fontSize: 14 }}>Отмена</button>
+              <button
+                type="button"
+                onClick={() => void handleAddPoint()}
+                disabled={submitting || !newPoint.city.trim() || !newPoint.address.trim()}
+                style={{
+                  minWidth: 230,
+                  padding: '13px 22px',
+                  border: 'none',
+                  background: submitting || !newPoint.city.trim() || !newPoint.address.trim() ? '#E2E8F0' : '#2563EB',
+                  color: submitting || !newPoint.city.trim() || !newPoint.address.trim() ? '#94A3B8' : '#fff',
+                  borderRadius: 14,
+                  fontWeight: 950,
+                  cursor: submitting || !newPoint.city.trim() || !newPoint.address.trim() ? 'not-allowed' : 'pointer',
+                  fontSize: 14,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  position: 'relative',
+                  zIndex: 3,
+                }}
+              >
+                {submitting && (
+                  <span style={{
+                    width: 14, height: 14, borderRadius: '50%',
+                    border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
+                    animation: 'spin 0.7s linear infinite', display: 'inline-block',
+                  }} />
+                )}
+                {submitting ? 'Сохранение...' : '+ Добавить точку в маршрут'}
+              </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
