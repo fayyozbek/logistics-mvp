@@ -13,10 +13,12 @@ import type {
   UpdateTelegramSettingsPayload,
   UpdateTelegramSettingsResponse,
   TrackingResponse,
+  DeleteShipmentResponse,
   UpdateCheckpointPayload,
+  UpdateShipmentPayload,
   UpdateShipmentStatusPayload,
 } from '../types/api';
-import { ApiError, isApiConfigured, patchJson, postJson, requestWithMockFallback } from './client';
+import { ApiError, deleteJson, isApiConfigured, patchJson, postJson, requestWithMockFallback } from './client';
 import {
   getDashboardDataMock,
   getFinanceMock,
@@ -90,6 +92,31 @@ export function createShipment(payload: CreateShipmentPayload): Promise<Shipment
   }
 
   return postJson<ShipmentResponse>('/shipments', payload);
+}
+
+export function updateShipment(
+  id: string,
+  payload: UpdateShipmentPayload,
+): Promise<ShipmentResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Редактирование груза доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  const encodedId = encodeURIComponent(id);
+  return patchJson<ShipmentResponse>(`/shipments/${encodedId}`, payload);
+}
+
+export function deleteShipment(id: string): Promise<DeleteShipmentResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Удаление груза доступно только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  const encodedId = encodeURIComponent(id);
+  return deleteJson<DeleteShipmentResponse>(`/shipments/${encodedId}`);
 }
 
 export function updateShipmentStatus(

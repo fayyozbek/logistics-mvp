@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Client, Manager, Shipment, ShipmentStatus, TransportType } from '../data/mock';
-import { ApiError, createShipment, getManagers, getShipments, updateShipmentStatus } from '../api';
-import type { CreateShipmentPayload } from '../types/api';
+import { ApiError, createShipment, deleteShipment, getManagers, getShipments, updateShipment, updateShipmentStatus } from '../api';
+import type { CreateShipmentPayload, UpdateShipmentPayload } from '../types/api';
 
 const statusColors: Record<string, string> = {
   planned: '#F59E0B', in_transit: '#3B82F6', at_checkpoint: '#8B5CF6', delivered: '#10B981', delayed: '#EF4444',
@@ -136,6 +136,42 @@ const emptyCreateForm: CreateFormState = {
   telegramNotifications: false,
 };
 
+interface EditFormState {
+  clientId: string;
+  managerId: string;
+  type: TransportType;
+  origin: string;
+  destination: string;
+  cargo: string;
+  weight: string;
+  weightUnit: string;
+  volume: string;
+  volumeUnit: string;
+  plannedPickup: string;
+  estimatedDelivery: string;
+  notes: string;
+  telegramNotifications: boolean;
+}
+
+function shipmentToEditForm(shipment: Shipment): EditFormState {
+  return {
+    clientId: shipment.clientId,
+    managerId: shipment.managerId ?? '',
+    type: shipment.type,
+    origin: shipment.origin,
+    destination: shipment.destination,
+    cargo: shipment.cargo ?? '',
+    weight: shipment.weight ?? '',
+    weightUnit: shipment.weightUnit ?? '',
+    volume: shipment.volume ?? '',
+    volumeUnit: shipment.volumeUnit ?? '',
+    plannedPickup: shipment.plannedPickup ?? '',
+    estimatedDelivery: shipment.estimatedDelivery ?? '',
+    notes: shipment.notes ?? '',
+    telegramNotifications: shipment.telegramNotifications,
+  };
+}
+
 const fieldLabels: Record<string, string> = {
   clientId: 'Клиент',
   managerId: 'Менеджер',
@@ -183,6 +219,13 @@ export default function Shipments() {
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusSuccessMessage, setStatusSuccessMessage] = useState('');
   const [statusUpdateErrors, setStatusUpdateErrors] = useState<string[]>([]);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState<EditFormState | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editErrors, setEditErrors] = useState<string[]>([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteErrors, setDeleteErrors] = useState<string[]>([]);
 
   useEffect(() => {
     Promise.all([getShipments(), getManagers()])
@@ -200,6 +243,15 @@ export default function Shipments() {
       setStatusNote('');
       setStatusUpdateErrors([]);
       setStatusSuccessMessage('');
+      setEditMode(false);
+      setEditForm(shipmentToEditForm(selected));
+      setEditErrors([]);
+      setShowDeleteConfirm(false);
+      setDeleteErrors([]);
+    } else {
+      setEditMode(false);
+      setEditForm(null);
+      setShowDeleteConfirm(false);
     }
   }, [selected?.id]);
 
@@ -235,6 +287,97 @@ export default function Shipments() {
       }
     } finally {
       setStatusUpdating(false);
+    }
+  };
+
+  const openEditForm = () => {
+    if (!selected) return;
+    setEditForm(shipmentToEditForm(selected));
+    setEditErrors([]);
+    setShowDeleteConfirm(false);
+    setEditMode(true);
+  };
+
+  const closeEditForm = () => {
+    if (editSubmitting) return;
+    setEditMode(false);
+    setEditErrors([]);
+    if (selected) {
+      setEditForm(shipmentToEditForm(selected));
+    }
+  };
+
+  const handleEditSubmit = async () => {
+    if (!selected || !editForm) return;
+
+    setEditSubmitting(true);
+    setEditErrors([]);
+    setSuccessMessage('');
+    setStatusSuccessMessage('');
+
+    const payload: UpdateShipmentPayload = {
+      clientId: Number(editForm.clientId),
+      managerId: editForm.managerId ? Number(editForm.managerId) : null,
+      type: editForm.type,
+      origin: editForm.origin.trim(),
+      destination: editForm.destination.trim(),
+      cargo: editForm.cargo.trim() || undefined,
+      weight: editForm.weight.trim() || undefined,
+      weightUnit: editForm.weightUnit.trim() || undefined,
+      volume: editForm.volume.trim() || undefined,
+      volumeUnit: editForm.volumeUnit.trim() || undefined,
+      plannedPickup: editForm.plannedPickup || undefined,
+      estimatedDelivery: editForm.estimatedDelivery || undefined,
+      notes: editForm.notes.trim() || undefined,
+      telegramNotifications: editForm.telegramNotifications,
+    };
+
+    try {
+      const { shipment } = await updateShipment(selected.id, payload);
+      mergeShipment(shipment);
+      setEditMode(false);
+      setEditForm(shipmentToEditForm(shipment));
+      setSuccessMessage(`Груз ${shipment.trackingNumber} обновлён`);
+    } catch (error) {
+      if (error instanceof ApiError && error.validationErrors) {
+        setEditErrors(formatFieldErrors(error.validationErrors));
+      } else if (error instanceof ApiError) {
+        setEditErrors([error.message]);
+      } else {
+        setEditErrors(['Не удалось обновить груз. Проверьте подключение к API.']);
+      }
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selected) return;
+
+    const deletedId = selected.id;
+    const deletedTracking = selected.trackingNumber;
+
+    setDeleteSubmitting(true);
+    setDeleteErrors([]);
+    setSuccessMessage('');
+    setStatusSuccessMessage('');
+
+    try {
+      await deleteShipment(deletedId);
+      const remaining = shipments.filter((item) => item.id !== deletedId);
+      setShipments(remaining);
+      setSelected(null);
+      setEditMode(false);
+      setShowDeleteConfirm(false);
+      setSuccessMessage(`Груз ${deletedTracking} удалён`);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setDeleteErrors([error.message]);
+      } else {
+        setDeleteErrors(['Не удалось удалить груз. Проверьте подключение к API.']);
+      }
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -566,7 +709,7 @@ export default function Shipments() {
                   <div style={{ fontSize: 11, color: '#94A3B8' }}>{typeLabel[selected.type]}</div>
                 </div>
               </div>
-              <button onClick={() => setSelected(null)} style={{
+              <button type="button" onClick={() => setSelected(null)} style={{
                 background: '#F1F5F9', border: 'none', cursor: 'pointer',
                 width: 28, height: 28, borderRadius: 7,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -574,7 +717,254 @@ export default function Shipments() {
               }}>×</button>
             </div>
 
-            {/* Details grid */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              <button
+                type="button"
+                onClick={openEditForm}
+                disabled={editSubmitting || deleteSubmitting || showDeleteConfirm}
+                style={{
+                  flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #BFDBFE',
+                  background: editMode ? '#DBEAFE' : '#F0F7FF', color: '#1D4ED8',
+                  fontSize: 12, fontWeight: 700, cursor: editSubmitting || deleteSubmitting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Редактировать
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteConfirm(true);
+                  setEditMode(false);
+                  setDeleteErrors([]);
+                }}
+                disabled={editSubmitting || deleteSubmitting}
+                style={{
+                  flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #FECACA',
+                  background: '#FEF2F2', color: '#B91C1C',
+                  fontSize: 12, fontWeight: 700, cursor: editSubmitting || deleteSubmitting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Удалить
+              </button>
+            </div>
+
+            {showDeleteConfirm && (
+              <div style={{ marginBottom: 14, padding: '12px', borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#991B1B', marginBottom: 8 }}>
+                  Удалить груз {selected.trackingNumber}? Это действие нельзя отменить.
+                </div>
+                {deleteErrors.length > 0 && (
+                  <div style={{ fontSize: 11, color: '#B91C1C', marginBottom: 8 }}>
+                    {deleteErrors.map((error) => <div key={error}>{error}</div>)}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!deleteSubmitting) setShowDeleteConfirm(false);
+                    }}
+                    disabled={deleteSubmitting}
+                    style={{
+                      flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0',
+                      background: '#fff', color: '#64748B', fontSize: 12, fontWeight: 600,
+                      cursor: deleteSubmitting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteConfirm()}
+                    disabled={deleteSubmitting}
+                    style={{
+                      flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none',
+                      background: deleteSubmitting ? '#94A3B8' : '#DC2626', color: '#fff',
+                      fontSize: 12, fontWeight: 700, cursor: deleteSubmitting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {deleteSubmitting ? 'Удаление...' : 'Да, удалить'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {editMode && editForm ? (
+              <div style={{ marginBottom: 18, padding: '14px', borderRadius: 10, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Редактирование груза</div>
+
+                {editErrors.length > 0 && (
+                  <div style={{ padding: '8px 10px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 11, marginBottom: 10 }}>
+                    {editErrors.map((error) => <div key={error}>{error}</div>)}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <label>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Клиент *</div>
+                    <select
+                      value={editForm.clientId}
+                      onChange={(e) => setEditForm((f) => f && ({ ...f, clientId: e.target.value }))}
+                      disabled={editSubmitting}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                    >
+                      {clients.map((c) => <option key={c.id} value={c.id}>{c.company}</option>)}
+                    </select>
+                  </label>
+
+                  <label>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Менеджер</div>
+                    <select
+                      value={editForm.managerId}
+                      onChange={(e) => setEditForm((f) => f && ({ ...f, managerId: e.target.value }))}
+                      disabled={editSubmitting}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                    >
+                      <option value="">Не назначен</option>
+                      {managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                  </label>
+
+                  <label>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Тип перевозки *</div>
+                    <select
+                      value={editForm.type}
+                      onChange={(e) => setEditForm((f) => f && ({ ...f, type: e.target.value as TransportType }))}
+                      disabled={editSubmitting}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                    >
+                      {transportTypes.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </label>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <label>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Откуда *</div>
+                      <input
+                        value={editForm.origin}
+                        onChange={(e) => setEditForm((f) => f && ({ ...f, origin: e.target.value }))}
+                        disabled={editSubmitting}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                      />
+                    </label>
+                    <label>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Куда *</div>
+                      <input
+                        value={editForm.destination}
+                        onChange={(e) => setEditForm((f) => f && ({ ...f, destination: e.target.value }))}
+                        disabled={editSubmitting}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                      />
+                    </label>
+                  </div>
+
+                  <label>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Груз</div>
+                    <input
+                      value={editForm.cargo}
+                      onChange={(e) => setEditForm((f) => f && ({ ...f, cargo: e.target.value }))}
+                      disabled={editSubmitting}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                    />
+                  </label>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <label>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Вес</div>
+                      <input
+                        value={editForm.weight}
+                        onChange={(e) => setEditForm((f) => f && ({ ...f, weight: e.target.value }))}
+                        disabled={editSubmitting}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                      />
+                    </label>
+                    <label>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Ед. веса</div>
+                      <input
+                        value={editForm.weightUnit}
+                        onChange={(e) => setEditForm((f) => f && ({ ...f, weightUnit: e.target.value }))}
+                        disabled={editSubmitting}
+                        placeholder="kg"
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <label>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Объём</div>
+                      <input
+                        value={editForm.volume}
+                        onChange={(e) => setEditForm((f) => f && ({ ...f, volume: e.target.value }))}
+                        disabled={editSubmitting}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                      />
+                    </label>
+                    <label>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Ед. объёма</div>
+                      <input
+                        value={editForm.volumeUnit}
+                        onChange={(e) => setEditForm((f) => f && ({ ...f, volumeUnit: e.target.value }))}
+                        disabled={editSubmitting}
+                        placeholder="m3"
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <label>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Плановый забор</div>
+                      <input
+                        type="date"
+                        value={editForm.plannedPickup}
+                        onChange={(e) => setEditForm((f) => f && ({ ...f, plannedPickup: e.target.value }))}
+                        disabled={editSubmitting}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                      />
+                    </label>
+                    <label>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Плановая доставка</div>
+                      <input
+                        type="date"
+                        value={editForm.estimatedDelivery}
+                        onChange={(e) => setEditForm((f) => f && ({ ...f, estimatedDelivery: e.target.value }))}
+                        disabled={editSubmitting}
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                      />
+                    </label>
+                  </div>
+
+                  <label>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Примечание</div>
+                    <textarea
+                      value={editForm.notes}
+                      onChange={(e) => setEditForm((f) => f && ({ ...f, notes: e.target.value }))}
+                      disabled={editSubmitting}
+                      rows={2}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none', resize: 'none', fontFamily: 'inherit' }}
+                    />
+                  </label>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <button type="button" onClick={closeEditForm} disabled={editSubmitting} style={{
+                    flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0',
+                    background: '#fff', color: '#64748B', fontSize: 12, fontWeight: 600,
+                    cursor: editSubmitting ? 'not-allowed' : 'pointer',
+                  }}>
+                    Отмена
+                  </button>
+                  <button type="button" onClick={() => void handleEditSubmit()} disabled={editSubmitting} style={{
+                    flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none',
+                    background: editSubmitting ? '#94A3B8' : '#3B82F6', color: '#fff',
+                    fontSize: 12, fontWeight: 700, cursor: editSubmitting ? 'not-allowed' : 'pointer',
+                  }}>
+                    {editSubmitting ? 'Сохранение...' : 'Сохранить'}
+                  </button>
+                </div>
+              </div>
+            ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
               {[
                 { icon: '🏢', label: 'Клиент', value: clients.find(c => c.id === selected.clientId)?.company },
@@ -595,6 +985,7 @@ export default function Shipments() {
                 </div>
               ))}
             </div>
+            )}
 
             <div style={{ marginBottom: 18, padding: '14px', borderRadius: 10, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Обновить статус</div>

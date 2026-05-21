@@ -56,9 +56,13 @@ export interface Shipment {
   destination: string;
   cargo: string;
   weight: string;
+  weightUnit?: string;
   volume: string;
+  volumeUnit?: string;
   createdAt: string;
+  plannedPickup?: string;
   estimatedDelivery: string;
+  notes?: string;
   checkpoints: CheckPoint[];
   financeId: string;
   telegramNotifications: boolean;

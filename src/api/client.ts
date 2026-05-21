@@ -77,6 +77,10 @@ export function patchJson<T>(path: string, data: unknown): Promise<T> {
   });
 }
 
+export function deleteJson<T>(path: string): Promise<T> {
+  return requestJson<T>(path, { method: 'DELETE' });
+}
+
 export async function requestWithMockFallback<T>(
   path: string,
   mock: () => T,

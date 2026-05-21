@@ -2,6 +2,7 @@ export { ApiError, getApiBaseUrl, isApiConfigured } from './client';
 export {
   addShipmentCheckpoint,
   createShipment,
+  deleteShipment,
   getDashboardData,
   getFinance,
   getManagers,
@@ -11,6 +12,7 @@ export {
   getTrackingData,
   updateCheckpoint,
   updateFinanceStatus,
+  updateShipment,
   updateShipmentStatus,
   updateTelegramSettings,
 } from './logistics';

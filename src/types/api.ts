@@ -100,6 +100,28 @@ export interface UpdateShipmentStatusPayload {
   note?: string;
 }
 
+export interface UpdateShipmentPayload {
+  clientId?: number;
+  managerId?: number | null;
+  type?: TransportType;
+  origin?: string;
+  destination?: string;
+  cargo?: string;
+  weight?: string;
+  weightUnit?: string;
+  volume?: string;
+  volumeUnit?: string;
+  plannedPickup?: string;
+  estimatedDelivery?: string;
+  notes?: string;
+  telegramNotifications?: boolean;
+}
+
+export interface DeleteShipmentResponse {
+  message: string;
+  shipmentId: string;
+}
+
 export type ApiValidationErrors = Record<string, string[]>;
 
 export interface TrackingResponse {
