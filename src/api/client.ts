@@ -1,4 +1,5 @@
 import type { ApiValidationErrors } from '../types/api';
+import { downloadTextFile } from '../utils/csv';
 
 export function getApiBaseUrl(): string | null {
   const value = import.meta.env.VITE_API_BASE_URL;
@@ -94,4 +95,29 @@ export async function requestWithMockFallback<T>(
   } catch {
     return mock();
   }
+}
+
+export async function downloadCsv(path: string, filename: string, mockCsv: () => string): Promise<void> {
+  if (!isApiConfigured()) {
+    downloadTextFile(mockCsv(), filename);
+    return;
+  }
+
+  const base = getApiBaseUrl();
+  if (!base) {
+    downloadTextFile(mockCsv(), filename);
+    return;
+  }
+
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const response = await fetch(`${base}${normalizedPath}`, {
+    headers: { Accept: 'text/csv' },
+  });
+
+  if (!response.ok) {
+    const body = await parseErrorBody(response);
+    throw new ApiError(body.message ?? `CSV export failed (${response.status})`, response.status);
+  }
+
+  downloadTextFile(await response.text(), filename);
 }

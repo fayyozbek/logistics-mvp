@@ -28,7 +28,8 @@ import type {
   UpdateShipmentPayload,
   UpdateShipmentStatusPayload,
 } from '../types/api';
-import { ApiError, deleteJson, isApiConfigured, patchJson, postJson, requestWithMockFallback } from './client';
+import { ApiError, deleteJson, downloadCsv, isApiConfigured, patchJson, postJson, requestWithMockFallback } from './client';
+import { buildFinanceExportCsv, buildShipmentsExportCsv } from '../utils/exportCsv';
 import {
   getClientsMock,
   getDashboardDataMock,
@@ -147,6 +148,14 @@ export function getFinance(): Promise<FinanceResponse> {
 
 export function getFinanceReport(): Promise<FinanceReportResponse> {
   return requestWithMockFallback('/finance/report', getFinanceReportMock);
+}
+
+export function exportShipmentsCsv(): Promise<void> {
+  return downloadCsv('/export/shipments.csv', 'shipments.csv', buildShipmentsExportCsv);
+}
+
+export function exportFinanceCsv(): Promise<void> {
+  return downloadCsv('/export/finance.csv', 'finance.csv', buildFinanceExportCsv);
 }
 
 export function updateFinanceStatus(

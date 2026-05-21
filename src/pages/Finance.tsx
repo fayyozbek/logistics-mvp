@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { type Client, type FinanceRecord } from '../data/mock';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { ApiError, getFinance, getFinanceReport, updateFinanceStatus } from '../api';
+import { ApiError, exportFinanceCsv, getFinance, getFinanceReport, updateFinanceStatus } from '../api';
 import type { FinanceReportSummary } from '../types/api';
 import { buildFinanceReport, formatReportMonthLabel } from '../utils/financeReport';
 
@@ -34,6 +34,8 @@ export default function Finance() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [statusErrors, setStatusErrors] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
   const [report, setReport] = useState<FinanceReportSummary | null>(null);
 
   useEffect(() => {
@@ -86,6 +88,22 @@ export default function Finance() {
           return records;
         });
       });
+  };
+
+  const handleExportCsv = async () => {
+    setExporting(true);
+    setExportError('');
+    try {
+      await exportFinanceCsv();
+    } catch (error) {
+      setExportError(
+        error instanceof ApiError
+          ? error.message
+          : 'Не удалось экспортировать финансы. Проверьте подключение к API.',
+      );
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleStatusUpdate = async (recordId: string, status: FinanceRecord['status']) => {
@@ -141,7 +159,7 @@ export default function Finance() {
         </div>
       )}
 
-      {statusErrors.length > 0 && (
+      {(statusErrors.length > 0 || exportError) && (
         <div style={{
           padding: '12px 16px',
           borderRadius: 10,
@@ -151,6 +169,7 @@ export default function Finance() {
           fontSize: 13,
           fontWeight: 600,
         }}>
+          {exportError && <div>{exportError}</div>}
           {statusErrors.map((error) => <div key={error}>{error}</div>)}
         </div>
       )}
@@ -223,6 +242,25 @@ export default function Finance() {
         <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Счета и платежи</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => void handleExportCsv()}
+              disabled={exporting}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 8,
+                border: '1px solid #E2E8F0',
+                background: '#fff',
+                color: '#334155',
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: exporting ? 'not-allowed' : 'pointer',
+                opacity: exporting ? 0.7 : 1,
+              }}
+            >
+              {exporting ? 'Экспорт...' : 'Экспорт финансов'}
+            </button>
             <div style={{ display: 'flex', gap: 4, background: '#F8FAFC', borderRadius: 8, padding: 3, border: '1px solid #E2E8F0' }}>
               {[['all', 'Все'], ['paid', 'Оплачен'], ['partial', 'Частично'], ['unpaid', 'Не оплачен'], ['overdue', 'Просрочен']].map(([v, l]) => (
                 <button key={v} type="button" onClick={() => setFilter(v)}
@@ -232,6 +270,7 @@ export default function Finance() {
                     color: filter === v ? '#fff' : '#64748B',
                   }}>{l}</button>
               ))}
+            </div>
             </div>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>

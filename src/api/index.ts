@@ -7,6 +7,8 @@ export {
   deleteClient,
   deleteManager,
   deleteShipment,
+  exportFinanceCsv,
+  exportShipmentsCsv,
   getClient,
   getClients,
   getDashboardData,

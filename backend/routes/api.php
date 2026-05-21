@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\CheckpointController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\ManagerController;
 use App\Http\Controllers\Api\ShipmentController;
@@ -12,6 +13,9 @@ use App\Http\Controllers\HealthController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', HealthController::class);
+
+Route::get('/export/shipments.csv', [ExportController::class, 'shipments']);
+Route::get('/export/finance.csv', [ExportController::class, 'finance']);
 
 Route::get('/dashboard', [DashboardController::class, 'index']);
 Route::get('/shipments', [ShipmentController::class, 'index']);

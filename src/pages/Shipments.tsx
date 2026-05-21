@@ -17,7 +17,7 @@ import {
   VOLUME_UNITS,
   WEIGHT_UNITS,
 } from '../utils/shipmentUnits';
-import { ApiError, createShipment, deleteShipment, getClients, getManagers, getShipments, updateShipment, updateShipmentStatus } from '../api';
+import { ApiError, createShipment, deleteShipment, exportShipmentsCsv, getClients, getManagers, getShipments, updateShipment, updateShipmentStatus } from '../api';
 import type { CreateShipmentPayload, UpdateShipmentPayload } from '../types/api';
 
 const statusColors: Record<string, string> = {
@@ -238,6 +238,7 @@ export default function Shipments() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createForm, setCreateForm] = useState<CreateFormState>(emptyCreateForm);
   const [submitting, setSubmitting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [statusDraft, setStatusDraft] = useState<ShipmentStatus>('planned');
@@ -423,6 +424,20 @@ export default function Shipments() {
     }
   };
 
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      await exportShipmentsCsv();
+    } catch (error) {
+      const message = error instanceof ApiError
+        ? error.message
+        : 'Не удалось экспортировать грузы. Проверьте подключение к API.';
+      setFormErrors([message]);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const openCreateForm = () => {
     setCreateForm(emptyCreateForm);
     setFormErrors([]);
@@ -579,7 +594,20 @@ export default function Shipments() {
           ))}
         </div>
 
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => void handleExportCsv()}
+            disabled={exporting}
+            style={{
+              padding: '9px 16px', background: '#fff', color: '#334155',
+              border: '1px solid #E2E8F0', borderRadius: 9, fontSize: 13, fontWeight: 600,
+              cursor: exporting ? 'not-allowed' : 'pointer',
+              opacity: exporting ? 0.7 : 1,
+            }}
+          >
+            {exporting ? 'Экспорт...' : 'Экспорт грузов'}
+          </button>
           <button
             type="button"
             onClick={openCreateForm}
