@@ -1,0 +1,27 @@
+---
+description: Git branching, commits, and PR safety
+alwaysApply: true
+---
+
+# Git and branch safety
+
+## Branches
+
+- Do **not** work on `main` unless the user explicitly instructs it.
+- Do **not** push directly to `main`.
+- Use feature branches (e.g. `feature/mvp-plus-*`).
+
+## Commits
+
+- Commit only when the user asks and validation passes.
+- Never commit: `.env`, `backend/.env`, `node_modules/`, `dist/`, `backups/`, DB dumps, screenshots/PDF audit artifacts (unless task requests).
+- Use scoped messages: `feat:`, `fix:`, `chore:`, `docs:`.
+
+## After commit
+
+Report: changed files, summary, commands run, validation results, commit hash.
+
+## PR
+
+- Open PR after local QA (see `60-qa-gates.mdc`).
+- Use `gh pr create` when preparing PRs; do not deploy from a feature branch unless requested.

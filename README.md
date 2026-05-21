@@ -24,6 +24,10 @@ https://logistics-mvp-sigma.vercel.app.
 the fuller operational demo (CRUD, Excel, validation, autocomplete) and what stays
 out of scope (auth, payments, Telegram send, PDF).
 
+**Cursor AI guardrails:** see [.cursor/README.md](.cursor/README.md),
+[docs/CURSOR_SKILLS_GUIDE.md](docs/CURSOR_SKILLS_GUIDE.md), and
+[docs/AI_WORKFLOW.md](docs/AI_WORKFLOW.md) for shared rules, skills, and team workflow.
+
 > **Without a running backend** the app still works — every read request
 > falls back to `src/data/mock.ts` automatically. Write actions (add
 > checkpoint, update status, save Telegram settings) will show an error

@@ -1,0 +1,39 @@
+---
+description: QA gates before PR and after deploy
+alwaysApply: true
+---
+
+# QA gates
+
+## Before PR (local only)
+
+```bash
+cd backend && composer validate --no-check-publish
+cd backend && php artisan migrate:fresh --seed
+cd backend && php artisan test
+npm run build
+git diff --check
+```
+
+Plus manual/local smoke:
+
+- Backend: `http://127.0.0.1:8000/api` health + read endpoints 200.
+- UI CRUD: shipments, managers, clients, checkpoints, finance status/export, Telegram save.
+- Validation: 422 visible; API-down banner when backend stopped.
+- No requests to production URLs during local QA.
+
+Use skill: `.cursor/skills/local-regression-qa/SKILL.md`
+
+## Before deploy
+
+- PR merged or explicit user deploy instruction.
+- No uncommitted secrets or `backups/` in commit.
+
+## After deploy
+
+- `GET /api/health` on Render URL.
+- CORS from Vercel origin.
+- Frontend uses production `VITE_API_BASE_URL`, not localhost.
+- Spot-check CRUD ID-flow in browser.
+
+Use skill: `.cursor/skills/deployment-verification/SKILL.md`

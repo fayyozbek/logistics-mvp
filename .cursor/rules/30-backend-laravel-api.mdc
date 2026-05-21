@@ -1,0 +1,29 @@
+---
+description: Laravel API conventions and backend validation
+alwaysApply: true
+---
+
+# Backend (Laravel API)
+
+## Contracts
+
+- Preserve routes in `backend/routes/api.php` and JSON shapes unless the task scopes a breaking change.
+- Use camelCase in API JSON; map to snake_case in DB via existing patterns.
+- Return consistent JSON: 422 validation (`message` + `errors`), 404 (`Запись не найдена.`), safe 500 for API routes.
+
+## Changes
+
+- Add or update `backend/tests/Feature/*` for behavior changes.
+- Validate inputs via Form Requests; Russian attribute labels where applicable.
+- Avoid orphan checkpoints on shipment soft delete; preserve finance records per current delete behavior.
+
+## Out of scope unless requested
+
+- Auth middleware, JWT, roles, policies.
+
+## Verify
+
+```bash
+cd backend && composer validate --no-check-publish
+cd backend && php artisan test
+```
