@@ -27,6 +27,28 @@ export class ApiError extends Error {
   }
 }
 
+const API_WRITE_SUFFIX = ' доступно только при подключённом API (VITE_API_BASE_URL).';
+
+export function apiNotConfiguredError(actionDescription: string): ApiError {
+  return new ApiError(`${actionDescription}${API_WRITE_SUFFIX}`, 0);
+}
+
+export function encodeResourceId(id: string): string {
+  return encodeURIComponent(id);
+}
+
+function normalizeApiPath(path: string): string {
+  return path.startsWith('/') ? path : `/${path}`;
+}
+
+function resolveConfiguredBaseUrl(): string {
+  const base = getApiBaseUrl();
+  if (!base) {
+    throw new ApiError('VITE_API_BASE_URL is not set', 0);
+  }
+  return base;
+}
+
 async function parseErrorBody(response: Response): Promise<{ message?: string; errors?: ApiValidationErrors }> {
   try {
     return await response.json() as { message?: string; errors?: ApiValidationErrors };
@@ -36,13 +58,7 @@ async function parseErrorBody(response: Response): Promise<{ message?: string; e
 }
 
 async function requestJson<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const base = getApiBaseUrl();
-  if (!base) {
-    throw new ApiError('VITE_API_BASE_URL is not set', 0);
-  }
-
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const response = await fetch(`${base}${normalizedPath}`, {
+  const response = await fetch(`${resolveConfiguredBaseUrl()}${normalizeApiPath(path)}`, {
     ...options,
     headers: {
       Accept: 'application/json',
@@ -60,10 +76,6 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
   }
 
   return response.json() as Promise<T>;
-}
-
-async function fetchJson<T>(path: string): Promise<T> {
-  return requestJson<T>(path);
 }
 
 export function postJson<T>(path: string, data: unknown): Promise<T> {
@@ -93,7 +105,7 @@ export async function requestWithMockFallback<T>(
   }
 
   try {
-    const result = await fetchJson<T>(path);
+    const result = await requestJson<T>(path);
     clearApiReadError();
     return result;
   } catch (error) {
@@ -107,14 +119,7 @@ export async function downloadCsv(path: string, filename: string, mockCsv: () =>
     return;
   }
 
-  const base = getApiBaseUrl();
-  if (!base) {
-    downloadTextFile(mockCsv(), filename);
-    return;
-  }
-
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const response = await fetch(`${base}${normalizedPath}`, {
+  const response = await fetch(`${resolveConfiguredBaseUrl()}${normalizeApiPath(path)}`, {
     headers: { Accept: 'text/csv' },
   });
 

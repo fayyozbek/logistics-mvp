@@ -30,7 +30,16 @@ import type {
   UpdateShipmentPayload,
   UpdateShipmentStatusPayload,
 } from '../types/api';
-import { ApiError, deleteJson, downloadCsv, isApiConfigured, patchJson, postJson, requestWithMockFallback } from './client';
+import {
+  apiNotConfiguredError,
+  deleteJson,
+  downloadCsv,
+  encodeResourceId,
+  isApiConfigured,
+  patchJson,
+  postJson,
+  requestWithMockFallback,
+} from './client';
 import { buildFinanceExportCsv, buildShipmentsExportCsv } from '../utils/exportCsv';
 import {
   getClientsMock,
@@ -53,6 +62,31 @@ function buildDashboardPath(query?: DashboardQuery): string {
   return qs ? `/dashboard?${qs}` : '/dashboard';
 }
 
+function resourcePath(base: string, id: string, suffix = ''): string {
+  return `${base}/${encodeResourceId(id)}${suffix}`;
+}
+
+function configuredPost<T>(action: string, path: string, payload: unknown): Promise<T> {
+  if (!isApiConfigured()) {
+    return Promise.reject(apiNotConfiguredError(action));
+  }
+  return postJson<T>(path, payload);
+}
+
+function configuredPatch<T>(action: string, path: string, payload: unknown): Promise<T> {
+  if (!isApiConfigured()) {
+    return Promise.reject(apiNotConfiguredError(action));
+  }
+  return patchJson<T>(path, payload);
+}
+
+function configuredDelete<T>(action: string, path: string): Promise<T> {
+  if (!isApiConfigured()) {
+    return Promise.reject(apiNotConfiguredError(action));
+  }
+  return deleteJson<T>(path);
+}
+
 export function getDashboardData(query?: DashboardQuery): Promise<DashboardData> {
   const path = buildDashboardPath(query);
   return requestWithMockFallback(path, () => getDashboardDataMock(query));
@@ -63,8 +97,7 @@ export function getShipments(): Promise<ShipmentsResponse> {
 }
 
 export function getShipment(id: string): Promise<ShipmentResponse> {
-  const encodedId = encodeURIComponent(id);
-  return requestWithMockFallback(`/shipments/${encodedId}`, () => getShipmentMock(id));
+  return requestWithMockFallback(resourcePath('/shipments', id), () => getShipmentMock(id));
 }
 
 export function getTrackingData(): Promise<TrackingResponse> {
@@ -76,35 +109,15 @@ export function getManagers(): Promise<ManagersResponse> {
 }
 
 export function createManager(payload: CreateManagerPayload): Promise<ManagerResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Создание менеджера доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  return postJson<ManagerResponse>('/managers', payload);
+  return configuredPost('Создание менеджера', '/managers', payload);
 }
 
 export function updateManager(id: string, payload: UpdateManagerPayload): Promise<ManagerResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Редактирование менеджера доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  const encodedId = encodeURIComponent(id);
-  return patchJson<ManagerResponse>(`/managers/${encodedId}`, payload);
+  return configuredPatch('Редактирование менеджера', resourcePath('/managers', id), payload);
 }
 
 export function deleteManager(id: string): Promise<DeleteManagerResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Удаление менеджера доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  const encodedId = encodeURIComponent(id);
-  return deleteJson<DeleteManagerResponse>(`/managers/${encodedId}`);
+  return configuredDelete('Удаление менеджера', resourcePath('/managers', id));
 }
 
 export function getClients(): Promise<ClientsResponse> {
@@ -112,8 +125,7 @@ export function getClients(): Promise<ClientsResponse> {
 }
 
 export function getClient(id: string): Promise<ClientResponse> {
-  const encodedId = encodeURIComponent(id);
-  return requestWithMockFallback(`/clients/${encodedId}`, () => {
+  return requestWithMockFallback(resourcePath('/clients', id), () => {
     const client = getClientsMock().clients.find((item) => item.id === id);
     if (!client) {
       throw new Error(`Client not found: ${id}`);
@@ -123,35 +135,15 @@ export function getClient(id: string): Promise<ClientResponse> {
 }
 
 export function createClient(payload: CreateClientPayload): Promise<ClientResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Создание партнёра доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  return postJson<ClientResponse>('/clients', payload);
+  return configuredPost('Создание партнёра', '/clients', payload);
 }
 
 export function updateClient(id: string, payload: UpdateClientPayload): Promise<ClientResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Редактирование партнёра доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  const encodedId = encodeURIComponent(id);
-  return patchJson<ClientResponse>(`/clients/${encodedId}`, payload);
+  return configuredPatch('Редактирование партнёра', resourcePath('/clients', id), payload);
 }
 
 export function deleteClient(id: string): Promise<DeleteClientResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Удаление партнёра доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  const encodedId = encodeURIComponent(id);
-  return deleteJson<DeleteClientResponse>(`/clients/${encodedId}`);
+  return configuredDelete('Удаление партнёра', resourcePath('/clients', id));
 }
 
 export function getFinance(): Promise<FinanceResponse> {
@@ -174,14 +166,11 @@ export function updateFinanceStatus(
   id: string,
   payload: UpdateFinanceStatusPayload,
 ): Promise<FinanceRecordResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Обновление статуса счёта доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  const encodedId = encodeURIComponent(id);
-  return patchJson<FinanceRecordResponse>(`/finance/${encodedId}/status`, payload);
+  return configuredPatch(
+    'Обновление статуса счёта',
+    resourcePath('/finance', id, '/status'),
+    payload,
+  );
 }
 
 export function getTelegramSettings(): Promise<TelegramSettingsResponse> {
@@ -191,99 +180,49 @@ export function getTelegramSettings(): Promise<TelegramSettingsResponse> {
 export function updateTelegramSettings(
   payload: UpdateTelegramSettingsPayload,
 ): Promise<UpdateTelegramSettingsResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Обновление настроек Telegram доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  return patchJson<UpdateTelegramSettingsResponse>('/telegram/settings', payload);
+  return configuredPatch('Обновление настроек Telegram', '/telegram/settings', payload);
 }
 
 export function createShipment(payload: CreateShipmentPayload): Promise<ShipmentResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Создание груза доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  return postJson<ShipmentResponse>('/shipments', payload);
+  return configuredPost('Создание груза', '/shipments', payload);
 }
 
 export function updateShipment(
   id: string,
   payload: UpdateShipmentPayload,
 ): Promise<ShipmentResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Редактирование груза доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  const encodedId = encodeURIComponent(id);
-  return patchJson<ShipmentResponse>(`/shipments/${encodedId}`, payload);
+  return configuredPatch('Редактирование груза', resourcePath('/shipments', id), payload);
 }
 
 export function deleteShipment(id: string): Promise<DeleteShipmentResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Удаление груза доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  const encodedId = encodeURIComponent(id);
-  return deleteJson<DeleteShipmentResponse>(`/shipments/${encodedId}`);
+  return configuredDelete('Удаление груза', resourcePath('/shipments', id));
 }
 
 export function updateShipmentStatus(
   id: string,
   payload: UpdateShipmentStatusPayload,
 ): Promise<ShipmentResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Обновление статуса доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  const encodedId = encodeURIComponent(id);
-  return patchJson<ShipmentResponse>(`/shipments/${encodedId}/status`, payload);
+  return configuredPatch('Обновление статуса', resourcePath('/shipments', id, '/status'), payload);
 }
 
 export function addShipmentCheckpoint(
   shipmentId: string,
   payload: AddShipmentCheckpointPayload,
 ): Promise<CheckpointResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Добавление точек маршрута доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  const encodedId = encodeURIComponent(shipmentId);
-  return postJson<CheckpointResponse>(`/shipments/${encodedId}/checkpoints`, payload);
+  return configuredPost(
+    'Добавление точек маршрута',
+    resourcePath('/shipments', shipmentId, '/checkpoints'),
+    payload,
+  );
 }
 
 export function updateCheckpoint(
   checkpointId: string,
   payload: UpdateCheckpointPayload,
 ): Promise<CheckpointResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Обновление точек маршрута доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  const encodedId = encodeURIComponent(checkpointId);
-  return patchJson<CheckpointResponse>(`/checkpoints/${encodedId}`, payload);
+  return configuredPatch('Обновление точек маршрута', resourcePath('/checkpoints', checkpointId), payload);
 }
 
 export function deleteCheckpoint(checkpointId: string): Promise<DeleteCheckpointResponse> {
-  if (!isApiConfigured()) {
-    return Promise.reject(
-      new ApiError('Удаление точек маршрута доступно только при подключённом API (VITE_API_BASE_URL).', 0),
-    );
-  }
-
-  const encodedId = encodeURIComponent(checkpointId);
-  return deleteJson<DeleteCheckpointResponse>(`/checkpoints/${encodedId}`);
+  return configuredDelete('Удаление точек маршрута', resourcePath('/checkpoints', checkpointId));
 }
