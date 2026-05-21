@@ -1,5 +1,13 @@
 <?php
 
+$normalizeOrigin = static function (?string $url): ?string {
+    if (! is_string($url) || trim($url) === '') {
+        return null;
+    }
+
+    return rtrim(trim($url), '/');
+};
+
 return [
 
     'paths' => ['api/*'],
@@ -7,15 +15,15 @@ return [
     'allowed_methods' => ['*'],
 
     /*
-     * Always allow the local Vite dev server so developers do not need to set
-     * FRONTEND_URL during local work.  In production FRONTEND_URL should be
-     * set to the deployed Vercel URL (e.g. https://your-app.vercel.app).
-     * array_filter removes the null entry when FRONTEND_URL is not set.
+     * Local Vite dev servers are always allowed.
+     * Production: set FRONTEND_URL on Render (no trailing slash), e.g.
+     * https://logistics-mvp-sigma.vercel.app
      */
-    'allowed_origins' => array_filter([
+    'allowed_origins' => array_values(array_unique(array_filter([
         'http://localhost:5173',
-        env('FRONTEND_URL'),
-    ]),
+        'http://127.0.0.1:5173',
+        $normalizeOrigin(env('FRONTEND_URL')),
+    ]))),
 
     'allowed_origins_patterns' => [],
 

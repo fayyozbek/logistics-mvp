@@ -59,6 +59,9 @@ php artisan test
 
 ## CORS
 
-`config/cors.php` always allows `http://localhost:5173` for local development.
-Set `FRONTEND_URL` in `.env` to also allow the deployed Vercel frontend in
-production (e.g. `https://your-app.vercel.app`).
+`config/cors.php` allows `http://localhost:5173`, `http://127.0.0.1:5173`, and
+`FRONTEND_URL` (trailing slashes are stripped). On Render set:
+
+`FRONTEND_URL=https://logistics-mvp-sigma.vercel.app`
+
+Redeploy the Web Service after changing this variable.

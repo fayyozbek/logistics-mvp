@@ -59,6 +59,11 @@ cd backend && php artisan test
 | `http://localhost:5173` | **Yes** — always allowed by CORS config |
 | `http://127.0.0.1:5173` | No — blocked by CORS |
 
+`config/cors.php` allows `http://localhost:5173`, `http://127.0.0.1:5173`, and the
+origin from `FRONTEND_URL`. On Render, **`FRONTEND_URL` must match the Vercel URL
+exactly** (e.g. `https://logistics-mvp-sigma.vercel.app`) or the browser will block
+API calls.
+
 Always start the Vite dev server with `--host localhost`:
 
 ```bash
@@ -106,7 +111,7 @@ In the Web Service → **Environment** tab, add:
 | `APP_DEBUG` | `false` |
 | `APP_KEY` | *(required — generate locally, see Step 4; not created in Docker build)* |
 | `APP_URL` | `https://your-service.onrender.com` |
-| `FRONTEND_URL` | `https://your-app.vercel.app` |
+| `FRONTEND_URL` | `https://logistics-mvp-sigma.vercel.app` *(no trailing slash)* |
 | `DATABASE_URL` | *(Internal Database URL from Step 1)* |
 | `DB_CONNECTION` | `pgsql` |
 | `DB_SSLMODE` | `require` |
