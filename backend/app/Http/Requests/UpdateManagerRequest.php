@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ValidatesApiInput;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateManagerRequest extends FormRequest
 {
+    use ValidatesApiInput;
+
     public function authorize(): bool
     {
         return true;

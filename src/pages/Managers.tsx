@@ -151,6 +151,10 @@ export default function Managers() {
       } else {
         setFormErrors(['Не удалось создать менеджера. Проверьте подключение к API.']);
       }
+      showApiMutationError(showToast, error, 'Не удалось создать менеджера. Проверьте подключение к API.', {
+        fieldLabels,
+        mapMessage: mapManagerFieldError,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -176,6 +180,10 @@ export default function Managers() {
       } else {
         setFormErrors(['Не удалось обновить менеджера. Проверьте подключение к API.']);
       }
+      showApiMutationError(showToast, error, 'Не удалось обновить менеджера. Проверьте подключение к API.', {
+        fieldLabels,
+        mapMessage: mapManagerFieldError,
+      });
     } finally {
       setSubmitting(false);
     }

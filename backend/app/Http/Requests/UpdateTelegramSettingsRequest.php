@@ -2,12 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ValidatesApiInput;
 use App\Models\TelegramSetting;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 class UpdateTelegramSettingsRequest extends FormRequest
 {
+    use ValidatesApiInput;
     public function authorize(): bool
     {
         return true;
@@ -45,7 +47,7 @@ class UpdateTelegramSettingsRequest extends FormRequest
             );
 
             if ($unknown !== []) {
-                $validator->errors()->add('eventFlags', 'The event flags contain invalid keys.');
+                $validator->errors()->add('eventFlags', 'Недопустимые ключи в настройках событий.');
             }
         });
     }

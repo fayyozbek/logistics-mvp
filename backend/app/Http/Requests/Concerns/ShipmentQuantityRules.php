@@ -21,11 +21,16 @@ trait ShipmentQuantityRules
                 'regex:/^\d+(?:\.\d{1,3})?$/',
                 function (string $attribute, mixed $value, \Closure $fail): void {
                     if ($value !== null && $value !== '' && (float) $value <= 0) {
-                        $fail('The '.$attribute.' must be greater than zero.');
+                        $fail('Укажите положительное число.');
                     }
                 },
             ]),
-            'weightUnit' => array_merge($leading, ['nullable', 'string', Rule::in(['kg', 'ton'])]),
+            'weightUnit' => array_merge($leading, [
+                Rule::requiredIf(fn () => $this->filled('weight')),
+                'nullable',
+                'string',
+                Rule::in(['kg', 'ton']),
+            ]),
             'volume' => array_merge($leading, [
                 'nullable',
                 'string',
@@ -33,11 +38,16 @@ trait ShipmentQuantityRules
                 'regex:/^\d+(?:\.\d{1,3})?$/',
                 function (string $attribute, mixed $value, \Closure $fail): void {
                     if ($value !== null && $value !== '' && (float) $value <= 0) {
-                        $fail('The '.$attribute.' must be greater than zero.');
+                        $fail('Укажите положительное число.');
                     }
                 },
             ]),
-            'volumeUnit' => array_merge($leading, ['nullable', 'string', Rule::in(['m3', 'cbm'])]),
+            'volumeUnit' => array_merge($leading, [
+                Rule::requiredIf(fn () => $this->filled('volume')),
+                'nullable',
+                'string',
+                Rule::in(['m3', 'cbm']),
+            ]),
         ];
     }
 

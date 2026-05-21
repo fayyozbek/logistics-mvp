@@ -3,12 +3,14 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\ShipmentQuantityRules;
+use App\Http\Requests\Concerns\ValidatesApiInput;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreShipmentRequest extends FormRequest
 {
     use ShipmentQuantityRules;
+    use ValidatesApiInput;
 
     public function authorize(): bool
     {
@@ -17,6 +19,16 @@ class StoreShipmentRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $merge = [];
+
+        if ($this->has('cargoName') && ! $this->has('cargo')) {
+            $merge['cargo'] = $this->input('cargoName');
+        }
+
+        if ($merge !== []) {
+            $this->merge($merge);
+        }
+
         $this->prepareShipmentQuantityDefaults();
     }
 
@@ -34,6 +46,7 @@ class StoreShipmentRequest extends FormRequest
             'origin' => ['required', 'string', 'max:255'],
             'destination' => ['required', 'string', 'max:255'],
             'cargo' => ['nullable', 'string', 'max:255'],
+            'cargoName' => ['sometimes', 'nullable', 'string', 'max:255'],
             ...$this->shipmentQuantityRules(),
             'estimatedDelivery' => ['nullable', 'date'],
             'telegramNotifications' => ['sometimes', 'boolean'],
@@ -45,19 +58,6 @@ class StoreShipmentRequest extends FormRequest
             'checkpoints.*.arrivedAt' => ['nullable', 'date'],
             'checkpoints.*.status' => ['sometimes', 'string', Rule::in(['passed', 'current', 'upcoming'])],
             'checkpoints.*.note' => ['nullable', 'string', 'max:500'],
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public function messages(): array
-    {
-        return [
-            'clientId.required' => 'Client is required.',
-            'type.required' => 'Transport type is required.',
-            'origin.required' => 'Origin is required.',
-            'destination.required' => 'Destination is required.',
         ];
     }
 }

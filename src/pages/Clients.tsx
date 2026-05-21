@@ -146,6 +146,9 @@ export default function Clients() {
       } else {
         setFormErrors(['Не удалось создать партнёра. Проверьте подключение к API.']);
       }
+      showApiMutationError(showToast, error, 'Не удалось создать партнёра. Проверьте подключение к API.', {
+        fieldLabels,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -171,6 +174,9 @@ export default function Clients() {
       } else {
         setFormErrors(['Не удалось обновить партнёра. Проверьте подключение к API.']);
       }
+      showApiMutationError(showToast, error, 'Не удалось обновить партнёра. Проверьте подключение к API.', {
+        fieldLabels,
+      });
     } finally {
       setSubmitting(false);
     }

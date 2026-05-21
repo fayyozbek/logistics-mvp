@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ValidatesApiInput;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreManagerRequest extends FormRequest
 {
+    use ValidatesApiInput;
+
     public function authorize(): bool
     {
         return true;
@@ -25,16 +28,6 @@ class StoreManagerRequest extends FormRequest
             'role' => ['nullable', 'string', 'max:128'],
             'department' => ['nullable', 'string', 'max:128'],
             'avatar' => ['nullable', 'string', 'max:8'],
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public function messages(): array
-    {
-        return [
-            'name.required' => 'Manager name is required.',
         ];
     }
 }

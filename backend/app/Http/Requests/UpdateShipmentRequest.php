@@ -3,12 +3,14 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\ShipmentQuantityRules;
+use App\Http\Requests\Concerns\ValidatesApiInput;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class UpdateShipmentRequest extends FormRequest
 {
     use ShipmentQuantityRules;
+    use ValidatesApiInput;
 
     public function authorize(): bool
     {
@@ -53,19 +55,6 @@ class UpdateShipmentRequest extends FormRequest
             'plannedDelivery' => ['sometimes', 'nullable', 'date'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'telegramNotifications' => ['sometimes', 'boolean'],
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public function messages(): array
-    {
-        return [
-            'clientId.required' => 'Client is required.',
-            'type.required' => 'Transport type is required.',
-            'origin.required' => 'Origin is required.',
-            'destination.required' => 'Destination is required.',
         ];
     }
 }

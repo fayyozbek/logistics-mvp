@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ValidatesApiInput;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreClientRequest extends FormRequest
 {
+    use ValidatesApiInput;
+
     public function authorize(): bool
     {
         return true;
@@ -38,17 +41,6 @@ class StoreClientRequest extends FormRequest
             'country' => ['nullable', 'string', 'max:255'],
             'city' => ['nullable', 'string', 'max:255'],
             'address' => ['nullable', 'string', 'max:500'],
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public function messages(): array
-    {
-        return [
-            'company.required' => 'Partner company name is required.',
-            'contact.required_without' => 'Contact name is required.',
         ];
     }
 }

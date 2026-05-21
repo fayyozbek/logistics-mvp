@@ -24,6 +24,7 @@ import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 import FormErrorList from '../components/FormErrorList';
 import PageLoading from '../components/PageLoading';
 import { formatFieldErrors, showApiMutationError } from '../utils/apiErrors';
+import { validateShipmentFormFields } from '../utils/formValidation';
 import { pluralPoints, shipmentStatusBg, shipmentStatusColors, shipmentStatusLabels } from '../utils/shipmentLabels';
 import { useToast } from '../components/ToastProvider';
 import type { CreateShipmentPayload, UpdateShipmentPayload } from '../types/api';
@@ -334,6 +335,17 @@ export default function Shipments() {
     setEditSubmitting(true);
     setEditErrors([]);
 
+    const fieldErrors = validateShipmentFormFields({
+      clientId: editForm.clientId,
+      origin: editForm.origin,
+      destination: editForm.destination,
+    });
+    if (fieldErrors.length > 0) {
+      setEditErrors(fieldErrors);
+      setEditSubmitting(false);
+      return;
+    }
+
     const weightError = validateWeightField(editForm.weight, editForm.weightUnit);
     const volumeError = validateVolumeField(editForm.volume, editForm.volumeUnit);
     if (weightError || volumeError) {
@@ -371,6 +383,9 @@ export default function Shipments() {
       } else {
         setEditErrors(['Не удалось обновить груз. Проверьте подключение к API.']);
       }
+      showApiMutationError(showToast, error, 'Не удалось обновить груз. Проверьте подключение к API.', {
+        fieldLabels,
+      });
     } finally {
       setEditSubmitting(false);
     }
@@ -410,10 +425,7 @@ export default function Shipments() {
     try {
       await exportShipmentsCsv();
     } catch (error) {
-      const message = error instanceof ApiError
-        ? error.message
-        : 'Не удалось экспортировать грузы. Проверьте подключение к API.';
-      setFormErrors([message]);
+      showApiMutationError(showToast, error, 'Не удалось экспортировать грузы. Проверьте подключение к API.');
     } finally {
       setExporting(false);
     }
@@ -435,6 +447,17 @@ export default function Shipments() {
   const handleCreateSubmit = async () => {
     setSubmitting(true);
     setFormErrors([]);
+
+    const fieldErrors = validateShipmentFormFields({
+      clientId: createForm.clientId,
+      origin: createForm.origin,
+      destination: createForm.destination,
+    });
+    if (fieldErrors.length > 0) {
+      setFormErrors(fieldErrors);
+      setSubmitting(false);
+      return;
+    }
 
     const weightError = validateWeightField(createForm.weight, createForm.weightUnit);
     const volumeError = validateVolumeField(createForm.volume, createForm.volumeUnit);
@@ -494,6 +517,9 @@ export default function Shipments() {
       } else {
         setFormErrors(['Не удалось создать груз. Проверьте подключение к API.']);
       }
+      showApiMutationError(showToast, error, 'Не удалось создать груз. Проверьте подключение к API.', {
+        fieldLabels,
+      });
     } finally {
       setSubmitting(false);
     }
