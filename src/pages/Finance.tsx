@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useState } from 'react';
 import { type Client, type FinanceRecord } from '../data/mock';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { ApiError, getFinance, updateFinanceStatus } from '../api';
+import { ApiError, getFinance, getFinanceReport, updateFinanceStatus } from '../api';
+import type { FinanceReportSummary } from '../types/api';
+import { buildFinanceReport, formatReportMonthLabel } from '../utils/financeReport';
 
 const statusConfig = {
   paid: { label: 'Оплачен', color: '#10B981', bg: '#F0FDF4' },
@@ -32,20 +34,29 @@ export default function Finance() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [statusErrors, setStatusErrors] = useState<string[]>([]);
+  const [report, setReport] = useState<FinanceReportSummary | null>(null);
 
   useEffect(() => {
-    getFinance()
-      .then(({ financeRecords: f, clients: c }) => {
-        setFinanceRecords(f);
-        setClients(c);
+    Promise.all([getFinance(), getFinanceReport()])
+      .then(([finance, financeReport]) => {
+        setFinanceRecords(finance.financeRecords);
+        setClients(finance.clients);
+        setReport(financeReport.report);
       })
       .finally(() => setLoading(false));
   }, []);
 
-  const totalRevenue = financeRecords.reduce((s, f) => s + f.totalAmount, 0);
-  const totalPaid = financeRecords.reduce((s, f) => s + f.paidAmount, 0);
-  const totalDebt = totalRevenue - totalPaid;
-  const overdueCount = financeRecords.filter(f => f.status === 'overdue').length;
+  const summary = report ?? buildFinanceReport(financeRecords);
+  const totalRevenue = summary.totalAmount;
+  const totalPaid = summary.paidAmount;
+  const totalDebt = summary.outstandingAmount;
+  const overdueAmount = summary.overdueAmount;
+  const overdueCount = summary.countByStatus.overdue;
+  const paidPercent = totalRevenue > 0 ? Math.round((totalPaid / totalRevenue) * 100) : 0;
+  const revenueChartData = summary.revenueByMonth.map((row) => ({
+    ...row,
+    label: formatReportMonthLabel(row.month),
+  }));
 
   const filtered = financeRecords.filter(f => filter === 'all' || f.status === filter);
 
@@ -59,9 +70,22 @@ export default function Finance() {
   }).filter(c => c.total > 0);
 
   const applyFinanceRecordUpdate = (updated: FinanceRecord) => {
-    setFinanceRecords((records) => records.map((record) => (
-      record.id === updated.id ? updated : record
-    )));
+    setFinanceRecords((records) => {
+      const next = records.map((record) => (record.id === updated.id ? updated : record));
+      setReport(buildFinanceReport(next));
+      return next;
+    });
+  };
+
+  const refreshReport = () => {
+    getFinanceReport()
+      .then(({ report: nextReport }) => setReport(nextReport))
+      .catch(() => {
+        setFinanceRecords((records) => {
+          setReport(buildFinanceReport(records));
+          return records;
+        });
+      });
   };
 
   const handleStatusUpdate = async (recordId: string, status: FinanceRecord['status']) => {
@@ -72,6 +96,7 @@ export default function Finance() {
     try {
       const { financeRecord } = await updateFinanceStatus(recordId, { status });
       applyFinanceRecordUpdate(financeRecord);
+      refreshReport();
       setSuccessMessage(`Статус счёта обновлён: ${statusConfig[financeRecord.status].label}`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
@@ -130,20 +155,67 @@ export default function Finance() {
         </div>
       )}
 
-      {/* KPIs */}
+      {/* Report summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {[
-          { label: 'Выставлено счетов', value: `$${totalRevenue.toLocaleString()}`, sub: `${financeRecords.length} счетов`, color: '#3B82F6' },
-          { label: 'Оплачено', value: `$${totalPaid.toLocaleString()}`, sub: `${totalRevenue > 0 ? Math.round(totalPaid / totalRevenue * 100) : 0}% от выставленного`, color: '#10B981' },
+          { label: 'Выставлено', value: `$${totalRevenue.toLocaleString()}`, sub: `${financeRecords.length} счетов`, color: '#3B82F6' },
+          { label: 'Оплачено', value: `$${totalPaid.toLocaleString()}`, sub: `${paidPercent}% от выставленного`, color: '#10B981' },
           { label: 'Задолженность', value: `$${totalDebt.toLocaleString()}`, sub: 'Ожидает оплаты', color: '#F59E0B' },
-          { label: 'Просроченных', value: overdueCount, sub: 'Счетов просрочено', color: '#EF4444' },
-        ].map(kpi => (
+          { label: 'Просрочено', value: `$${overdueAmount.toLocaleString()}`, sub: `${overdueCount} счетов`, color: '#EF4444' },
+        ].map((kpi) => (
           <div key={kpi.label} style={{ background: '#fff', borderRadius: 12, padding: '16px 20px', border: '1px solid #F1F5F9' }}>
             <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 500, marginBottom: 6 }}>{kpi.label}</div>
             <div style={{ fontSize: 26, fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>{kpi.value}</div>
             <div style={{ fontSize: 10, color: kpi.color, marginTop: 6 }}>{kpi.sub}</div>
           </div>
         ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 14 }}>
+        <div style={{ background: '#fff', borderRadius: 12, padding: '16px 20px', border: '1px solid #F1F5F9' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Счета по статусу</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {(Object.keys(statusConfig) as FinanceRecord['status'][]).map((status) => {
+              const cfg = statusConfig[status];
+              const count = summary.countByStatus[status] ?? 0;
+              return (
+                <div
+                  key={status}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    background: cfg.bg,
+                    border: `1px solid ${cfg.color}22`,
+                  }}
+                >
+                  <span style={{ fontSize: 11, fontWeight: 600, color: cfg.color }}>{cfg.label}</span>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ background: '#fff', borderRadius: 12, padding: '16px 20px', border: '1px solid #F1F5F9' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>Выручка по месяцам</div>
+          <div style={{ fontSize: 10, color: '#94A3B8', marginBottom: 12 }}>Выставлено vs оплачено</div>
+          {revenueChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={120}>
+              <BarChart data={revenueChartData} barGap={4} barSize={14}>
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${Number(v) / 1000}k`} width={42} />
+                <Tooltip contentStyle={{ borderRadius: 8, fontSize: 11 }} formatter={(v) => `$${Number(v ?? 0).toLocaleString()}`} />
+                <Bar dataKey="revenue" fill="#BFDBFE" radius={[3, 3, 0, 0]} name="Выставлено" />
+                <Bar dataKey="paid" fill="#3B82F6" radius={[3, 3, 0, 0]} name="Оплачено" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div style={{ fontSize: 11, color: '#94A3B8' }}>Нет данных по месяцам</div>
+          )}
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16 }}>

@@ -8,12 +8,17 @@ use App\Http\Resources\ClientResource;
 use App\Http\Resources\FinanceRecordResource;
 use App\Models\Client;
 use App\Models\FinanceRecord;
+use App\Services\FinanceReportBuilder;
 use Database\Seeders\Support\FinanceAmountRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class FinanceController extends Controller
 {
+    public function __construct(
+        private readonly FinanceReportBuilder $financeReportBuilder,
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = FinanceRecord::query()
@@ -29,6 +34,13 @@ class FinanceController extends Controller
             'clients' => ClientResource::collection(
                 Client::query()->orderBy('company')->get()
             )->resolve(),
+        ]);
+    }
+
+    public function report(): JsonResponse
+    {
+        return response()->json([
+            'report' => $this->financeReportBuilder->build(),
         ]);
     }
 

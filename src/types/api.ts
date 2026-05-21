@@ -207,6 +207,26 @@ export interface FinanceResponse {
   clients: Client[];
 }
 
+export interface FinanceReportMonthStat {
+  month: string;
+  revenue: number;
+  paid: number;
+  invoiceCount: number;
+}
+
+export interface FinanceReportSummary {
+  totalAmount: number;
+  paidAmount: number;
+  outstandingAmount: number;
+  overdueAmount: number;
+  countByStatus: Record<FinanceRecord['status'], number>;
+  revenueByMonth: FinanceReportMonthStat[];
+}
+
+export interface FinanceReportResponse {
+  report: FinanceReportSummary;
+}
+
 export interface UpdateFinanceStatusPayload {
   status: FinanceRecord['status'];
 }

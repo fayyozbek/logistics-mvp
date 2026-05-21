@@ -35,6 +35,7 @@ Route::get('/managers/{manager}', [ManagerController::class, 'show']);
 Route::patch('/managers/{manager}', [ManagerController::class, 'update']);
 Route::delete('/managers/{manager}', [ManagerController::class, 'destroy']);
 Route::get('/finance', [FinanceController::class, 'index']);
+Route::get('/finance/report', [FinanceController::class, 'report']);
 Route::patch('/finance/{financeRecord}/status', [FinanceController::class, 'updateStatus']);
 Route::get('/telegram/settings', [TelegramSettingController::class, 'show']);
 Route::patch('/telegram/settings', [TelegramSettingController::class, 'update']);

@@ -8,6 +8,7 @@ import type {
   DeleteClientResponse,
   DashboardData,
   FinanceRecordResponse,
+  FinanceReportResponse,
   FinanceResponse,
   UpdateFinanceStatusPayload,
   CreateManagerPayload,
@@ -32,6 +33,7 @@ import {
   getClientsMock,
   getDashboardDataMock,
   getFinanceMock,
+  getFinanceReportMock,
   getManagersMock,
   getShipmentMock,
   getShipmentsMock,
@@ -141,6 +143,10 @@ export function deleteClient(id: string): Promise<DeleteClientResponse> {
 
 export function getFinance(): Promise<FinanceResponse> {
   return requestWithMockFallback('/finance', getFinanceMock);
+}
+
+export function getFinanceReport(): Promise<FinanceReportResponse> {
+  return requestWithMockFallback('/finance/report', getFinanceReportMock);
 }
 
 export function updateFinanceStatus(

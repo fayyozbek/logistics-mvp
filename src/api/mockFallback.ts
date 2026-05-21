@@ -6,8 +6,10 @@ import {
   shipments,
   transportShare,
 } from '../data/mock';
+import { buildFinanceReport } from '../utils/financeReport';
 import type {
   DashboardData,
+  FinanceReportResponse,
   FinanceResponse,
   ManagersResponse,
   ShipmentResponse,
@@ -93,6 +95,10 @@ export function getManagersMock(): ManagersResponse {
 
 export function getFinanceMock(): FinanceResponse {
   return { financeRecords, clients };
+}
+
+export function getFinanceReportMock(): FinanceReportResponse {
+  return { report: buildFinanceReport(financeRecords) };
 }
 
 export function getTelegramSettingsMock(): TelegramSettingsResponse {

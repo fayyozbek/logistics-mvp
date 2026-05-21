@@ -11,6 +11,7 @@ export {
   getClients,
   getDashboardData,
   getFinance,
+  getFinanceReport,
   getManagers,
   getShipment,
   getShipments,
