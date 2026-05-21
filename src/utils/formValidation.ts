@@ -7,13 +7,6 @@ export function hasRequiredStrings(...values: (string | undefined | null)[]): bo
   return values.every((value) => Boolean(String(value ?? '').trim()));
 }
 
-export function validateRequiredString(value: string, label: string): string | null {
-  if (!value.trim()) {
-    return `${label}: обязательное поле`;
-  }
-  return null;
-}
-
 export function validatePositiveNumber(
   value: string,
   label: string,
@@ -46,26 +39,6 @@ export function validateAllowedUnit<T extends string>(
 ): string | null {
   if (!allowed.includes(unit as T)) {
     return `${label}: выберите единицу (${allowedHint})`;
-  }
-  return null;
-}
-
-/** Optional email — only validates when non-empty. */
-export function validateEmailOptional(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-    return 'Email: некорректный формат';
-  }
-  return null;
-}
-
-/** Optional phone — only validates when non-empty (minimal length check). */
-export function validatePhoneOptional(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (trimmed.length < 5) {
-    return 'Телефон: слишком короткий номер';
   }
   return null;
 }

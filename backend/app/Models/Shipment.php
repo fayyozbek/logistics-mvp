@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\ShipmentFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -47,8 +48,8 @@ class Shipment extends Model
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<Shipment>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<Shipment>
+     * @param  Builder<Shipment>  $query
+     * @return Builder<Shipment>
      */
     public function scopeWithDetailRelations($query)
     {
@@ -56,8 +57,8 @@ class Shipment extends Model
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<Shipment>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<Shipment>
+     * @param  Builder<Shipment>  $query
+     * @return Builder<Shipment>
      */
     public function scopeWithSummaryRelations($query)
     {

@@ -115,7 +115,7 @@ class DashboardMetricsBuilder
             ->orderBy(DB::raw($invoicePeriodSql))
             ->get();
 
-        $moneyByMonth = $chartRows->map(function ($row) use ($chartPeriod, $shipmentQuery, $dateFrom, $dateTo) {
+        $moneyByMonth = $chartRows->map(function ($row) use ($chartPeriod, $shipmentQuery) {
             $periodStart = $this->periodStart($row->period, $chartPeriod);
             $periodEnd = $this->periodEnd($row->period, $chartPeriod);
 

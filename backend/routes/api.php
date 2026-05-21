@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\CheckpointController;
+use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\FinanceController;

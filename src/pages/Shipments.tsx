@@ -28,10 +28,6 @@ import { pluralPoints, shipmentStatusBg, shipmentStatusColors, shipmentStatusLab
 import { useToast } from '../components/ToastProvider';
 import type { CreateShipmentPayload, UpdateShipmentPayload } from '../types/api';
 
-const statusColors = shipmentStatusColors;
-const statusLabel = shipmentStatusLabels;
-const statusBg = shipmentStatusBg;
-
 function TruckIcon() {
   return (
     <svg width="26" height="26" viewBox="0 0 48 48" fill="none">
@@ -301,7 +297,7 @@ export default function Shipments() {
       mergeShipment(shipment);
       setStatusDraft(shipment.status);
       setStatusNote('');
-      showToast(`Статус ${shipment.trackingNumber} обновлён: ${statusLabel[shipment.status]}`);
+      showToast(`Статус ${shipment.trackingNumber} обновлён: ${shipmentStatusLabels[shipment.status]}`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
         setStatusUpdateErrors(formatFieldErrors(error.validationErrors, fieldLabels));
@@ -997,8 +993,8 @@ export default function Shipments() {
                       </span>
                       <span style={{
                         fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
-                        background: statusBg[s.status], color: statusColors[s.status],
-                      }}>{statusLabel[s.status]}</span>
+                        background: shipmentStatusBg[s.status], color: shipmentStatusColors[s.status],
+                      }}>{shipmentStatusLabels[s.status]}</span>
                       {s.telegramNotifications && (
                         <span style={{
                           fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,

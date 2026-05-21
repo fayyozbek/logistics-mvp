@@ -2,10 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Shipment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\Shipment */
+/** @mixin Shipment */
 class ShipmentResource extends JsonResource
 {
     /**

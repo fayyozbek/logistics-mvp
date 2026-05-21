@@ -2,9 +2,9 @@ import {
   formatNumberWithGrouping,
   parseFormattedNumber,
   sanitizeFormattedNumberForPayload,
-  stripFormattedNumber,
 } from './numberFormat';
 import {
+  MAX_POSITIVE_NUMBER,
   validateAllowedUnit,
   validatePositiveNumber,
 } from './formValidation';
@@ -17,8 +17,6 @@ export type VolumeUnit = (typeof VOLUME_UNITS)[number];
 
 export const DEFAULT_WEIGHT_UNIT: WeightUnit = 'kg';
 export const DEFAULT_VOLUME_UNIT: VolumeUnit = 'm3';
-
-export const MAX_QUANTITY_VALUE = 99_999_999.999;
 
 const WEIGHT_UNIT_ALIASES: Record<string, WeightUnit> = {
   kg: 'kg',
@@ -47,20 +45,8 @@ export function resolveVolumeUnit(unit?: string | null): VolumeUnit {
   return VOLUME_UNIT_ALIASES[key] ?? DEFAULT_VOLUME_UNIT;
 }
 
-/** @deprecated Use stripFormattedNumber from numberFormat */
-export const stripQuantityFormatting = stripFormattedNumber;
-
-/** @deprecated Use parseFormattedNumber from numberFormat */
-export const parseQuantityNumber = parseFormattedNumber;
-
-/** @deprecated Use formatNumberWithGrouping from numberFormat */
-export const formatQuantityDisplay = formatNumberWithGrouping;
-
-/** @deprecated Use sanitizeFormattedNumberForPayload from numberFormat */
-export const sanitizeQuantityForPayload = sanitizeFormattedNumberForPayload;
-
 export function validateQuantityValue(value: string, label: string): string | null {
-  return validatePositiveNumber(value, label, MAX_QUANTITY_VALUE);
+  return validatePositiveNumber(value, label, MAX_POSITIVE_NUMBER);
 }
 
 export function validateWeightField(value: string, unit: string): string | null {
