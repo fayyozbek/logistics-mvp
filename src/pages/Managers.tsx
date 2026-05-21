@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { type Client, type Manager, type Shipment } from '../data/mock';
 import { ApiError, createManager, deleteManager, getManagers, handleApiLoadFailure, updateManager } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
+import { useToast } from '../components/ToastProvider';
 import type { CreateManagerPayload, UpdateManagerPayload } from '../types/api';
 
 interface ManagerFormState {
@@ -87,7 +88,7 @@ export default function Managers() {
   const [form, setForm] = useState<ManagerFormState>(emptyForm);
   const [createForm, setCreateForm] = useState<ManagerFormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
+  const { showToast } = useToast();
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
@@ -121,7 +122,6 @@ export default function Managers() {
   const openCreateForm = () => {
     setCreateForm(emptyForm);
     setFormErrors([]);
-    setSuccessMessage('');
     setShowCreateForm(true);
   };
 
@@ -134,7 +134,6 @@ export default function Managers() {
   const handleCreateSubmit = async () => {
     setSubmitting(true);
     setFormErrors([]);
-    setSuccessMessage('');
 
     try {
       const { manager } = await createManager(formToCreatePayload(createForm));
@@ -142,7 +141,7 @@ export default function Managers() {
       setSelected(manager);
       setShowCreateForm(false);
       setCreateForm(emptyForm);
-      setSuccessMessage(`Менеджер ${manager.name} добавлен`);
+      showToast(`Менеджер ${manager.name} добавлен`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
         setFormErrors(formatFieldErrors(error.validationErrors));
@@ -161,14 +160,13 @@ export default function Managers() {
 
     setSubmitting(true);
     setFormErrors([]);
-    setSuccessMessage('');
 
     try {
       const { manager } = await updateManager(selected.id, formToUpdatePayload(form));
       await loadOverview();
       setSelected(manager);
       setEditMode(false);
-      setSuccessMessage(`Менеджер ${manager.name} обновлён`);
+      showToast(`Менеджер ${manager.name} обновлён`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
         setFormErrors(formatFieldErrors(error.validationErrors));
@@ -190,7 +188,6 @@ export default function Managers() {
 
     setDeleteSubmitting(true);
     setFormErrors([]);
-    setSuccessMessage('');
 
     try {
       await deleteManager(deletedId);
@@ -198,7 +195,7 @@ export default function Managers() {
       setSelected(null);
       setEditMode(false);
       setShowDeleteConfirm(false);
-      setSuccessMessage(`Менеджер ${deletedName} удалён`);
+      showToast(`Менеджер ${deletedName} удалён`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
         setFormErrors(formatFieldErrors(error.validationErrors));
@@ -308,15 +305,6 @@ export default function Managers() {
 
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {successMessage && (
-        <div style={{
-          padding: '12px 16px', borderRadius: 10, background: '#F0FDF4',
-          border: '1px solid #BBF7D0', color: '#15803D', fontSize: 13, fontWeight: 700,
-        }}>
-          {successMessage}
-        </div>
-      )}
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: 13, color: '#64748B' }}>
           Всего менеджеров: <strong style={{ color: '#0F172A' }}>{managers.length}</strong>

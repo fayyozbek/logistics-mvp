@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Client } from '../data/mock';
 import { ApiError, createClient, deleteClient, getClients, handleApiLoadFailure, updateClient } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
+import { useToast } from '../components/ToastProvider';
 import type { CreateClientPayload, UpdateClientPayload } from '../types/api';
 
 interface ClientFormState {
@@ -91,7 +92,7 @@ export default function Clients() {
   const [form, setForm] = useState<ClientFormState>(emptyForm);
   const [createForm, setCreateForm] = useState<ClientFormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
+  const { showToast } = useToast();
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
@@ -121,7 +122,6 @@ export default function Clients() {
   const openCreateForm = () => {
     setCreateForm(emptyForm);
     setFormErrors([]);
-    setSuccessMessage('');
     setShowCreateForm(true);
   };
 
@@ -134,7 +134,6 @@ export default function Clients() {
   const handleCreateSubmit = async () => {
     setSubmitting(true);
     setFormErrors([]);
-    setSuccessMessage('');
 
     try {
       const { client } = await createClient(formToCreatePayload(createForm));
@@ -142,7 +141,7 @@ export default function Clients() {
       setSelected(client);
       setShowCreateForm(false);
       setCreateForm(emptyForm);
-      setSuccessMessage(`Партнёр ${client.company} добавлен`);
+      showToast(`Партнёр ${client.company} добавлен`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
         setFormErrors(formatFieldErrors(error.validationErrors));
@@ -161,14 +160,13 @@ export default function Clients() {
 
     setSubmitting(true);
     setFormErrors([]);
-    setSuccessMessage('');
 
     try {
       const { client } = await updateClient(selected.id, formToUpdatePayload(form));
       await loadClients();
       setSelected(client);
       setEditMode(false);
-      setSuccessMessage(`Партнёр ${client.company} обновлён`);
+      showToast(`Партнёр ${client.company} обновлён`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
         setFormErrors(formatFieldErrors(error.validationErrors));
@@ -190,7 +188,6 @@ export default function Clients() {
 
     setDeleteSubmitting(true);
     setFormErrors([]);
-    setSuccessMessage('');
 
     try {
       await deleteClient(deletedId);
@@ -198,7 +195,7 @@ export default function Clients() {
       setSelected(null);
       setEditMode(false);
       setShowDeleteConfirm(false);
-      setSuccessMessage(`Партнёр ${deletedCompany} удалён`);
+      showToast(`Партнёр ${deletedCompany} удалён`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
         const messages = formatFieldErrors(error.validationErrors);
@@ -312,15 +309,6 @@ export default function Clients() {
 
   return (
     <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {successMessage && (
-        <div style={{
-          padding: '12px 16px', borderRadius: 10, background: '#F0FDF4',
-          border: '1px solid #BBF7D0', color: '#15803D', fontSize: 13, fontWeight: 700,
-        }}>
-          {successMessage}
-        </div>
-      )}
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ fontSize: 13, color: '#64748B' }}>
           Партнёры / клиенты: <strong style={{ color: '#0F172A' }}>{clients.length}</strong>

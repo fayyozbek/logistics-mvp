@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { managers, clients, type Shipment } from '../data/mock';
 import { ApiError, getTelegramSettings, handleApiLoadFailure, updateTelegramSettings } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
+import { toastErrors, useToast } from '../components/ToastProvider';
 import type { TelegramEventFlags } from '../types/api';
 
 const notifTypes = [
@@ -58,8 +59,7 @@ export default function Telegram() {
   const [testMsg, setTestMsg] = useState('');
   const [testSent, setTestSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [settingsErrors, setSettingsErrors] = useState<string[]>([]);
+  const { showToast } = useToast();
 
   useEffect(() => {
     getTelegramSettings()
@@ -130,20 +130,18 @@ export default function Telegram() {
 
   const handleSaveSettings = async (overrides?: Parameters<typeof buildPayload>[0]) => {
     setSubmitting(true);
-    setSettingsErrors([]);
-    setSuccessMessage('');
 
     try {
       const { settings } = await updateTelegramSettings(buildPayload(overrides));
       applySettingsResponse(settings);
-      setSuccessMessage('Настройки Telegram сохранены');
+      showToast('Настройки Telegram сохранены');
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
-        setSettingsErrors(formatFieldErrors(error.validationErrors));
+        toastErrors(showToast, formatFieldErrors(error.validationErrors));
       } else if (error instanceof ApiError) {
-        setSettingsErrors([error.message]);
+        showToast(error.message, 'error');
       } else {
-        setSettingsErrors(['Не удалось сохранить настройки. Проверьте подключение к API.']);
+        showToast('Не удалось сохранить настройки. Проверьте подключение к API.', 'error');
       }
     } finally {
       setSubmitting(false);
@@ -176,34 +174,6 @@ export default function Telegram() {
 
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {successMessage && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: '#F0FDF4',
-          border: '1px solid #BBF7D0',
-          color: '#15803D',
-          fontSize: 13,
-          fontWeight: 700,
-        }}>
-          {successMessage}
-        </div>
-      )}
-
-      {settingsErrors.length > 0 && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: '#FEF2F2',
-          border: '1px solid #FECACA',
-          color: '#B91C1C',
-          fontSize: 13,
-          fontWeight: 600,
-        }}>
-          {settingsErrors.map((error) => <div key={error}>{error}</div>)}
-        </div>
-      )}
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         {/* Bot Config */}
         <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0' }}>

@@ -3,6 +3,7 @@ import { type Client, type FinanceRecord } from '../data/mock';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { ApiError, exportFinanceCsv, getFinance, getFinanceReport, handleApiLoadFailure, isApiConfigured, updateFinanceStatus } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
+import { toastErrors, useToast } from '../components/ToastProvider';
 import type { FinanceReportSummary } from '../types/api';
 import { buildFinanceReport, formatReportMonthLabel } from '../utils/financeReport';
 
@@ -34,10 +35,8 @@ export default function Finance() {
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [statusErrors, setStatusErrors] = useState<string[]>([]);
+  const { showToast } = useToast();
   const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState('');
   const [report, setReport] = useState<FinanceReportSummary | null>(null);
 
   useEffect(() => {
@@ -103,14 +102,14 @@ export default function Finance() {
 
   const handleExportCsv = async () => {
     setExporting(true);
-    setExportError('');
     try {
       await exportFinanceCsv();
     } catch (error) {
-      setExportError(
+      showToast(
         error instanceof ApiError
           ? error.message
           : 'Не удалось экспортировать финансы. Проверьте подключение к API.',
+        'error',
       );
     } finally {
       setExporting(false);
@@ -119,21 +118,19 @@ export default function Finance() {
 
   const handleStatusUpdate = async (recordId: string, status: FinanceRecord['status']) => {
     setUpdatingId(recordId);
-    setStatusErrors([]);
-    setSuccessMessage('');
 
     try {
       const { financeRecord } = await updateFinanceStatus(recordId, { status });
       applyFinanceRecordUpdate(financeRecord);
       refreshReport();
-      setSuccessMessage(`Статус счёта обновлён: ${statusConfig[financeRecord.status].label}`);
+      showToast(`Статус счёта обновлён: ${statusConfig[financeRecord.status].label}`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
-        setStatusErrors(formatFieldErrors(error.validationErrors));
+        toastErrors(showToast, formatFieldErrors(error.validationErrors));
       } else if (error instanceof ApiError) {
-        setStatusErrors([error.message]);
+        showToast(error.message, 'error');
       } else {
-        setStatusErrors(['Не удалось обновить статус. Проверьте подключение к API.']);
+        showToast('Не удалось обновить статус. Проверьте подключение к API.', 'error');
       }
     } finally {
       setUpdatingId(null);
@@ -160,35 +157,6 @@ export default function Finance() {
 
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {successMessage && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: '#F0FDF4',
-          border: '1px solid #BBF7D0',
-          color: '#15803D',
-          fontSize: 13,
-          fontWeight: 700,
-        }}>
-          {successMessage}
-        </div>
-      )}
-
-      {(statusErrors.length > 0 || exportError) && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: '#FEF2F2',
-          border: '1px solid #FECACA',
-          color: '#B91C1C',
-          fontSize: 13,
-          fontWeight: 600,
-        }}>
-          {exportError && <div>{exportError}</div>}
-          {statusErrors.map((error) => <div key={error}>{error}</div>)}
-        </div>
-      )}
-
       {/* Report summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
         {[

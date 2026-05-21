@@ -4,6 +4,7 @@ import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, Search, Se
 import { clients, managers, type CheckPoint, type Shipment } from '../data/mock';
 import { addShipmentCheckpoint, ApiError, getTrackingData, handleApiLoadFailure, updateCheckpoint } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
+import { toastErrors, useToast } from '../components/ToastProvider';
 
 const checkpointFieldLabels: Record<string, string> = {
   city: 'Город',
@@ -315,8 +316,7 @@ export default function Tracking() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [checkpointUpdatingId, setCheckpointUpdatingId] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [checkpointErrors, setCheckpointErrors] = useState<string[]>([]);
+  const { showToast } = useToast();
   const [newPoint, setNewPoint] = useState<NewPoint>(emptyPoint);
   const [citySearch, setCitySearch] = useState('');
   const [insertAfter, setInsertAfter] = useState<number>(-1);
@@ -378,8 +378,6 @@ export default function Tracking() {
   const progress = progressPercent(selected.checkpoints);
 
   const openAddModal = () => {
-    setCheckpointErrors([]);
-    setSuccessMessage('');
     setNewPoint(emptyPoint);
     setCitySearch('');
     setInsertAfter(-1);
@@ -398,8 +396,6 @@ export default function Tracking() {
     if (!selected || !newPoint.city.trim() || !newPoint.address.trim()) return;
 
     setSubmitting(true);
-    setCheckpointErrors([]);
-    setSuccessMessage('');
 
     try {
       const { checkpoint } = await addShipmentCheckpoint(selected.id, {
@@ -413,18 +409,18 @@ export default function Tracking() {
       });
       await refreshTracking(selected.id);
       if (!checkpoint?.id) {
-        setCheckpointErrors(['Точка создана, но ответ API не содержит id. Обновите страницу.']);
+        showToast('Точка создана, но ответ API не содержит id. Обновите страницу.', 'error');
         return;
       }
-      setSuccessMessage(`Точка ${newPoint.city} добавлена в маршрут ${selected.trackingNumber}`);
+      showToast(`Точка ${newPoint.city} добавлена в маршрут ${selected.trackingNumber}`);
       closeAddModal();
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
-        setCheckpointErrors(formatFieldErrors(error.validationErrors));
+        toastErrors(showToast, formatFieldErrors(error.validationErrors));
       } else if (error instanceof ApiError) {
-        setCheckpointErrors([error.message]);
+        showToast(error.message, 'error');
       } else {
-        setCheckpointErrors(['Не удалось добавить точку. Проверьте подключение к API.']);
+        showToast('Не удалось добавить точку. Проверьте подключение к API.', 'error');
       }
     } finally {
       setSubmitting(false);
@@ -435,20 +431,18 @@ export default function Tracking() {
     if (!selected) return;
 
     setCheckpointUpdatingId(checkpointId);
-    setCheckpointErrors([]);
-    setSuccessMessage('');
 
     try {
       await updateCheckpoint(checkpointId, { status });
       await refreshTracking(selected.id);
-      setSuccessMessage('Статус точки маршрута обновлён');
+      showToast('Статус точки маршрута обновлён');
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
-        setCheckpointErrors(formatFieldErrors(error.validationErrors));
+        toastErrors(showToast, formatFieldErrors(error.validationErrors));
       } else if (error instanceof ApiError) {
-        setCheckpointErrors([error.message]);
+        showToast(error.message, 'error');
       } else {
-        setCheckpointErrors(['Не удалось обновить точку. Проверьте подключение к API.']);
+        showToast('Не удалось обновить точку. Проверьте подключение к API.', 'error');
       }
     } finally {
       setCheckpointUpdatingId(null);
@@ -457,34 +451,6 @@ export default function Tracking() {
 
   return (
     <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16, background: '#EEF0FB', minHeight: '100%' }}>
-      {successMessage && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: '#F0FDF4',
-          border: '1px solid #BBF7D0',
-          color: '#15803D',
-          fontSize: 13,
-          fontWeight: 700,
-        }}>
-          {successMessage}
-        </div>
-      )}
-
-      {checkpointErrors.length > 0 && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: '#FEF2F2',
-          border: '1px solid #FECACA',
-          color: '#B91C1C',
-          fontSize: 13,
-          fontWeight: 600,
-        }}>
-          {checkpointErrors.map((error) => <div key={error}>{error}</div>)}
-        </div>
-      )}
-
       <div style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', border: '1px solid #E6EAF5', display: 'flex', gap: 10 }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, background: '#F8FAFC', borderRadius: 12, padding: '10px 13px', border: '1px solid #E2E8F0' }}>
           <Search size={16} color="#94A3B8" />
@@ -778,22 +744,6 @@ export default function Tracking() {
               </div>
               <button type="button" onClick={closeAddModal} disabled={submitting} style={{ width: 38, height: 38, borderRadius: 12, border: 'none', background: '#F8FAFC', color: '#64748B', cursor: submitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={19} /></button>
             </div>
-
-            {checkpointErrors.length > 0 && (
-              <div style={{
-                margin: '0 30px',
-                padding: '12px 16px',
-                borderRadius: 10,
-                background: '#FEF2F2',
-                border: '1px solid #FECACA',
-                color: '#B91C1C',
-                fontSize: 13,
-                fontWeight: 600,
-                flexShrink: 0,
-              }}>
-                {checkpointErrors.map((error) => <div key={error}>{error}</div>)}
-              </div>
-            )}
 
             <div style={{ padding: '22px 30px 0', display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0, overflowY: 'auto' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>

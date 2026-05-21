@@ -21,6 +21,7 @@ import {
 } from '../utils/shipmentUnits';
 import { ApiError, createShipment, deleteShipment, exportShipmentsCsv, getClients, getManagers, getShipments, handleApiLoadFailure, updateShipment, updateShipmentStatus } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
+import { useToast } from '../components/ToastProvider';
 import type { CreateShipmentPayload, UpdateShipmentPayload } from '../types/api';
 
 const statusColors: Record<string, string> = {
@@ -243,12 +244,11 @@ export default function Shipments() {
   const [createForm, setCreateForm] = useState<CreateFormState>(emptyCreateForm);
   const [submitting, setSubmitting] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
+  const { showToast } = useToast();
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [statusDraft, setStatusDraft] = useState<ShipmentStatus>('planned');
   const [statusNote, setStatusNote] = useState('');
   const [statusUpdating, setStatusUpdating] = useState(false);
-  const [statusSuccessMessage, setStatusSuccessMessage] = useState('');
   const [statusUpdateErrors, setStatusUpdateErrors] = useState<string[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
@@ -287,7 +287,6 @@ export default function Shipments() {
       setStatusDraft(selected.status);
       setStatusNote('');
       setStatusUpdateErrors([]);
-      setStatusSuccessMessage('');
       setEditMode(false);
       setEditForm(shipmentToEditForm(selected));
       setEditErrors([]);
@@ -310,8 +309,6 @@ export default function Shipments() {
 
     setStatusUpdating(true);
     setStatusUpdateErrors([]);
-    setStatusSuccessMessage('');
-    setSuccessMessage('');
 
     try {
       const { shipment } = await updateShipmentStatus(selected.id, {
@@ -321,7 +318,7 @@ export default function Shipments() {
       mergeShipment(shipment);
       setStatusDraft(shipment.status);
       setStatusNote('');
-      setStatusSuccessMessage(`Статус ${shipment.trackingNumber} обновлён: ${statusLabel[shipment.status]}`);
+      showToast(`Статус ${shipment.trackingNumber} обновлён: ${statusLabel[shipment.status]}`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
         setStatusUpdateErrors(formatFieldErrors(error.validationErrors));
@@ -357,8 +354,6 @@ export default function Shipments() {
 
     setEditSubmitting(true);
     setEditErrors([]);
-    setSuccessMessage('');
-    setStatusSuccessMessage('');
 
     const weightError = validateWeightField(editForm.weight, editForm.weightUnit);
     const volumeError = validateVolumeField(editForm.volume, editForm.volumeUnit);
@@ -388,7 +383,7 @@ export default function Shipments() {
       mergeShipment(shipment);
       setEditMode(false);
       setEditForm(shipmentToEditForm(shipment));
-      setSuccessMessage(`Груз ${shipment.trackingNumber} обновлён`);
+      showToast(`Груз ${shipment.trackingNumber} обновлён`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
         setEditErrors(formatFieldErrors(error.validationErrors));
@@ -410,8 +405,6 @@ export default function Shipments() {
 
     setDeleteSubmitting(true);
     setDeleteErrors([]);
-    setSuccessMessage('');
-    setStatusSuccessMessage('');
 
     try {
       await deleteShipment(deletedId);
@@ -420,7 +413,7 @@ export default function Shipments() {
       setSelected(null);
       setEditMode(false);
       setShowDeleteConfirm(false);
-      setSuccessMessage(`Груз ${deletedTracking} удалён`);
+      showToast(`Груз ${deletedTracking} удалён`);
     } catch (error) {
       if (error instanceof ApiError) {
         setDeleteErrors([error.message]);
@@ -449,8 +442,6 @@ export default function Shipments() {
   const openCreateForm = () => {
     setCreateForm(emptyCreateForm);
     setFormErrors([]);
-    setSuccessMessage('');
-    setStatusSuccessMessage('');
     void Promise.all([refreshClients(), refreshManagers()]);
     setShowCreateForm(true);
   };
@@ -464,8 +455,6 @@ export default function Shipments() {
   const handleCreateSubmit = async () => {
     setSubmitting(true);
     setFormErrors([]);
-    setSuccessMessage('');
-    setStatusSuccessMessage('');
 
     const weightError = validateWeightField(createForm.weight, createForm.weightUnit);
     const volumeError = validateVolumeField(createForm.volume, createForm.volumeUnit);
@@ -516,7 +505,7 @@ export default function Shipments() {
       setSelected(shipment);
       setShowCreateForm(false);
       setCreateForm(emptyCreateForm);
-      setSuccessMessage(`Груз ${shipment.trackingNumber} успешно создан`);
+      showToast(`Груз ${shipment.trackingNumber} успешно создан`);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
         setFormErrors(formatFieldErrors(error.validationErrors));
@@ -950,20 +939,6 @@ export default function Shipments() {
 
   return (
     <div className="shipments-page">
-
-      {(successMessage || statusSuccessMessage) && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: '#F0FDF4',
-          border: '1px solid #BBF7D0',
-          color: '#15803D',
-          fontSize: 13,
-          fontWeight: 700,
-        }}>
-          {successMessage || statusSuccessMessage}
-        </div>
-      )}
 
       <div className="shipments-toolbar">
         <div className="shipments-filter-group">
