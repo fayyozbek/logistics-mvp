@@ -2,14 +2,22 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ShipmentQuantityRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreShipmentRequest extends FormRequest
 {
+    use ShipmentQuantityRules;
+
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->prepareShipmentQuantityDefaults();
     }
 
     /**
@@ -26,8 +34,7 @@ class StoreShipmentRequest extends FormRequest
             'origin' => ['required', 'string', 'max:255'],
             'destination' => ['required', 'string', 'max:255'],
             'cargo' => ['nullable', 'string', 'max:255'],
-            'weight' => ['nullable', 'string', 'max:64'],
-            'volume' => ['nullable', 'string', 'max:64'],
+            ...$this->shipmentQuantityRules(),
             'estimatedDelivery' => ['nullable', 'date'],
             'telegramNotifications' => ['sometimes', 'boolean'],
             'checkpoints' => ['sometimes', 'array'],

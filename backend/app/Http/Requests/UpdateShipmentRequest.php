@@ -2,11 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ShipmentQuantityRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class UpdateShipmentRequest extends FormRequest
 {
+    use ShipmentQuantityRules;
+
     public function authorize(): bool
     {
         return true;
@@ -27,6 +30,8 @@ class UpdateShipmentRequest extends FormRequest
         if ($merge !== []) {
             $this->merge($merge);
         }
+
+        $this->prepareShipmentQuantityDefaults();
     }
 
     /**
@@ -42,10 +47,7 @@ class UpdateShipmentRequest extends FormRequest
             'destination' => ['sometimes', 'required', 'string', 'max:255'],
             'cargo' => ['sometimes', 'nullable', 'string', 'max:255'],
             'cargoName' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'weight' => ['sometimes', 'nullable', 'string', 'max:64'],
-            'weightUnit' => ['sometimes', 'nullable', 'string', 'max:16'],
-            'volume' => ['sometimes', 'nullable', 'string', 'max:64'],
-            'volumeUnit' => ['sometimes', 'nullable', 'string', 'max:16'],
+            ...$this->shipmentQuantityRules(sometimes: true),
             'plannedPickup' => ['sometimes', 'nullable', 'date'],
             'estimatedDelivery' => ['sometimes', 'nullable', 'date'],
             'plannedDelivery' => ['sometimes', 'nullable', 'date'],

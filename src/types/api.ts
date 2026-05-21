@@ -88,7 +88,9 @@ export interface CreateShipmentPayload {
   destination: string;
   cargo?: string;
   weight?: string;
+  weightUnit?: string;
   volume?: string;
+  volumeUnit?: string;
   estimatedDelivery?: string;
   telegramNotifications?: boolean;
   trackingNumber?: string;

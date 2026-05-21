@@ -110,7 +110,9 @@ class ShipmentController extends Controller
                 'destination' => $validated['destination'],
                 'cargo' => $validated['cargo'] ?? null,
                 'weight' => $validated['weight'] ?? null,
+                'weight_unit' => isset($validated['weight']) ? ($validated['weightUnit'] ?? 'kg') : null,
                 'volume' => $validated['volume'] ?? null,
+                'volume_unit' => isset($validated['volume']) ? ($validated['volumeUnit'] ?? 'm3') : null,
                 'estimated_delivery' => $validated['estimatedDelivery'] ?? null,
                 'telegram_notifications' => $validated['telegramNotifications'] ?? false,
             ]);

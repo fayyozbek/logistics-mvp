@@ -1,7 +1,22 @@
 import { useEffect, useState } from 'react';
 import { LocationAutocomplete } from '../components/LocationAutocomplete';
+import { QuantityWithUnitField } from '../components/QuantityWithUnitField';
 import type { Client, Manager, Shipment, ShipmentStatus, TransportType } from '../data/mock';
 import { normalizeLocationValue } from '../data/locations';
+import {
+  buildVolumePayload,
+  buildWeightPayload,
+  DEFAULT_VOLUME_UNIT,
+  DEFAULT_WEIGHT_UNIT,
+  formatShipmentVolumeDisplay,
+  formatShipmentWeightDisplay,
+  parseShipmentVolumeForForm,
+  parseShipmentWeightForForm,
+  validateVolumeField,
+  validateWeightField,
+  VOLUME_UNITS,
+  WEIGHT_UNITS,
+} from '../utils/shipmentUnits';
 import { ApiError, createShipment, deleteShipment, getClients, getManagers, getShipments, updateShipment, updateShipmentStatus } from '../api';
 import type { CreateShipmentPayload, UpdateShipmentPayload } from '../types/api';
 
@@ -120,7 +135,9 @@ interface CreateFormState {
   destination: string;
   cargo: string;
   weight: string;
+  weightUnit: string;
   volume: string;
+  volumeUnit: string;
   estimatedDelivery: string;
   telegramNotifications: boolean;
 }
@@ -133,7 +150,9 @@ const emptyCreateForm: CreateFormState = {
   destination: '',
   cargo: '',
   weight: '',
+  weightUnit: DEFAULT_WEIGHT_UNIT,
   volume: '',
+  volumeUnit: DEFAULT_VOLUME_UNIT,
   estimatedDelivery: '',
   telegramNotifications: false,
 };
@@ -156,6 +175,9 @@ interface EditFormState {
 }
 
 function shipmentToEditForm(shipment: Shipment): EditFormState {
+  const weight = parseShipmentWeightForForm(shipment.weight, shipment.weightUnit);
+  const volume = parseShipmentVolumeForForm(shipment.volume, shipment.volumeUnit);
+
   return {
     clientId: shipment.clientId,
     managerId: shipment.managerId ?? '',
@@ -163,10 +185,10 @@ function shipmentToEditForm(shipment: Shipment): EditFormState {
     origin: shipment.origin,
     destination: shipment.destination,
     cargo: shipment.cargo ?? '',
-    weight: shipment.weight ?? '',
-    weightUnit: shipment.weightUnit ?? '',
-    volume: shipment.volume ?? '',
-    volumeUnit: shipment.volumeUnit ?? '',
+    weight: weight.displayValue,
+    weightUnit: weight.unit,
+    volume: volume.displayValue,
+    volumeUnit: volume.unit,
     plannedPickup: shipment.plannedPickup ?? '',
     estimatedDelivery: shipment.estimatedDelivery ?? '',
     notes: shipment.notes ?? '',
@@ -182,7 +204,9 @@ const fieldLabels: Record<string, string> = {
   destination: 'Куда',
   cargo: 'Груз',
   weight: 'Вес',
+  weightUnit: 'Ед. веса',
   volume: 'Объём',
+  volumeUnit: 'Ед. объёма',
   estimatedDelivery: 'Плановая дата',
   status: 'Статус',
   note: 'Комментарий',
@@ -327,6 +351,14 @@ export default function Shipments() {
     setSuccessMessage('');
     setStatusSuccessMessage('');
 
+    const weightError = validateWeightField(editForm.weight, editForm.weightUnit);
+    const volumeError = validateVolumeField(editForm.volume, editForm.volumeUnit);
+    if (weightError || volumeError) {
+      setEditErrors([weightError, volumeError].filter((msg): msg is string => Boolean(msg)));
+      setEditSubmitting(false);
+      return;
+    }
+
     const payload: UpdateShipmentPayload = {
       clientId: Number(editForm.clientId),
       managerId: editForm.managerId ? Number(editForm.managerId) : null,
@@ -334,10 +366,8 @@ export default function Shipments() {
       origin: normalizeLocationValue(editForm.origin),
       destination: normalizeLocationValue(editForm.destination),
       cargo: editForm.cargo.trim() || undefined,
-      weight: editForm.weight.trim() || undefined,
-      weightUnit: editForm.weightUnit.trim() || undefined,
-      volume: editForm.volume.trim() || undefined,
-      volumeUnit: editForm.volumeUnit.trim() || undefined,
+      ...buildWeightPayload(editForm.weight, editForm.weightUnit),
+      ...buildVolumePayload(editForm.volume, editForm.volumeUnit),
       plannedPickup: editForm.plannedPickup || undefined,
       estimatedDelivery: editForm.estimatedDelivery || undefined,
       notes: editForm.notes.trim() || undefined,
@@ -414,6 +444,14 @@ export default function Shipments() {
     setSuccessMessage('');
     setStatusSuccessMessage('');
 
+    const weightError = validateWeightField(createForm.weight, createForm.weightUnit);
+    const volumeError = validateVolumeField(createForm.volume, createForm.volumeUnit);
+    if (weightError || volumeError) {
+      setFormErrors([weightError, volumeError].filter((msg): msg is string => Boolean(msg)));
+      setSubmitting(false);
+      return;
+    }
+
     const payload: CreateShipmentPayload = {
       clientId: Number(createForm.clientId),
       managerId: createForm.managerId ? Number(createForm.managerId) : undefined,
@@ -421,8 +459,8 @@ export default function Shipments() {
       origin: normalizeLocationValue(createForm.origin),
       destination: normalizeLocationValue(createForm.destination),
       cargo: createForm.cargo.trim() || undefined,
-      weight: createForm.weight.trim() || undefined,
-      volume: createForm.volume.trim() || undefined,
+      ...buildWeightPayload(createForm.weight, createForm.weightUnit),
+      ...buildVolumePayload(createForm.volume, createForm.volumeUnit),
       estimatedDelivery: createForm.estimatedDelivery || undefined,
       telegramNotifications: createForm.telegramNotifications,
     };
@@ -631,7 +669,9 @@ export default function Shipments() {
                     </div>
                     {(s.weight || s.volume) && (
                       <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }}>
-                        {[s.weight, s.volume].filter(Boolean).join(' · ')}
+                        {[formatShipmentWeightDisplay(s.weight, s.weightUnit), formatShipmentVolumeDisplay(s.volume, s.volumeUnit)]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </div>
                     )}
                   </div>
@@ -875,49 +915,29 @@ export default function Shipments() {
                     />
                   </label>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <label>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Вес</div>
-                      <input
-                        value={editForm.weight}
-                        onChange={(e) => setEditForm((f) => f && ({ ...f, weight: e.target.value }))}
-                        disabled={editSubmitting}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
-                      />
-                    </label>
-                    <label>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Ед. веса</div>
-                      <input
-                        value={editForm.weightUnit}
-                        onChange={(e) => setEditForm((f) => f && ({ ...f, weightUnit: e.target.value }))}
-                        disabled={editSubmitting}
-                        placeholder="kg"
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
-                      />
-                    </label>
-                  </div>
+                  <QuantityWithUnitField
+                    quantityLabel="Вес"
+                    unitLabel="Ед. веса"
+                    value={editForm.weight}
+                    unit={editForm.weightUnit}
+                    units={WEIGHT_UNITS.map((u) => ({ value: u, label: u }))}
+                    onValueChange={(weight) => setEditForm((f) => f && ({ ...f, weight }))}
+                    onUnitChange={(weightUnit) => setEditForm((f) => f && ({ ...f, weightUnit }))}
+                    disabled={editSubmitting}
+                    placeholder="2 400"
+                  />
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <label>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Объём</div>
-                      <input
-                        value={editForm.volume}
-                        onChange={(e) => setEditForm((f) => f && ({ ...f, volume: e.target.value }))}
-                        disabled={editSubmitting}
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
-                      />
-                    </label>
-                    <label>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Ед. объёма</div>
-                      <input
-                        value={editForm.volumeUnit}
-                        onChange={(e) => setEditForm((f) => f && ({ ...f, volumeUnit: e.target.value }))}
-                        disabled={editSubmitting}
-                        placeholder="m3"
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
-                      />
-                    </label>
-                  </div>
+                  <QuantityWithUnitField
+                    quantityLabel="Объём"
+                    unitLabel="Ед. объёма"
+                    value={editForm.volume}
+                    unit={editForm.volumeUnit}
+                    units={VOLUME_UNITS.map((u) => ({ value: u, label: u === 'm3' ? 'm³' : u }))}
+                    onValueChange={(volume) => setEditForm((f) => f && ({ ...f, volume }))}
+                    onUnitChange={(volumeUnit) => setEditForm((f) => f && ({ ...f, volumeUnit }))}
+                    disabled={editSubmitting}
+                    placeholder="18"
+                  />
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     <label>
@@ -977,7 +997,13 @@ export default function Shipments() {
                 { icon: '🏢', label: 'Клиент', value: clients.find(c => c.id === selected.clientId)?.company },
                 { icon: '👤', label: 'Менеджер', value: managers.find(m => m.id === selected.managerId)?.name },
                 { icon: '📦', label: 'Груз', value: selected.cargo },
-                { icon: '⚖', label: 'Вес / Объём', value: [selected.weight, selected.volume].filter(Boolean).join(' · ') || undefined },
+                {
+                  icon: '⚖',
+                  label: 'Вес / Объём',
+                  value: [formatShipmentWeightDisplay(selected.weight, selected.weightUnit), formatShipmentVolumeDisplay(selected.volume, selected.volumeUnit)]
+                    .filter(Boolean)
+                    .join(' · ') || undefined,
+                },
                 { icon: '📅', label: 'Плановая дата', value: selected.estimatedDelivery },
               ].filter(({ value }) => value).map(({ icon, label, value }) => (
                 <div key={label} style={{
@@ -1183,26 +1209,31 @@ export default function Shipments() {
                 />
               </label>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <label>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Вес</div>
-                  <input
-                    value={createForm.weight}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, weight: e.target.value }))}
-                    placeholder="2 400 кг"
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
-                  />
-                </label>
-                <label>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Объём</div>
-                  <input
-                    value={createForm.volume}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, volume: e.target.value }))}
-                    placeholder="18 м³"
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
-                  />
-                </label>
-              </div>
+              <QuantityWithUnitField
+                quantityLabel="Вес"
+                unitLabel="Ед. веса"
+                value={createForm.weight}
+                unit={createForm.weightUnit}
+                units={WEIGHT_UNITS.map((u) => ({ value: u, label: u }))}
+                onValueChange={(weight) => setCreateForm((f) => ({ ...f, weight }))}
+                onUnitChange={(weightUnit) => setCreateForm((f) => ({ ...f, weightUnit }))}
+                placeholder="2 400"
+                quantityStyle={{ padding: '9px 12px', fontSize: 13, background: '#F8FAFC' }}
+                unitStyle={{ padding: '9px 12px', fontSize: 13, background: '#F8FAFC' }}
+              />
+
+              <QuantityWithUnitField
+                quantityLabel="Объём"
+                unitLabel="Ед. объёма"
+                value={createForm.volume}
+                unit={createForm.volumeUnit}
+                units={VOLUME_UNITS.map((u) => ({ value: u, label: u === 'm3' ? 'm³' : u }))}
+                onValueChange={(volume) => setCreateForm((f) => ({ ...f, volume }))}
+                onUnitChange={(volumeUnit) => setCreateForm((f) => ({ ...f, volumeUnit }))}
+                placeholder="18"
+                quantityStyle={{ padding: '9px 12px', fontSize: 13, background: '#F8FAFC' }}
+                unitStyle={{ padding: '9px 12px', fontSize: 13, background: '#F8FAFC' }}
+              />
 
               <label>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Плановая дата доставки</div>
