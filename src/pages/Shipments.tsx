@@ -540,6 +540,15 @@ export default function Shipments() {
     };
   }, [isCompact, selected]);
 
+  useEffect(() => {
+    if (!showCreateForm) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showCreateForm]);
+
   if (loading) {
     return (
       <div className="shipments-page" style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
@@ -650,7 +659,7 @@ export default function Shipments() {
             )}
 
             {editMode && editForm ? (
-              <div style={{ marginBottom: 18, padding: '14px', borderRadius: 10, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+              <div className="shipments-edit-form">
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Редактирование груза</div>
 
                 {editErrors.length > 0 && (
@@ -659,7 +668,7 @@ export default function Shipments() {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div className="shipments-edit-form-fields">
                   <label>
                     <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Клиент *</div>
                     <select
@@ -781,18 +790,18 @@ export default function Shipments() {
                   </label>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                <div className="shipments-form-actions" style={{ marginTop: 12 }}>
                   <button type="button" onClick={closeEditForm} disabled={editSubmitting} style={{
                     flex: '1 1 120px', padding: '10px 12px', borderRadius: 8, border: '1px solid #E2E8F0',
                     background: '#fff', color: '#64748B', fontSize: 12, fontWeight: 600,
-                    cursor: editSubmitting ? 'not-allowed' : 'pointer', minHeight: 40,
+                    cursor: editSubmitting ? 'not-allowed' : 'pointer', minHeight: 44,
                   }}>
                     Отмена
                   </button>
                   <button type="button" onClick={() => void handleEditSubmit()} disabled={editSubmitting} style={{
                     flex: '1 1 120px', padding: '10px 12px', borderRadius: 8, border: 'none',
                     background: editSubmitting ? '#94A3B8' : '#3B82F6', color: '#fff',
-                    fontSize: 12, fontWeight: 700, cursor: editSubmitting ? 'not-allowed' : 'pointer', minHeight: 40,
+                    fontSize: 12, fontWeight: 700, cursor: editSubmitting ? 'not-allowed' : 'pointer', minHeight: 44,
                   }}>
                     {editSubmitting ? 'Сохранение...' : 'Сохранить'}
                   </button>
@@ -1173,23 +1182,22 @@ export default function Shipments() {
       )}
 
       {showCreateForm && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.48)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(3px)', padding: 16,
-        }}>
+        <div className="shipments-form-overlay" role="dialog" aria-modal="true" aria-labelledby="create-shipment-title">
           <div className="shipments-create-modal">
-            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="shipments-form-header">
               <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>Новый груз</div>
+                <div id="create-shipment-title" style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>Новый груз</div>
                 <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 3 }}>Создание отправления</div>
               </div>
-              <button type="button" onClick={closeCreateForm} disabled={submitting} style={{
+              <button type="button" onClick={closeCreateForm} disabled={submitting} aria-label="Закрыть" style={{
                 background: '#F1F5F9', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer',
-                width: 28, height: 28, borderRadius: 7, color: '#64748B', fontSize: 16, fontWeight: 700,
+                width: 36, height: 36, borderRadius: 7, color: '#64748B', fontSize: 16, fontWeight: 700,
+                flexShrink: 0,
               }}>×</button>
             </div>
 
-            <div style={{ padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="shipments-form-body">
+              <div className="shipments-form-fields">
               {formErrors.length > 0 && (
                 <div style={{ padding: '10px 12px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 12 }}>
                   {formErrors.map((error) => <div key={error}>{error}</div>)}
@@ -1294,7 +1302,7 @@ export default function Shipments() {
                 />
               </label>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', minHeight: 44 }}>
                 <input
                   type="checkbox"
                   checked={createForm.telegramNotifications}
@@ -1302,11 +1310,12 @@ export default function Shipments() {
                 />
                 <span style={{ fontSize: 12, color: '#64748B' }}>Telegram-уведомления</span>
               </label>
+              </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
+              <div className="shipments-form-actions">
                 <button type="button" onClick={closeCreateForm} disabled={submitting} style={{
                   flex: '1 1 120px', padding: '10px 18px', background: '#fff', color: '#64748B', border: '1px solid #E2E8F0',
-                  borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: submitting ? 'not-allowed' : 'pointer', minHeight: 40,
+                  borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: submitting ? 'not-allowed' : 'pointer', minHeight: 44,
                 }}>
                   Отмена
                 </button>
@@ -1314,7 +1323,7 @@ export default function Shipments() {
                   flex: '1 1 160px', padding: '10px 20px', background: submitting ? '#94A3B8' : '#3B82F6', color: '#fff',
                   border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 13,
                   cursor: submitting ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 40,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 44,
                 }}>
                   {submitting && (
                     <span style={{

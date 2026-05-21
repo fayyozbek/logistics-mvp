@@ -66,8 +66,8 @@ export function QuantityWithUnitField({
   const error = externalError ?? localError;
 
   return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+    <div className="quantity-unit-field">
+      <div className="quantity-unit-grid">
         <label>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>{quantityLabel}</div>
           <input
