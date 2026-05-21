@@ -60,6 +60,11 @@ php artisan test
 | PATCH | `/api/clients/{id}` | Update partner/client |
 | DELETE | `/api/clients/{id}` | Delete partner/client (blocked if referenced) |
 | GET | `/api/managers` | Manager list |
+| GET | `/api/managers/overview` | Managers page bundle (managers + clients + shipments) |
+| POST | `/api/managers` | Create manager |
+| GET | `/api/managers/{id}` | Single manager |
+| PATCH | `/api/managers/{id}` | Update manager |
+| DELETE | `/api/managers/{id}` | Delete manager (blocked if active shipments assigned) |
 | GET | `/api/finance` | Finance records |
 | PATCH | `/api/finance/{id}/status` | Update finance status |
 | GET | `/api/telegram/settings` | Telegram bot settings |
