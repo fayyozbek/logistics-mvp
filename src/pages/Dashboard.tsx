@@ -14,7 +14,8 @@ import {
   YAxis,
 } from 'recharts';
 import { CalendarDays, ChevronDown, PackageCheck, TrendingUp } from 'lucide-react';
-import { getDashboardData } from '../api';
+import { getDashboardData, handleApiLoadFailure } from '../api';
+import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 import type { DashboardData } from '../types/api';
 
 // Fallback chart data shown while the API response is in flight.
@@ -273,6 +274,7 @@ function PeriodTabs({ value, onChange }: { value: ChartPeriod; onChange: (value:
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('Месяц');
@@ -289,7 +291,14 @@ export default function Dashboard() {
       dateTo: dateTo ?? undefined,
       chartPeriod: CHART_PERIOD_API[chartPeriod],
     })
-      .then(setDashboardData)
+      .then((data) => {
+        setDashboardData(data);
+        setLoadError(null);
+      })
+      .catch((error) => {
+        setDashboardData(null);
+        setLoadError(handleApiLoadFailure(error).message);
+      })
       .finally(() => setLoading(false));
   }, [chartPeriod, dateFrom, dateTo]);
 
@@ -346,6 +355,10 @@ export default function Dashboard() {
     setDateFrom(null);
     setDateTo(null);
   };
+
+  if (loadError && !loading) {
+    return <ApiLoadErrorPanel message={loadError} />;
+  }
 
   if (loading) {
     return (

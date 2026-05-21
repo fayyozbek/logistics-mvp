@@ -19,7 +19,8 @@ import {
   VOLUME_UNITS,
   WEIGHT_UNITS,
 } from '../utils/shipmentUnits';
-import { ApiError, createShipment, deleteShipment, exportShipmentsCsv, getClients, getManagers, getShipments, updateShipment, updateShipmentStatus } from '../api';
+import { ApiError, createShipment, deleteShipment, exportShipmentsCsv, getClients, getManagers, getShipments, handleApiLoadFailure, updateShipment, updateShipmentStatus } from '../api';
+import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 import type { CreateShipmentPayload, UpdateShipmentPayload } from '../types/api';
 
 const statusColors: Record<string, string> = {
@@ -231,6 +232,7 @@ function pluralPoints(n: number): string {
 
 export default function Shipments() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [managers, setManagers] = useState<Manager[]>([]);
@@ -272,6 +274,10 @@ export default function Shipments() {
         setShipments(shipmentsRes.shipments);
         setManagers(managersRes.managers);
         setClients(clientsRes.clients);
+        setLoadError(null);
+      })
+      .catch((error) => {
+        setLoadError(handleApiLoadFailure(error).message);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -548,6 +554,10 @@ export default function Shipments() {
       document.body.style.overflow = previousOverflow;
     };
   }, [showCreateForm]);
+
+  if (loadError && !loading) {
+    return <ApiLoadErrorPanel message={loadError} />;
+  }
 
   if (loading) {
     return (

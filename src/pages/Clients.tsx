@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Client } from '../data/mock';
-import { ApiError, createClient, deleteClient, getClients, updateClient } from '../api';
+import { ApiError, createClient, deleteClient, getClients, handleApiLoadFailure, updateClient } from '../api';
+import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 import type { CreateClientPayload, UpdateClientPayload } from '../types/api';
 
 interface ClientFormState {
@@ -82,6 +83,7 @@ function formToUpdatePayload(form: ClientFormState): UpdateClientPayload {
 
 export default function Clients() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [selected, setSelected] = useState<Client | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -101,7 +103,10 @@ export default function Clients() {
   }, []);
 
   useEffect(() => {
-    loadClients().finally(() => setLoading(false));
+    loadClients()
+      .then(() => setLoadError(null))
+      .catch((error) => setLoadError(handleApiLoadFailure(error).message))
+      .finally(() => setLoading(false));
   }, [loadClients]);
 
   useEffect(() => {
@@ -211,6 +216,10 @@ export default function Clients() {
       setDeleteSubmitting(false);
     }
   };
+
+  if (loadError && !loading) {
+    return <ApiLoadErrorPanel message={loadError} />;
+  }
 
   if (loading) {
     return (

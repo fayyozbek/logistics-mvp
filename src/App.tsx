@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import ApiUnavailableBanner from './components/ApiUnavailableBanner';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './pages/Dashboard';
@@ -68,6 +69,7 @@ export default function App() {
           showMenuButton={isMobileNav}
           onMenuClick={() => setMobileNavOpen(true)}
         />
+        <ApiUnavailableBanner />
         <main className="app-main-content">
           {page === 'dashboard' && <Dashboard />}
           {page === 'shipments' && <Shipments />}

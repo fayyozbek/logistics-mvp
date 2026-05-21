@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useState } from 'react';
 import { type Client, type FinanceRecord } from '../data/mock';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { ApiError, exportFinanceCsv, getFinance, getFinanceReport, updateFinanceStatus } from '../api';
+import { ApiError, exportFinanceCsv, getFinance, getFinanceReport, handleApiLoadFailure, isApiConfigured, updateFinanceStatus } from '../api';
+import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 import type { FinanceReportSummary } from '../types/api';
 import { buildFinanceReport, formatReportMonthLabel } from '../utils/financeReport';
 
@@ -27,6 +28,7 @@ function formatFieldErrors(errors: Record<string, string[]>): string[] {
 
 export default function Finance() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [financeRecords, setFinanceRecords] = useState<FinanceRecord[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -44,7 +46,9 @@ export default function Finance() {
         setFinanceRecords(finance.financeRecords);
         setClients(finance.clients);
         setReport(financeReport.report);
+        setLoadError(null);
       })
+      .catch((error) => setLoadError(handleApiLoadFailure(error).message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -81,8 +85,15 @@ export default function Finance() {
 
   const refreshReport = () => {
     getFinanceReport()
-      .then(({ report: nextReport }) => setReport(nextReport))
-      .catch(() => {
+      .then(({ report: nextReport }) => {
+        setReport(nextReport);
+        setLoadError(null);
+      })
+      .catch((error) => {
+        if (isApiConfigured()) {
+          handleApiLoadFailure(error);
+          return;
+        }
         setFinanceRecords((records) => {
           setReport(buildFinanceReport(records));
           return records;
@@ -128,6 +139,10 @@ export default function Finance() {
       setUpdatingId(null);
     }
   };
+
+  if (loadError && !loading) {
+    return <ApiLoadErrorPanel message={loadError} />;
+  }
 
   if (loading) {
     return (

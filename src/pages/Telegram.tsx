@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { managers, clients, type Shipment } from '../data/mock';
-import { ApiError, getTelegramSettings, updateTelegramSettings } from '../api';
+import { ApiError, getTelegramSettings, handleApiLoadFailure, updateTelegramSettings } from '../api';
+import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 import type { TelegramEventFlags } from '../types/api';
 
 const notifTypes = [
@@ -45,6 +46,7 @@ function buildEventFlags(toggles: Record<string, boolean>): TelegramEventFlags {
 
 export default function Telegram() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [tgShipments, setTgShipments] = useState<Shipment[]>([]);
   const [token, setToken] = useState('');
   const [tokenTouched, setTokenTouched] = useState(false);
@@ -76,7 +78,9 @@ export default function Telegram() {
             }));
           }
         }
+        setLoadError(null);
       })
+      .catch((error) => setLoadError(handleApiLoadFailure(error).message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -151,6 +155,10 @@ export default function Telegram() {
     setConnected(nextConnected);
     void handleSaveSettings({ connected: nextConnected });
   };
+
+  if (loadError && !loading) {
+    return <ApiLoadErrorPanel message={loadError} />;
+  }
 
   if (loading) {
     return (

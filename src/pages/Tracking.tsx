@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, Search, Send, X } from 'lucide-react';
 import { clients, managers, type CheckPoint, type Shipment } from '../data/mock';
-import { addShipmentCheckpoint, ApiError, getTrackingData, updateCheckpoint } from '../api';
+import { addShipmentCheckpoint, ApiError, getTrackingData, handleApiLoadFailure, updateCheckpoint } from '../api';
+import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 
 const checkpointFieldLabels: Record<string, string> = {
   city: 'Город',
@@ -307,6 +308,7 @@ function WorldMap({ selected }: { selected: Shipment }) {
 
 export default function Tracking() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [allShipments, setAllShipments] = useState<Shipment[]>([]);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Shipment | null>(null);
@@ -333,7 +335,9 @@ export default function Tracking() {
         const mapped = data.map((s) => ({ ...s, checkpoints: [...s.checkpoints] }));
         setAllShipments(mapped);
         setSelected(mapped[1] ?? mapped[0] ?? null);
+        setLoadError(null);
       })
+      .catch((error) => setLoadError(handleApiLoadFailure(error).message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -348,6 +352,10 @@ export default function Tracking() {
     city.city.toLowerCase().includes(citySearch.toLowerCase())
     || city.country.toLowerCase().includes(citySearch.toLowerCase())
   );
+
+  if (loadError && !loading) {
+    return <ApiLoadErrorPanel message={loadError} />;
+  }
 
   if (loading) {
     return (

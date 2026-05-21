@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { type Client, type Manager, type Shipment } from '../data/mock';
-import { ApiError, createManager, deleteManager, getManagers, updateManager } from '../api';
+import { ApiError, createManager, deleteManager, getManagers, handleApiLoadFailure, updateManager } from '../api';
+import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 import type { CreateManagerPayload, UpdateManagerPayload } from '../types/api';
 
 interface ManagerFormState {
@@ -76,6 +77,7 @@ function formToUpdatePayload(form: ManagerFormState): UpdateManagerPayload {
 
 export default function Managers() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [managers, setManagers] = useState<Manager[]>([]);
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -99,7 +101,10 @@ export default function Managers() {
   }, []);
 
   useEffect(() => {
-    loadOverview().finally(() => setLoading(false));
+    loadOverview()
+      .then(() => setLoadError(null))
+      .catch((error) => setLoadError(handleApiLoadFailure(error).message))
+      .finally(() => setLoading(false));
   }, [loadOverview]);
 
   useEffect(() => {
@@ -279,6 +284,10 @@ export default function Managers() {
       </label>
     </div>
   );
+
+  if (loadError && !loading) {
+    return <ApiLoadErrorPanel message={loadError} />;
+  }
 
   if (loading) {
     return (

@@ -1,5 +1,7 @@
 import type { ApiValidationErrors } from '../types/api';
 import { downloadTextFile } from '../utils/csv';
+import { clearApiReadError } from './apiReadStatus';
+import { normalizeApiError } from './loadError';
 
 export function getApiBaseUrl(): string | null {
   const value = import.meta.env.VITE_API_BASE_URL;
@@ -91,9 +93,11 @@ export async function requestWithMockFallback<T>(
   }
 
   try {
-    return await fetchJson<T>(path);
-  } catch {
-    return mock();
+    const result = await fetchJson<T>(path);
+    clearApiReadError();
+    return result;
+  } catch (error) {
+    throw normalizeApiError(error);
   }
 }
 

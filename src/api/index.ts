@@ -1,3 +1,9 @@
+export {
+  API_UNAVAILABLE_MESSAGE,
+  clearApiLoadErrorOnSuccess,
+  handleApiLoadFailure,
+  normalizeApiError,
+} from './loadError';
 export { ApiError, getApiBaseUrl, isApiConfigured } from './client';
 export {
   addShipmentCheckpoint,
