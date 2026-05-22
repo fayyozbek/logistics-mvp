@@ -60,6 +60,20 @@ php artisan test
 | GET | `/api/telegram/status` | Safe bot status: configured/enabled/hasChatId/notificationsEnabled |
 | POST | `/api/telegram/test-message` | Send test message `{ chatId?, message? }` |
 
+## Account-scoped Telegram tables (TELEGRAM-DB-001)
+
+Future-ready tables for per-account bot config and notification journal. The API still uses legacy `telegram_settings` until a follow-on task wires `telegram_bot_configs`.
+
+| Table | Purpose |
+|-------|---------|
+| `accounts` | Workspace/tenant; MVP seeds one row `slug=default-demo` |
+| `telegram_bot_configs` | One config per account; `bot_token_encrypted` uses Laravel `encrypted` cast (hidden from JSON) |
+| `telegram_notification_logs` | Append-only send journal (`sent` / `failed` / `skipped`) |
+
+Models: `Account`, `TelegramBotConfig`, `TelegramNotificationLog`. Seeder: `AccountTelegramSeeder` (idempotent, called from `DatabaseSeeder`).
+
+See `docs/TELEGRAM_ACCOUNT_ARCHITECTURE.md` in the repo root.
+
 ## Telegram bot service
 
 `app/Services/TelegramBotService` handles outbound Telegram Bot API notifications.

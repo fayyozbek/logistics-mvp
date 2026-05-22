@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             ShipmentSeeder::class,
             FinanceRecordSeeder::class,
             TelegramSettingSeeder::class,
+            AccountTelegramSeeder::class,
         ]);
     }
 }
