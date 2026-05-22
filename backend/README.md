@@ -55,8 +55,10 @@ php artisan test
 | GET | `/api/managers` | Manager list |
 | GET | `/api/finance` | Finance records |
 | PATCH | `/api/finance/{id}/status` | Update finance status |
-| GET | `/api/telegram/settings` | Telegram bot settings |
-| PATCH | `/api/telegram/settings` | Save Telegram settings |
+| GET | `/api/telegram/settings` | Telegram bot settings (token masked) |
+| PATCH | `/api/telegram/settings` | Save Telegram settings (token response masked) |
+| GET | `/api/telegram/status` | Safe bot status: configured/enabled/hasChatId/notificationsEnabled |
+| POST | `/api/telegram/test-message` | Send test message `{ chatId?, message? }` |
 
 ## Telegram bot service
 
