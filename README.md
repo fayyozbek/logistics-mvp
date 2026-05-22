@@ -220,6 +220,7 @@ Open your Vercel URL — the app should load live data from the Render API.
 | `backend/` | Laravel JSON API |
 | `docs/` | Project documentation |
 | `docs/DEMO_SCRIPT.md` | Stakeholder demo script (production URLs) |
+| `docs/TELEGRAM_BOT_SCOPE.md` | Telegram bot MVP scope (settings, sends, webhook) |
 | `.env.example` | Frontend environment template |
 | `backend/.env.example` | Backend environment template |
 | `render.yaml` | Render Postgres database blueprint |
