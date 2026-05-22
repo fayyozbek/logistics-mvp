@@ -61,17 +61,17 @@ php artisan test
 | POST | `/api/telegram/test-message` | Send test message `{ chatId?, message? }` |
 | GET | `/api/telegram/notifications` | Notification journal (`status`, `event_type`, `limit`, `page` query params) |
 
-## Account-scoped Telegram tables (TELEGRAM-DB-001)
+## Per-account Telegram notification tables (TELEGRAM-DB-REFINE-001)
 
-Future-ready tables for per-account bot config and notification journal. The API still uses legacy `telegram_settings` until a follow-on task wires `telegram_bot_configs`.
+One global bot token (`TELEGRAM_BOT_TOKEN` env only). Per-account chat settings and notification journal. Legacy `telegram_settings` remains for the settings API until a follow-on wires `telegram_notification_settings` end-to-end.
 
 | Table | Purpose |
 |-------|---------|
 | `accounts` | Workspace/tenant; MVP seeds one row `slug=default-demo` |
-| `telegram_bot_configs` | One config per account; `bot_token_encrypted` uses Laravel `encrypted` cast (hidden from JSON) |
+| `telegram_notification_settings` | Per account: `telegram_chat_id`, `telegram_username`, toggles — **no bot token** |
 | `telegram_notification_logs` | Append-only send journal (`sent` / `failed` / `skipped`) |
 
-Models: `Account`, `TelegramBotConfig`, `TelegramNotificationLog`. Seeder: `AccountTelegramSeeder` (idempotent, called from `DatabaseSeeder`).
+Models: `Account`, `TelegramNotificationSetting`, `TelegramNotificationLog` (`TelegramBotConfig` is a deprecated alias). Seeder: `AccountTelegramSeeder` (idempotent, called from `DatabaseSeeder`).
 
 See `docs/TELEGRAM_ACCOUNT_ARCHITECTURE.md` in the repo root.
 
@@ -81,15 +81,11 @@ See `docs/TELEGRAM_ACCOUNT_ARCHITECTURE.md` in the repo root.
 
 **Account resolution (MVP):** `AccountContext` returns the Default Demo Account (`slug=default-demo`). Future auth will resolve the account from the authenticated user.
 
-**Token resolution (per account, priority order):**
-1. `telegram_bot_configs.bot_token_encrypted` for the current account
-2. `TELEGRAM_BOT_TOKEN` env / `config/telegram.php`
-
-Legacy `telegram_settings.bot_token` is not used by `TelegramBotService` after this refactor.
+**Token resolution:** `TELEGRAM_BOT_TOKEN` env / `config/telegram.php` only (never stored per account).
 
 **Chat ID resolution (per account, priority order):**
 1. Explicit `$chatId` argument
-2. `telegram_bot_configs.chat_id` for the current account
+2. `telegram_notification_settings.telegram_chat_id` for the current account
 3. `TELEGRAM_DEFAULT_CHAT_ID` env
 
 **Available methods:**

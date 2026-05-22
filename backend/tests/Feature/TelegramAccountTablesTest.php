@@ -3,11 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
-use App\Models\TelegramBotConfig;
 use App\Models\TelegramNotificationLog;
+use App\Models\TelegramNotificationSetting;
 use Database\Seeders\AccountTelegramSeeder;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class TelegramAccountTablesTest extends TestCase
@@ -16,23 +17,19 @@ class TelegramAccountTablesTest extends TestCase
 
     public function test_migrations_create_account_telegram_tables(): void
     {
-        $this->assertTrue(
-            \Illuminate\Support\Facades\Schema::hasTable('accounts'),
-        );
-        $this->assertTrue(
-            \Illuminate\Support\Facades\Schema::hasTable('telegram_bot_configs'),
-        );
-        $this->assertTrue(
-            \Illuminate\Support\Facades\Schema::hasTable('telegram_notification_logs'),
-        );
+        $this->assertTrue(Schema::hasTable('accounts'));
+        $this->assertTrue(Schema::hasTable('telegram_notification_settings'));
+        $this->assertTrue(Schema::hasTable('telegram_notification_logs'));
+        $this->assertFalse(Schema::hasTable('telegram_bot_configs'));
+        $this->assertFalse(Schema::hasColumn('telegram_notification_settings', 'bot_token_encrypted'));
     }
 
-    public function test_account_telegram_seeder_creates_default_account_and_config(): void
+    public function test_account_telegram_seeder_creates_default_account_and_setting(): void
     {
         $this->seed(AccountTelegramSeeder::class);
 
         $this->assertSame(1, Account::count());
-        $this->assertSame(1, TelegramBotConfig::count());
+        $this->assertSame(1, TelegramNotificationSetting::count());
 
         $this->assertDatabaseHas('accounts', [
             'slug' => Account::DEFAULT_SLUG,
@@ -41,9 +38,9 @@ class TelegramAccountTablesTest extends TestCase
         ]);
 
         $account = Account::query()->where('slug', Account::DEFAULT_SLUG)->firstOrFail();
-        $this->assertDatabaseHas('telegram_bot_configs', [
+        $this->assertDatabaseHas('telegram_notification_settings', [
             'account_id' => $account->id,
-            'chat_id' => '-1001234567890',
+            'telegram_chat_id' => '-1001234567890',
             'enabled' => true,
         ]);
     }
@@ -54,19 +51,19 @@ class TelegramAccountTablesTest extends TestCase
         $this->seed(AccountTelegramSeeder::class);
 
         $this->assertSame(1, Account::count());
-        $this->assertSame(1, TelegramBotConfig::count());
+        $this->assertSame(1, TelegramNotificationSetting::count());
     }
 
-    public function test_database_seeder_includes_default_account_without_duplicates(): void
+    public function test_database_seeder_includes_default_setting_without_duplicates(): void
     {
         $this->seed(DatabaseSeeder::class);
         $this->seed(DatabaseSeeder::class);
 
         $this->assertSame(1, Account::query()->where('slug', Account::DEFAULT_SLUG)->count());
-        $this->assertSame(1, TelegramBotConfig::count());
+        $this->assertSame(1, TelegramNotificationSetting::count());
     }
 
-    public function test_bot_token_encrypted_is_hidden_from_json_serialization(): void
+    public function test_notification_setting_has_no_token_fields_in_serialization(): void
     {
         $account = Account::query()->create([
             'name' => 'Test Account',
@@ -74,21 +71,22 @@ class TelegramAccountTablesTest extends TestCase
             'is_active' => true,
         ]);
 
-        $config = TelegramBotConfig::query()->create([
+        $setting = TelegramNotificationSetting::query()->create([
             'account_id' => $account->id,
-            'bot_token_encrypted' => 'super-secret-demo-token',
+            'telegram_chat_id' => '-100demo',
             'enabled' => true,
         ]);
 
-        $array = $config->toArray();
-        $json = json_encode($config);
+        $array = $setting->toArray();
+        $json = json_encode($setting);
 
+        $this->assertArrayNotHasKey('bot_token', $array);
         $this->assertArrayNotHasKey('bot_token_encrypted', $array);
         $this->assertIsString($json);
-        $this->assertStringNotContainsString('super-secret-demo-token', $json);
+        $this->assertStringNotContainsString('token', strtolower($json));
     }
 
-    public function test_notification_log_belongs_to_account_and_config(): void
+    public function test_notification_log_belongs_to_account_and_setting(): void
     {
         $account = Account::query()->create([
             'name' => 'Log Test Account',
@@ -96,19 +94,19 @@ class TelegramAccountTablesTest extends TestCase
             'is_active' => true,
         ]);
 
-        $config = TelegramBotConfig::query()->create([
+        $setting = TelegramNotificationSetting::query()->create([
             'account_id' => $account->id,
-            'chat_id' => '-100999',
+            'telegram_chat_id' => '-100999',
             'enabled' => true,
         ]);
 
         $log = TelegramNotificationLog::query()->create([
             'account_id' => $account->id,
-            'telegram_bot_config_id' => $config->id,
+            'telegram_notification_setting_id' => $setting->id,
             'event_type' => 'test_message',
             'related_type' => null,
             'related_id' => null,
-            'chat_id' => '-100999',
+            'telegram_chat_id' => '-100999',
             'message_preview' => 'Test preview',
             'status' => TelegramNotificationLog::STATUS_SENT,
             'telegram_message_id' => '42',
@@ -116,8 +114,33 @@ class TelegramAccountTablesTest extends TestCase
         ]);
 
         $this->assertTrue($log->account->is($account));
-        $this->assertTrue($log->telegramBotConfig->is($config));
+        $this->assertTrue($log->telegramNotificationSetting->is($setting));
         $this->assertSame(1, $account->telegramNotificationLogs()->count());
-        $this->assertSame(1, $config->telegramNotificationLogs()->count());
+        $this->assertSame(1, $setting->telegramNotificationLogs()->count());
+    }
+
+    public function test_logs_can_be_created_with_legacy_service_attribute_keys(): void
+    {
+        $account = Account::query()->create([
+            'name' => 'Legacy Keys',
+            'slug' => 'legacy-keys-account',
+            'is_active' => true,
+        ]);
+
+        $setting = TelegramNotificationSetting::query()->create([
+            'account_id' => $account->id,
+            'enabled' => true,
+        ]);
+
+        $log = TelegramNotificationLog::query()->create([
+            'account_id' => $account->id,
+            'telegram_bot_config_id' => $setting->id,
+            'event_type' => 'test_message',
+            'chat_id' => '-100legacy',
+            'status' => TelegramNotificationLog::STATUS_SENT,
+        ]);
+
+        $this->assertSame($setting->id, $log->telegram_notification_setting_id);
+        $this->assertSame('-100legacy', $log->telegram_chat_id);
     }
 }

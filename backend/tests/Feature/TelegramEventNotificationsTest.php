@@ -6,7 +6,7 @@ use App\Models\Account;
 use App\Models\Client;
 use App\Models\Manager;
 use App\Models\Shipment;
-use App\Models\TelegramBotConfig;
+use App\Models\TelegramNotificationSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
@@ -38,9 +38,9 @@ class TelegramEventNotificationsTest extends TestCase
     // =========================================================================
 
     /**
-     * Enable Telegram for the default demo account via telegram_bot_configs.
+     * Enable Telegram for the default demo account via telegram_notification_settings.
      */
-    private function enableTelegram(array $overrides = []): TelegramBotConfig
+    private function enableTelegram(array $overrides = []): TelegramNotificationSetting
     {
         $account = Account::query()->firstOrCreate(
             ['slug' => Account::DEFAULT_SLUG],
@@ -71,7 +71,13 @@ class TelegramEventNotificationsTest extends TestCase
             );
         }
 
-        return TelegramBotConfig::query()->updateOrCreate(
+        unset($overrides['bot_token_encrypted']);
+
+        if (! config('telegram.bot_token')) {
+            config(['telegram.bot_token' => 'test-token']);
+        }
+
+        return TelegramNotificationSetting::query()->updateOrCreate(
             ['account_id' => $account->id],
             array_merge([
                 'chat_id' => '-100testchat',
@@ -80,7 +86,6 @@ class TelegramEventNotificationsTest extends TestCase
                 'notify_shipment_created' => true,
                 'notify_status_changed' => true,
                 'notify_checkpoint_added' => true,
-                'bot_token_encrypted' => 'test-token',
             ], $overrides),
         );
     }

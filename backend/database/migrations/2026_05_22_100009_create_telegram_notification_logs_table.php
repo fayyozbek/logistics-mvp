@@ -10,12 +10,16 @@ return new class extends Migration
     {
         Schema::create('telegram_notification_logs', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('account_id')->constrained('accounts')->cascadeOnDelete();
-            $table->foreignId('telegram_bot_config_id')->nullable()->constrained('telegram_bot_configs')->nullOnDelete();
+            $table->foreignId('telegram_notification_setting_id')
+                ->nullable()
+                ->constrained('telegram_notification_settings')
+                ->nullOnDelete();
+            $table->foreignId('account_id')->nullable()->constrained('accounts')->cascadeOnDelete();
+            $table->unsignedBigInteger('user_id')->nullable();
             $table->string('event_type');
             $table->string('related_type')->nullable();
             $table->unsignedBigInteger('related_id')->nullable();
-            $table->string('chat_id')->nullable();
+            $table->string('telegram_chat_id')->nullable();
             $table->text('message_preview')->nullable();
             $table->string('status');
             $table->string('telegram_message_id')->nullable();

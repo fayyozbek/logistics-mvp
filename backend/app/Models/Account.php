@@ -23,14 +23,17 @@ class Account extends Model
         ];
     }
 
-    public function telegramBotConfig(): HasOne
+    public function telegramNotificationSetting(): HasOne
     {
-        return $this->hasOne(TelegramBotConfig::class);
+        return $this->hasOne(TelegramNotificationSetting::class);
     }
 
-    public function telegramBotConfigs(): HasMany
+    /**
+     * @deprecated Use telegramNotificationSetting().
+     */
+    public function telegramBotConfig(): HasOne
     {
-        return $this->hasMany(TelegramBotConfig::class);
+        return $this->telegramNotificationSetting();
     }
 
     public function telegramNotificationLogs(): HasMany

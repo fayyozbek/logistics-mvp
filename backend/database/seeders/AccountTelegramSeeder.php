@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Account;
-use App\Models\TelegramBotConfig;
+use App\Models\TelegramNotificationSetting;
 use Database\Seeders\Support\DemoData;
 use Illuminate\Database\Seeder;
 
@@ -21,12 +21,12 @@ class AccountTelegramSeeder extends Seeder
 
         $legacy = DemoData::telegramSettings();
 
-        TelegramBotConfig::query()->updateOrCreate(
+        TelegramNotificationSetting::query()->updateOrCreate(
             ['account_id' => $account->id],
             [
-                'bot_username' => '@LogistixNotifyBot',
-                'bot_token_encrypted' => $legacy['bot_token'] ?? null,
-                'chat_id' => $legacy['chat_id'] ?? null,
+                'display_name' => 'Default Demo',
+                'telegram_username' => 'LogistixNotifyBot',
+                'telegram_chat_id' => $legacy['chat_id'] ?? null,
                 'enabled' => (bool) ($legacy['connected'] ?? false),
                 'notifications_enabled' => true,
                 'notify_shipment_created' => (bool) ($legacy['event_flags']['departure'] ?? true),

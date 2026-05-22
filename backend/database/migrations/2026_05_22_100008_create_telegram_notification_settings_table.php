@@ -8,12 +8,13 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('telegram_bot_configs', function (Blueprint $table) {
+        Schema::create('telegram_notification_settings', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('account_id')->constrained('accounts')->cascadeOnDelete();
-            $table->string('bot_username')->nullable();
-            $table->text('bot_token_encrypted')->nullable();
-            $table->string('chat_id')->nullable();
+            $table->foreignId('account_id')->nullable()->constrained('accounts')->cascadeOnDelete();
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('display_name')->nullable();
+            $table->string('telegram_chat_id')->nullable();
+            $table->string('telegram_username')->nullable();
             $table->boolean('enabled')->default(false);
             $table->boolean('notifications_enabled')->default(true);
             $table->boolean('notify_shipment_created')->default(true);
@@ -29,6 +30,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('telegram_bot_configs');
+        Schema::dropIfExists('telegram_notification_settings');
     }
 };

@@ -7,7 +7,7 @@ use App\Models\Checkpoint;
 use App\Models\Client;
 use App\Models\Manager;
 use App\Models\Shipment;
-use App\Models\TelegramBotConfig;
+use App\Models\TelegramNotificationSetting;
 use App\Services\TelegramBotService;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -49,11 +49,11 @@ class TelegramBotServiceTest extends TestCase
         $this->assertTrue($this->telegram->isConfigured());
     }
 
-    public function test_service_reports_configured_when_account_config_token_exists(): void
+    public function test_service_reports_not_configured_when_only_chat_id_in_settings(): void
     {
-        $this->accountConfig(['bot_token_encrypted' => 'db-token-xyz', 'chat_id' => '-100000']);
+        $this->accountConfig(['chat_id' => '-100000']);
 
-        $this->assertTrue($this->telegram->isConfigured());
+        $this->assertFalse($this->telegram->isConfigured());
     }
 
     // -------------------------------------------------------------------------
@@ -202,9 +202,10 @@ class TelegramBotServiceTest extends TestCase
 
     public function test_send_test_message_uses_account_config_chat_id_when_not_overridden(): void
     {
+        config(['telegram.bot_token' => 'test-token']);
+
         $account = $this->defaultAccount();
         $this->accountConfig([
-            'bot_token_encrypted' => 'test-token',
             'chat_id' => '-100dbchat',
             'enabled' => true,
         ]);
@@ -329,20 +330,23 @@ class TelegramBotServiceTest extends TestCase
     // Account-specific config
     // -------------------------------------------------------------------------
 
-    public function test_account_config_token_takes_priority_over_env_token(): void
+    public function test_account_settings_do_not_store_or_override_env_token(): void
     {
-        config(['telegram.bot_token' => 'env-token-should-not-be-used']);
+        config(['telegram.bot_token' => 'env-token-only']);
 
         $account = $this->defaultAccount();
-        $this->accountConfig(['bot_token_encrypted' => 'account-config-token', 'chat_id' => '-100chat']);
+        $this->accountConfig(['chat_id' => '-100chat']);
 
         Http::fake(['*' => Http::response(['ok' => true, 'result' => ['message_id' => 1]], 200)]);
 
         $this->telegram->sendMessageForAccount($account, 'Hello', '-100chat');
 
         Http::assertSent(function ($request) {
-            return str_contains($request->url(), 'account-config-token');
+            return str_contains($request->url(), 'env-token-only');
         });
+        $this->assertNull(
+            TelegramNotificationSetting::query()->where('account_id', $account->id)->first()?->bot_token_encrypted,
+        );
     }
 
     public function test_env_token_used_when_account_config_token_missing(): void
@@ -377,12 +381,14 @@ class TelegramBotServiceTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_token_source_for_account_returns_config_when_db_token_set(): void
+    public function test_token_source_for_account_returns_env_when_env_token_set(): void
     {
-        $account = $this->defaultAccount();
-        $this->accountConfig(['bot_token_encrypted' => 'db-token']);
+        config(['telegram.bot_token' => 'env-token']);
 
-        $this->assertSame('config', $this->telegram->tokenSourceForAccount($account));
+        $account = $this->defaultAccount();
+        $this->accountConfig(['chat_id' => '-100chat']);
+
+        $this->assertSame('env', $this->telegram->tokenSourceForAccount($account));
     }
 
     // -------------------------------------------------------------------------
@@ -397,9 +403,11 @@ class TelegramBotServiceTest extends TestCase
         );
     }
 
-    private function accountConfig(array $attributes = []): TelegramBotConfig
+    private function accountConfig(array $attributes = []): TelegramNotificationSetting
     {
-        return TelegramBotConfig::query()->updateOrCreate(
+        unset($attributes['bot_token_encrypted']);
+
+        return TelegramNotificationSetting::query()->updateOrCreate(
             ['account_id' => $this->defaultAccount()->id],
             array_merge([
                 'enabled' => true,

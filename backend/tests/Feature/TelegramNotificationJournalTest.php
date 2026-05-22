@@ -7,7 +7,7 @@ use App\Models\Checkpoint;
 use App\Models\Client;
 use App\Models\Manager;
 use App\Models\Shipment;
-use App\Models\TelegramBotConfig;
+use App\Models\TelegramNotificationSetting;
 use App\Models\TelegramNotificationLog;
 use App\Services\TelegramBotService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -32,10 +32,11 @@ class TelegramNotificationJournalTest extends TestCase
 
     public function test_successful_send_creates_sent_log(): void
     {
+        config(['telegram.bot_token' => 'test-token']);
+
         $account = $this->defaultAccount();
         $this->accountConfig([
-            'bot_token_encrypted' => 'test-token',
-            'chat_id' => '-100chat',
+            'telegram_chat_id' => '-100chat',
             'enabled' => true,
         ]);
 
@@ -47,7 +48,7 @@ class TelegramNotificationJournalTest extends TestCase
             'account_id' => $account->id,
             'event_type' => TelegramNotificationLog::EVENT_TEST_MESSAGE,
             'status' => TelegramNotificationLog::STATUS_SENT,
-            'chat_id' => '-100chat',
+            'telegram_chat_id' => '-100chat',
             'telegram_message_id' => '99',
         ]);
 
@@ -59,10 +60,11 @@ class TelegramNotificationJournalTest extends TestCase
 
     public function test_telegram_api_failure_creates_failed_log(): void
     {
+        config(['telegram.bot_token' => 'test-token']);
+
         $account = $this->defaultAccount();
         $this->accountConfig([
-            'bot_token_encrypted' => 'test-token',
-            'chat_id' => '-100chat',
+            'telegram_chat_id' => '-100chat',
             'enabled' => true,
         ]);
 
@@ -88,7 +90,7 @@ class TelegramNotificationJournalTest extends TestCase
         $account = $this->defaultAccount();
         $this->accountConfig([
             'bot_token_encrypted' => 'test-token',
-            'chat_id' => '-100chat',
+            'telegram_chat_id' => '-100chat',
             'enabled' => false,
         ]);
 
@@ -106,10 +108,11 @@ class TelegramNotificationJournalTest extends TestCase
 
     public function test_shipment_created_notification_logs_related_shipment(): void
     {
+        config(['telegram.bot_token' => 'test-token']);
+
         $account = $this->defaultAccount();
         $this->accountConfig([
-            'bot_token_encrypted' => 'test-token',
-            'chat_id' => '-100chat',
+            'telegram_chat_id' => '-100chat',
             'enabled' => true,
         ]);
 
@@ -134,10 +137,10 @@ class TelegramNotificationJournalTest extends TestCase
 
         TelegramNotificationLog::query()->create([
             'account_id' => $account->id,
-            'telegram_bot_config_id' => $config->id,
+            'telegram_notification_setting_id' => $config->id,
             'event_type' => TelegramNotificationLog::EVENT_TEST_MESSAGE,
             'status' => TelegramNotificationLog::STATUS_SENT,
-            'chat_id' => '-100chat',
+            'telegram_chat_id' => '-100chat',
             'message_preview' => 'Preview text',
             'sent_at' => now(),
         ]);
@@ -190,9 +193,10 @@ class TelegramNotificationJournalTest extends TestCase
 
     public function test_api_test_message_creates_journal_entry(): void
     {
+        config(['telegram.bot_token' => 'test-token']);
+
         $this->accountConfig([
-            'bot_token_encrypted' => 'secret-journal-token',
-            'chat_id' => '-100chat',
+            'telegram_chat_id' => '-100chat',
             'enabled' => true,
         ]);
 
@@ -209,10 +213,11 @@ class TelegramNotificationJournalTest extends TestCase
 
     public function test_network_error_creates_failed_log_without_token_in_error(): void
     {
+        config(['telegram.bot_token' => 'leak-test-token']);
+
         $account = $this->defaultAccount();
         $this->accountConfig([
-            'bot_token_encrypted' => 'leak-test-token',
-            'chat_id' => '-100chat',
+            'telegram_chat_id' => '-100chat',
             'enabled' => true,
         ]);
 
@@ -236,9 +241,11 @@ class TelegramNotificationJournalTest extends TestCase
         );
     }
 
-    private function accountConfig(array $attributes = []): TelegramBotConfig
+    private function accountConfig(array $attributes = []): TelegramNotificationSetting
     {
-        return TelegramBotConfig::query()->updateOrCreate(
+        unset($attributes['bot_token_encrypted']);
+
+        return TelegramNotificationSetting::query()->updateOrCreate(
             ['account_id' => $this->defaultAccount()->id],
             array_merge([
                 'enabled' => true,

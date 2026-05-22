@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Account;
-use App\Models\TelegramBotConfig;
+use App\Models\TelegramNotificationSetting;
 use App\Models\TelegramSetting;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -58,20 +58,19 @@ class TelegramApiEndpointsTest extends TestCase
             ->assertJsonPath('botTokenSource', 'env');
     }
 
-    public function test_status_returns_config_source_when_account_token_set(): void
+    public function test_status_not_configured_when_only_chat_id_without_env_token(): void
     {
         config(['telegram.bot_token' => null]);
 
         $this->accountTelegramConfig([
-            'bot_token_encrypted' => 'db-only-token',
             'chat_id' => '-100testchat',
             'enabled' => true,
         ]);
 
         $this->getJson('/api/telegram/status')
             ->assertOk()
-            ->assertJsonPath('configured', true)
-            ->assertJsonPath('botTokenSource', 'config');
+            ->assertJsonPath('configured', false)
+            ->assertJsonPath('botTokenSource', null);
     }
 
     public function test_status_notifications_enabled_requires_enabled_and_active_toggles(): void
@@ -157,8 +156,9 @@ class TelegramApiEndpointsTest extends TestCase
 
     public function test_test_message_succeeds_using_account_config_chat_id(): void
     {
+        config(['telegram.bot_token' => 'test-token']);
+
         $this->accountTelegramConfig([
-            'bot_token_encrypted' => 'test-token',
             'chat_id' => '-100dbchat',
             'enabled' => true,
         ]);
@@ -305,14 +305,16 @@ class TelegramApiEndpointsTest extends TestCase
         $this->assertSame($before, $after, 'Masked placeholder must not overwrite stored token.');
     }
 
-    private function accountTelegramConfig(array $attributes = []): TelegramBotConfig
+    private function accountTelegramConfig(array $attributes = []): TelegramNotificationSetting
     {
+        unset($attributes['bot_token_encrypted']);
+
         $account = Account::query()->firstOrCreate(
             ['slug' => Account::DEFAULT_SLUG],
             ['name' => 'Default Demo Account', 'is_active' => true],
         );
 
-        return TelegramBotConfig::query()->updateOrCreate(
+        return TelegramNotificationSetting::query()->updateOrCreate(
             ['account_id' => $account->id],
             array_merge([
                 'enabled' => true,
