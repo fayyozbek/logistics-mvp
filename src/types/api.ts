@@ -135,28 +135,45 @@ export interface TelegramEventFlags {
   docs?: boolean;
 }
 
-export interface TelegramSettings {
+/** Per-account Telegram notification settings (no bot token). */
+export interface TelegramNotificationSettings {
   id: string;
-  botToken: string | null;
-  chatId: string | null;
-  connected: boolean;
-  eventFlags: TelegramEventFlags;
+  displayName: string | null;
+  telegramChatId: string | null;
+  telegramUsername: string | null;
+  enabled: boolean;
+  notificationsEnabled: boolean;
+  notifyShipmentCreated: boolean;
+  notifyStatusChanged: boolean;
+  notifyCheckpointAdded: boolean;
+  lastTestedAt: string | null;
+  lastTestStatus: string | null;
 }
 
+/** @deprecated Use TelegramNotificationSettings */
+export type TelegramSettings = TelegramNotificationSettings;
+
 export interface TelegramSettingsResponse {
-  settings: TelegramSettings | null;
+  settings: TelegramNotificationSettings | null;
   shipments: Shipment[];
 }
 
 export interface UpdateTelegramSettingsPayload {
-  botToken?: string;
+  displayName?: string | null;
+  telegramChatId?: string | null;
+  telegramUsername?: string | null;
+  enabled?: boolean;
+  notificationsEnabled?: boolean;
+  notifyShipmentCreated?: boolean;
+  notifyStatusChanged?: boolean;
+  notifyCheckpointAdded?: boolean;
+  /** Legacy alias mapped by backend */
   chatId?: string;
   connected?: boolean;
-  eventFlags?: TelegramEventFlags;
 }
 
 export interface UpdateTelegramSettingsResponse {
-  settings: TelegramSettings;
+  settings: TelegramNotificationSettings;
 }
 
 export interface TelegramStatus {
@@ -164,7 +181,7 @@ export interface TelegramStatus {
   enabled: boolean;
   hasChatId: boolean;
   notificationsEnabled: boolean;
-  botTokenSource: 'env' | 'config' | null;
+  botTokenSource: 'env' | null;
   botUsername?: string | null;
 }
 

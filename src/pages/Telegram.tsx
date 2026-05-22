@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { managers, clients, type Shipment } from '../data/mock';
 import {
   ApiError,
@@ -8,22 +8,36 @@ import {
   sendTelegramTestMessage,
   updateTelegramSettings,
 } from '../api';
-import type { TelegramEventFlags, TelegramNotificationEntry, TelegramStatus } from '../types/api';
+import type {
+  TelegramNotificationEntry,
+  TelegramNotificationSettings,
+  TelegramStatus,
+} from '../types/api';
 
-const notifTypes = [
-  { id: 'departure', label: 'Отправление груза', desc: 'Уведомление при создании и отправке', default: true },
-  { id: 'checkpoint', label: 'Прохождение точки', desc: 'Груз достиг промежуточного пункта', default: true },
-  { id: 'customs', label: 'Таможенное оформление', desc: 'Груз на таможне или прошёл таможню', default: true },
-  { id: 'delay', label: 'Задержка', desc: 'Отклонение от планового времени', default: true },
-  { id: 'delivery', label: 'Доставка', desc: 'Груз доставлен получателю', default: true },
-  { id: 'payment', label: 'Финансы', desc: 'Выставление счёта и оплата', default: false },
-  { id: 'docs', label: 'Документы', desc: 'Запрос или загрузка документов', default: false },
+const notificationPrefs: {
+  key: keyof Pick<
+    TelegramNotificationSettings,
+    'notifyShipmentCreated' | 'notifyStatusChanged' | 'notifyCheckpointAdded'
+  >;
+  label: string;
+  desc: string;
+}[] = [
+  { key: 'notifyShipmentCreated', label: 'Создание груза', desc: 'Уведомление при создании нового груза' },
+  { key: 'notifyStatusChanged', label: 'Изменение статуса', desc: 'Доставка, задержка, в пути и другие статусы' },
+  { key: 'notifyCheckpointAdded', label: 'Новая точка маршрута', desc: 'Добавление контрольной точки на маршруте' },
 ];
 
 const settingsFieldLabels: Record<string, string> = {
+  telegramChatId: 'Chat ID',
   chatId: 'Chat ID',
-  connected: 'Подключение',
-  eventFlags: 'Типы уведомлений',
+  telegramUsername: 'Имя пользователя Telegram',
+  displayName: 'Отображаемое имя',
+  enabled: 'Уведомления включены',
+  notificationsEnabled: 'Автоуведомления',
+  notifyShipmentCreated: 'Создание груза',
+  notifyStatusChanged: 'Изменение статуса',
+  notifyCheckpointAdded: 'Новая точка маршрута',
+  botToken: 'Токен бота',
 };
 
 function formatFieldErrors(errors: Record<string, string[]>): string[] {
@@ -70,6 +84,39 @@ const statusStyles: Record<string, { bg: string; color: string; dot: string }> =
   skipped: { bg: '#FFFBEB', color: '#B45309', dot: '#F59E0B' },
 };
 
+const pagePadding = 'clamp(16px, 3vw, 28px)';
+
+const inputStyle: CSSProperties = {
+  width: '100%',
+  padding: '9px 12px',
+  borderRadius: 8,
+  border: '1px solid #E2E8F0',
+  fontSize: 12,
+  color: '#0F172A',
+  background: '#F8FAFC',
+  outline: 'none',
+  boxSizing: 'border-box',
+};
+
+const labelStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: '#64748B',
+  marginBottom: 4,
+};
+
+const selectStyle: CSSProperties = {
+  padding: '8px 10px',
+  borderRadius: 8,
+  border: '1px solid #E2E8F0',
+  fontSize: 12,
+  color: '#0F172A',
+  background: '#F8FAFC',
+  outline: 'none',
+  minWidth: 0,
+  flex: '1 1 140px',
+};
+
 function formatJournalTime(iso: string | null): string {
   if (!iso) return '—';
   try {
@@ -86,26 +133,52 @@ function formatJournalTime(iso: string | null): string {
 
 function formatRelated(entry: TelegramNotificationEntry): string | null {
   if (!entry.relatedType || !entry.relatedId) return null;
-  const typeLabel = entry.relatedType === 'shipment' ? 'Груз' : entry.relatedType === 'checkpoint' ? 'Точка' : entry.relatedType;
+  const typeLabel =
+    entry.relatedType === 'shipment' ? 'Груз' : entry.relatedType === 'checkpoint' ? 'Точка' : entry.relatedType;
   return `${typeLabel} #${entry.relatedId}`;
 }
 
-const selectStyle = {
-  padding: '8px 10px',
-  borderRadius: 8,
-  border: '1px solid #E2E8F0',
-  fontSize: 12,
-  color: '#0F172A',
-  background: '#F8FAFC',
-  outline: 'none',
-  minWidth: 0,
-  flex: '1 1 140px',
-};
-
-function buildEventFlags(toggles: Record<string, boolean>): TelegramEventFlags {
-  return Object.fromEntries(
-    notifTypes.map((type) => [type.id, toggles[type.id] ?? type.default]),
-  ) as TelegramEventFlags;
+function Toggle({
+  on,
+  disabled,
+  onToggle,
+}: {
+  on: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onToggle}
+      aria-pressed={on}
+      style={{
+        width: 42,
+        height: 22,
+        borderRadius: 12,
+        border: 'none',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        background: on ? '#3B82F6' : '#E2E8F0',
+        position: 'relative',
+        transition: 'background 0.2s',
+        flexShrink: 0,
+      }}
+    >
+      <div
+        style={{
+          width: 16,
+          height: 16,
+          borderRadius: '50%',
+          background: '#fff',
+          position: 'absolute',
+          top: 3,
+          transition: 'left 0.2s',
+          left: on ? 23 : 3,
+        }}
+      />
+    </button>
+  );
 }
 
 const defaultBotStatus: TelegramStatus = {
@@ -119,11 +192,14 @@ const defaultBotStatus: TelegramStatus = {
 export default function Telegram() {
   const [loading, setLoading] = useState(true);
   const [tgShipments, setTgShipments] = useState<Shipment[]>([]);
-  const [chatId, setChatId] = useState('');
-  const [connected, setConnected] = useState(true);
-  const [toggles, setToggles] = useState(
-    Object.fromEntries(notifTypes.map(n => [n.id, n.default]))
-  );
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [telegramUsername, setTelegramUsername] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [enabled, setEnabled] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [notifyShipmentCreated, setNotifyShipmentCreated] = useState(true);
+  const [notifyStatusChanged, setNotifyStatusChanged] = useState(true);
+  const [notifyCheckpointAdded, setNotifyCheckpointAdded] = useState(true);
   const [testMsg, setTestMsg] = useState('');
   const [testSending, setTestSending] = useState(false);
   const [testSuccess, setTestSuccess] = useState('');
@@ -160,23 +236,22 @@ export default function Telegram() {
     }
   }, [statusFilter, eventTypeFilter]);
 
+  const applySettings = (settings: TelegramNotificationSettings) => {
+    if (settings.telegramChatId) setTelegramChatId(settings.telegramChatId);
+    setTelegramUsername(settings.telegramUsername ?? '');
+    setDisplayName(settings.displayName ?? '');
+    setEnabled(settings.enabled);
+    setNotificationsEnabled(settings.notificationsEnabled);
+    setNotifyShipmentCreated(settings.notifyShipmentCreated);
+    setNotifyStatusChanged(settings.notifyStatusChanged);
+    setNotifyCheckpointAdded(settings.notifyCheckpointAdded);
+  };
+
   useEffect(() => {
     void Promise.all([
       getTelegramSettings().then(({ settings, shipments: ships }) => {
         setTgShipments(ships);
-        if (settings) {
-          if (settings.chatId) setChatId(settings.chatId);
-          setConnected(settings.connected);
-          const flags = settings.eventFlags as Record<string, boolean | undefined>;
-          if (flags && Object.keys(flags).length > 0) {
-            setToggles(prev => ({
-              ...prev,
-              ...Object.fromEntries(
-                Object.entries(flags).filter(([, v]) => v !== undefined).map(([k, v]) => [k, v as boolean])
-              ),
-            }));
-          }
-        }
+        if (settings) applySettings(settings);
       }),
       getTelegramStatus().then(setBotStatus),
     ]).finally(() => setLoading(false));
@@ -188,39 +263,28 @@ export default function Telegram() {
     }
   }, [loading, loadJournal]);
 
-  const buildPayload = (overrides?: {
-    connected?: boolean;
-    chatId?: string;
-    toggles?: Record<string, boolean>;
-  }) => ({
-    chatId: overrides?.chatId ?? chatId,
-    connected: overrides?.connected ?? connected,
-    eventFlags: buildEventFlags(overrides?.toggles ?? toggles),
+  const buildPayload = () => ({
+    telegramChatId: telegramChatId || null,
+    telegramUsername: telegramUsername || null,
+    displayName: displayName || null,
+    enabled,
+    notificationsEnabled,
+    notifyShipmentCreated,
+    notifyStatusChanged,
+    notifyCheckpointAdded,
   });
 
-  const applySettingsResponse = (settings: { chatId: string | null; connected: boolean; eventFlags: TelegramEventFlags }) => {
-    if (settings.chatId) setChatId(settings.chatId);
-    setConnected(settings.connected);
-    const flags = settings.eventFlags as Record<string, boolean | undefined>;
-    if (flags && Object.keys(flags).length > 0) {
-      setToggles(prev => ({
-        ...prev,
-        ...Object.fromEntries(
-          Object.entries(flags).filter(([, v]) => v !== undefined).map(([k, v]) => [k, v as boolean])
-        ),
-      }));
-    }
-  };
-
-  const handleSaveSettings = async (overrides?: Parameters<typeof buildPayload>[0]) => {
+  const handleSaveSettings = async () => {
     setSubmitting(true);
     setSettingsErrors([]);
     setSuccessMessage('');
 
     try {
-      const { settings } = await updateTelegramSettings(buildPayload(overrides));
-      applySettingsResponse(settings);
-      setSuccessMessage('Настройки Telegram сохранены');
+      const { settings } = await updateTelegramSettings(buildPayload());
+      applySettings(settings);
+      setSuccessMessage('Настройки уведомлений сохранены');
+      const status = await getTelegramStatus();
+      setBotStatus(status);
     } catch (error) {
       if (error instanceof ApiError && error.validationErrors) {
         setSettingsErrors(formatFieldErrors(error.validationErrors));
@@ -234,33 +298,29 @@ export default function Telegram() {
     }
   };
 
-  const handleToggleConnection = () => {
-    const nextConnected = !connected;
-    setConnected(nextConnected);
-    void handleSaveSettings({ connected: nextConnected });
-  };
-
   const handleSendTestMessage = async () => {
     setTestSending(true);
     setTestSuccess('');
     setTestError('');
     try {
       await sendTelegramTestMessage({
-        chatId: chatId || undefined,
+        chatId: telegramChatId || undefined,
         message: testMsg || undefined,
       });
-      setTestSuccess('✓ Сообщение успешно отправлено в Telegram');
+      setTestSuccess('Сообщение успешно отправлено в Telegram');
       setTestMsg('');
       void loadJournal();
+      const status = await getTelegramStatus();
+      setBotStatus(status);
     } catch (error) {
       if (error instanceof ApiError) {
         const msg = error.message.toLowerCase();
-        if (msg.includes('token')) {
-          setTestError('Токен Telegram не настроен. Установите TELEGRAM_BOT_TOKEN на сервере.');
+        if (msg.includes('token') || msg.includes('токен')) {
+          setTestError('Системный Telegram bot token не настроен на сервере.');
         } else if (msg.includes('chat id') || msg.includes('chat_id')) {
-          setTestError('Укажите Chat ID в поле выше и сохраните настройки.');
+          setTestError('Укажите Chat ID / Group ID и сохраните настройки.');
         } else if (error.status === 502) {
-          setTestError('Не удалось доставить сообщение через Telegram. Проверьте токен и Chat ID.');
+          setTestError('Не удалось доставить сообщение через Telegram. Проверьте Chat ID и доступность бота.');
         } else if (error.status === 0) {
           setTestError('Нет связи с API. Проверьте VITE_API_BASE_URL.');
         } else {
@@ -275,16 +335,37 @@ export default function Telegram() {
   };
 
   const testButtonDisabled =
-    testSending || submitting || !botStatus.configured || (!chatId && !botStatus.hasChatId);
+    testSending || submitting || !botStatus.configured || (!telegramChatId && !botStatus.hasChatId);
+
+  const botUsernameDisplay = botStatus.botUsername
+    ? botStatus.botUsername.startsWith('@')
+      ? botStatus.botUsername
+      : `@${botStatus.botUsername}`
+    : null;
 
   if (loading) {
     return (
-      <div style={{ padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 10, color: '#8B95A7', fontSize: 14, fontWeight: 700 }}>
-        <div style={{
-          width: 18, height: 18, borderRadius: '50%',
-          border: '2.5px solid #E2E8F0', borderTopColor: '#0088cc',
-          animation: 'spin 0.7s linear infinite',
-        }} />
+      <div
+        style={{
+          padding: pagePadding,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          color: '#8B95A7',
+          fontSize: 14,
+          fontWeight: 700,
+        }}
+      >
+        <div
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: '50%',
+            border: '2.5px solid #E2E8F0',
+            borderTopColor: '#0088cc',
+            animation: 'spin 0.7s linear infinite',
+          }}
+        />
         Загрузка...
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
@@ -292,138 +373,204 @@ export default function Telegram() {
   }
 
   return (
-    <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div
+      style={{
+        padding: pagePadding,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+        maxWidth: '100%',
+        boxSizing: 'border-box',
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          background: '#fff',
+          borderRadius: 12,
+          padding: '18px 20px',
+          border: '1px solid #E2E8F0',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 16,
+          alignItems: 'center',
+        }}
+      >
+        <div style={{ width: 48, height: 48, borderRadius: 12, background: '#0088cc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>
+          ✈
+        </div>
+        <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#0F172A' }}>Telegram Bot</div>
+          {botUsernameDisplay && (
+            <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{botUsernameDisplay}</div>
+          )}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, flex: '1 1 auto', justifyContent: 'flex-end' }}>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '5px 12px',
+              borderRadius: 20,
+              background: botStatus.configured ? '#F0FDF4' : '#FFF7ED',
+              color: botStatus.configured ? '#15803D' : '#D97706',
+              border: `1px solid ${botStatus.configured ? '#BBF7D0' : '#FED7AA'}`,
+            }}
+          >
+            {botStatus.configured ? '● Системный бот настроен' : '○ Системный бот не настроен'}
+          </span>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '5px 12px',
+              borderRadius: 20,
+              background: botStatus.hasChatId ? '#EFF6FF' : '#F8FAFC',
+              color: botStatus.hasChatId ? '#1D4ED8' : '#94A3B8',
+              border: '1px solid #E2E8F0',
+            }}
+          >
+            {botStatus.hasChatId ? '● Чат подключён' : '○ Чат не указан'}
+          </span>
+        </div>
+      </div>
+
+      {!botStatus.configured && (
+        <div
+          style={{
+            padding: '12px 16px',
+            borderRadius: 10,
+            background: '#FFF7ED',
+            border: '1px solid #FED7AA',
+            color: '#9A3412',
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          Системный Telegram bot token не настроен на сервере. Обратитесь к администратору для настройки TELEGRAM_BOT_TOKEN.
+        </div>
+      )}
+
       {successMessage && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: '#F0FDF4',
-          border: '1px solid #BBF7D0',
-          color: '#15803D',
-          fontSize: 13,
-          fontWeight: 700,
-        }}>
+        <div style={{ padding: '12px 16px', borderRadius: 10, background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#15803D', fontSize: 13, fontWeight: 700 }}>
           {successMessage}
         </div>
       )}
 
       {settingsErrors.length > 0 && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 10,
-          background: '#FEF2F2',
-          border: '1px solid #FECACA',
-          color: '#B91C1C',
-          fontSize: 13,
-          fontWeight: 600,
-        }}>
-          {settingsErrors.map((error) => <div key={error}>{error}</div>)}
+        <div style={{ padding: '12px 16px', borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 13, fontWeight: 600 }}>
+          {settingsErrors.map((error) => (
+            <div key={error}>{error}</div>
+          ))}
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 16 }}>
         {/* Settings */}
         <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 14 }}>Настройки</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 10, background: '#0088cc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>✈</div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Telegram Bot</div>
-              <div style={{ fontSize: 11, color: '#94A3B8' }}>@LogistixNotifyBot</div>
-            </div>
-            <div style={{ marginLeft: 'auto' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 20, background: connected ? '#F0FDF4' : '#FEF2F2', color: connected ? '#10B981' : '#EF4444' }}>
-                {connected ? '● Подключён' : '○ Отключён'}
-              </span>
-            </div>
-          </div>
-
-          {/* Token status row */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14,
-            padding: '8px 12px', borderRadius: 8,
-            background: botStatus.configured ? '#F0FDF4' : '#FFF7ED',
-            border: `1px solid ${botStatus.configured ? '#BBF7D0' : '#FED7AA'}`,
-          }}>
-            <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>Токен:</span>
-            {botStatus.configured ? (
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#15803D' }}>
-                ● Настроен
-                {botStatus.botTokenSource === 'env'
-                  ? ' (env)'
-                  : botStatus.botTokenSource === 'config'
-                  ? ' (конфиг)'
-                  : ''}
-              </span>
-            ) : (
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#D97706' }}>
-                ○ Не задан — установите TELEGRAM_BOT_TOKEN на сервере
-              </span>
-            )}
-          </div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 14 }}>Настройки уведомлений</div>
+          <p style={{ fontSize: 11, color: '#94A3B8', margin: '0 0 14px', lineHeight: 1.45 }}>
+            Укажите чат для получения уведомлений. Токен системного бота настраивается только на сервере.
+          </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Chat ID / Group ID</div>
+              <div style={labelStyle}>Telegram Chat ID / Group ID</div>
               <input
-                value={chatId}
-                onChange={e => setChatId(e.target.value)}
+                value={telegramChatId}
+                onChange={(e) => setTelegramChatId(e.target.value)}
                 placeholder="-100xxxxxxxxxxxxx"
                 disabled={submitting}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, fontFamily: 'monospace', color: '#0F172A', background: '#F8FAFC', outline: 'none', boxSizing: 'border-box' }}
+                style={{ ...inputStyle, fontFamily: 'monospace' }}
               />
-              <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4 }}>Укажите ID чата, группы или канала для уведомлений</div>
+              <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4 }}>ID чата, группы или канала для ваших уведомлений</div>
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              <button
-                type="button"
+
+            <div>
+              <div style={labelStyle}>Имя пользователя Telegram (необязательно)</div>
+              <input
+                value={telegramUsername}
+                onChange={(e) => setTelegramUsername(e.target.value)}
+                placeholder="@username"
                 disabled={submitting}
-                onClick={handleToggleConnection}
-                style={{ flex: 1, padding: '9px', background: connected ? '#FEF2F2' : '#3B82F6', color: connected ? '#EF4444' : '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: submitting ? 'not-allowed' : 'pointer' }}>
-                {connected ? 'Отключить бота' : 'Подключить бота'}
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => void handleSaveSettings()}
-                style={{
-                  flex: 1,
-                  padding: '9px',
-                  background: submitting ? '#94A3B8' : '#0088cc',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 8,
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                }}
-              >
-                {submitting && (
-                  <span style={{
-                    width: 12, height: 12, borderRadius: '50%',
-                    border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
-                    animation: 'spin 0.7s linear infinite', display: 'inline-block',
-                  }} />
-                )}
-                {submitting ? 'Сохранение...' : 'Сохранить настройки'}
-              </button>
+                style={inputStyle}
+              />
             </div>
+
+            <div>
+              <div style={labelStyle}>Отображаемое имя (необязательно)</div>
+              <input
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Например: Отдел логистики"
+                disabled={submitting}
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid #F1F5F9' }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>Уведомления включены</div>
+                <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2 }}>Разрешить отправку в ваш чат</div>
+              </div>
+              <Toggle on={enabled} disabled={submitting} onToggle={() => setEnabled((v) => !v)} />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>Автоуведомления</div>
+                <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2 }}>События по грузам и маршруту</div>
+              </div>
+              <Toggle on={notificationsEnabled} disabled={submitting} onToggle={() => setNotificationsEnabled((v) => !v)} />
+            </div>
+
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => void handleSaveSettings()}
+              style={{
+                width: '100%',
+                padding: '10px',
+                background: submitting ? '#94A3B8' : '#0088cc',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                fontWeight: 600,
+                fontSize: 12,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                marginTop: 4,
+              }}
+            >
+              {submitting && (
+                <span
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    border: '2px solid rgba(255,255,255,0.4)',
+                    borderTopColor: '#fff',
+                    animation: 'spin 0.7s linear infinite',
+                    display: 'inline-block',
+                  }}
+                />
+              )}
+              {submitting ? 'Сохранение...' : 'Сохранить настройки'}
+            </button>
           </div>
 
-          {/* Test message */}
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Тестовое сообщение</div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               <input
                 value={testMsg}
-                onChange={e => setTestMsg(e.target.value)}
-                placeholder="Введите текст тестового сообщения..."
+                onChange={(e) => setTestMsg(e.target.value)}
+                placeholder="Текст тестового сообщения..."
                 disabled={testSending}
-                style={{ flex: 1, padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, color: '#0F172A', background: '#F8FAFC', outline: 'none' }}
+                style={{ ...inputStyle, flex: '1 1 180px', minWidth: 0 }}
               />
               <button
                 type="button"
@@ -431,10 +578,10 @@ export default function Telegram() {
                 onClick={() => void handleSendTestMessage()}
                 title={
                   !botStatus.configured
-                    ? 'Токен не настроен на сервере'
-                    : !chatId && !botStatus.hasChatId
-                    ? 'Укажите Chat ID'
-                    : undefined
+                    ? 'Системный бот не настроен на сервере'
+                    : !telegramChatId && !botStatus.hasChatId
+                      ? 'Укажите Chat ID'
+                      : undefined
                 }
                 style={{
                   padding: '9px 16px',
@@ -449,86 +596,111 @@ export default function Telegram() {
                   alignItems: 'center',
                   gap: 6,
                   whiteSpace: 'nowrap',
-                }}>
+                  flex: '0 0 auto',
+                }}
+              >
                 {testSending && (
-                  <span style={{
-                    width: 12, height: 12, borderRadius: '50%',
-                    border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
-                    animation: 'spin 0.7s linear infinite', display: 'inline-block',
-                  }} />
+                  <span
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: '50%',
+                      border: '2px solid rgba(255,255,255,0.4)',
+                      borderTopColor: '#fff',
+                      animation: 'spin 0.7s linear infinite',
+                      display: 'inline-block',
+                    }}
+                  />
                 )}
                 {testSending ? 'Отправка...' : 'Отправить'}
               </button>
             </div>
-            {testSuccess && (
-              <div style={{ fontSize: 11, color: '#10B981', marginTop: 6, fontWeight: 600 }}>{testSuccess}</div>
-            )}
-            {testError && (
-              <div style={{ fontSize: 11, color: '#EF4444', marginTop: 6 }}>⚠ {testError}</div>
-            )}
-            {!botStatus.configured && (
-              <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 6 }}>
-                Для отправки настройте TELEGRAM_BOT_TOKEN в переменных среды сервера.
-              </div>
-            )}
+            {testSuccess && <div style={{ fontSize: 11, color: '#10B981', marginTop: 6, fontWeight: 600 }}>{testSuccess}</div>}
+            {testError && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 6 }}>⚠ {testError}</div>}
           </div>
         </div>
 
-        {/* Notification types */}
+        {/* Event toggles */}
         <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 16 }}>Типы уведомлений</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>Типы событий</div>
+          <p style={{ fontSize: 11, color: '#94A3B8', margin: '0 0 14px', lineHeight: 1.45 }}>
+            Выберите, какие события отправлять в Telegram после сохранения настроек.
+          </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {notifTypes.map(n => (
-              <div key={n.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 0', borderBottom: '1px solid #F8FAFC' }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>{n.label}</div>
-                  <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>{n.desc}</div>
-                </div>
-                <button
-                  type="button"
-                  disabled={submitting}
-                  onClick={() => {
-                    const nextToggles = { ...toggles, [n.id]: !toggles[n.id] };
-                    setToggles(nextToggles);
-                    void handleSaveSettings({ toggles: nextToggles });
-                  }}
+            {notificationPrefs.map((pref) => {
+              const value =
+                pref.key === 'notifyShipmentCreated'
+                  ? notifyShipmentCreated
+                  : pref.key === 'notifyStatusChanged'
+                    ? notifyStatusChanged
+                    : notifyCheckpointAdded;
+              const setValue =
+                pref.key === 'notifyShipmentCreated'
+                  ? setNotifyShipmentCreated
+                  : pref.key === 'notifyStatusChanged'
+                    ? setNotifyStatusChanged
+                    : setNotifyCheckpointAdded;
+
+              return (
+                <div
+                  key={pref.key}
                   style={{
-                    width: 42, height: 22, borderRadius: 12, border: 'none', cursor: submitting ? 'not-allowed' : 'pointer',
-                    background: toggles[n.id] ? '#3B82F6' : '#E2E8F0',
-                    position: 'relative', transition: 'background 0.2s', flexShrink: 0,
-                  }}>
-                  <div style={{
-                    width: 16, height: 16, borderRadius: '50%', background: '#fff',
-                    position: 'absolute', top: 3, transition: 'left 0.2s',
-                    left: toggles[n.id] ? 23 : 3,
-                  }} />
-                </button>
-              </div>
-            ))}
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    padding: '11px 0',
+                    borderBottom: '1px solid #F8FAFC',
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>{pref.label}</div>
+                    <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>{pref.desc}</div>
+                  </div>
+                  <Toggle on={value} disabled={submitting} onToggle={() => setValue((v) => !v)} />
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* Shipments with TG enabled */}
+      {/* Shipments */}
       <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0' }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 14 }}>
           Грузы с Telegram-уведомлениями
-          <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: '#EFF6FF', color: '#3B82F6' }}>{tgShipments.length}</span>
+          <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: '#EFF6FF', color: '#3B82F6' }}>
+            {tgShipments.length}
+          </span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>
-          {tgShipments.map(s => {
-            const client = clients.find(c => c.id === s.clientId);
-            const manager = managers.find(m => m.id === s.managerId);
-            const statusC: Record<string, string> = { planned: '#F59E0B', in_transit: '#3B82F6', delivered: '#10B981', delayed: '#EF4444', at_checkpoint: '#8B5CF6' };
-            const statusL: Record<string, string> = { planned: 'Запланирован', in_transit: 'В пути', delivered: 'Доставлен', delayed: 'Задержка', at_checkpoint: 'На пункте' };
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))', gap: 10 }}>
+          {tgShipments.map((s) => {
+            const client = clients.find((c) => c.id === s.clientId);
+            const manager = managers.find((m) => m.id === s.managerId);
+            const statusC: Record<string, string> = {
+              planned: '#F59E0B',
+              in_transit: '#3B82F6',
+              delivered: '#10B981',
+              delayed: '#EF4444',
+              at_checkpoint: '#8B5CF6',
+            };
+            const statusL: Record<string, string> = {
+              planned: 'Запланирован',
+              in_transit: 'В пути',
+              delivered: 'Доставлен',
+              delayed: 'Задержка',
+              at_checkpoint: 'На пункте',
+            };
             return (
               <div key={s.id} style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#F8FAFC' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>{s.trackingNumber}</div>
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: statusC[s.status] + '20', color: statusC[s.status] }}>{statusL[s.status]}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', wordBreak: 'break-word' }}>{s.trackingNumber}</div>
+                  <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: `${statusC[s.status]}20`, color: statusC[s.status] }}>
+                    {statusL[s.status]}
+                  </span>
                 </div>
                 <div style={{ fontSize: 11, color: '#64748B', marginTop: 3 }}>{s.origin} → {s.destination}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 10, color: '#94A3B8' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 10, color: '#94A3B8', flexWrap: 'wrap', gap: 4 }}>
                   <span>{client?.company}</span>
                   <span style={{ color: '#0088cc' }}>{manager?.telegramId}</span>
                 </div>
@@ -538,7 +710,7 @@ export default function Telegram() {
         </div>
       </div>
 
-      {/* Notification journal */}
+      {/* Journal */}
       <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Журнал уведомлений</div>
@@ -561,70 +733,65 @@ export default function Telegram() {
             }}
           >
             {journalLoading && (
-              <span style={{
-                width: 12, height: 12, borderRadius: '50%',
-                border: '2px solid #E2E8F0', borderTopColor: '#0088cc',
-                animation: 'spin 0.7s linear infinite', display: 'inline-block',
-              }} />
+              <span
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: '50%',
+                  border: '2px solid #E2E8F0',
+                  borderTopColor: '#0088cc',
+                  animation: 'spin 0.7s linear infinite',
+                  display: 'inline-block',
+                }}
+              />
             )}
             Обновить
           </button>
         </div>
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          <select
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            style={selectStyle}
-            aria-label="Фильтр по статусу"
-          >
-            {journalStatuses.map(s => (
-              <option key={s.value || 'all'} value={s.value}>{s.label}</option>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={selectStyle} aria-label="Фильтр по статусу">
+            {journalStatuses.map((s) => (
+              <option key={s.value || 'all'} value={s.value}>
+                {s.label}
+              </option>
             ))}
           </select>
-          <select
-            value={eventTypeFilter}
-            onChange={e => setEventTypeFilter(e.target.value)}
-            style={selectStyle}
-            aria-label="Фильтр по типу события"
-          >
-            {journalEventTypes.map(e => (
-              <option key={e.value || 'all'} value={e.value}>{e.label}</option>
+          <select value={eventTypeFilter} onChange={(e) => setEventTypeFilter(e.target.value)} style={selectStyle} aria-label="Фильтр по типу события">
+            {journalEventTypes.map((e) => (
+              <option key={e.value || 'all'} value={e.value}>
+                {e.label}
+              </option>
             ))}
           </select>
         </div>
 
         {journalError && (
-          <div style={{
-            padding: '10px 14px',
-            borderRadius: 8,
-            background: '#FEF2F2',
-            border: '1px solid #FECACA',
-            color: '#B91C1C',
-            fontSize: 12,
-            fontWeight: 600,
-            marginBottom: 12,
-          }}>
+          <div style={{ padding: '10px 14px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
             {journalError}
           </div>
         )}
 
         {journalLoading && journalEntries.length === 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '24px 0', color: '#8B95A7', fontSize: 13 }}>
-            <span style={{
-              width: 16, height: 16, borderRadius: '50%',
-              border: '2.5px solid #E2E8F0', borderTopColor: '#0088cc',
-              animation: 'spin 0.7s linear infinite', display: 'inline-block',
-            }} />
+            <span
+              style={{
+                width: 16,
+                height: 16,
+                borderRadius: '50%',
+                border: '2.5px solid #E2E8F0',
+                borderTopColor: '#0088cc',
+                animation: 'spin 0.7s linear infinite',
+                display: 'inline-block',
+              }}
+            />
             Загрузка журнала...
           </div>
         ) : journalEntries.length === 0 ? (
-          <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
-            Уведомлений пока нет
-          </div>
+          <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>Уведомлений пока нет</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {journalEntries.map(entry => {
+            {journalEntries.map((entry) => {
               const style = statusStyles[entry.status] ?? statusStyles.skipped;
               const related = formatRelated(entry);
               const timeLabel = formatJournalTime(entry.sentAt ?? entry.createdAt);
@@ -644,32 +811,17 @@ export default function Telegram() {
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: style.dot, marginTop: 6, flexShrink: 0 }} />
                   <div style={{ flex: '1 1 200px', minWidth: 0 }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
-                      <span style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: '2px 8px',
-                        borderRadius: 20,
-                        background: style.bg,
-                        color: style.color,
-                      }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: style.bg, color: style.color }}>
                         {statusLabels[entry.status] ?? entry.status}
                       </span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: '#64748B' }}>
-                        {eventTypeLabels[entry.eventType] ?? entry.eventType}
-                      </span>
-                      {related && (
-                        <span style={{ fontSize: 10, color: '#3B82F6', fontWeight: 600 }}>{related}</span>
-                      )}
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#64748B' }}>{eventTypeLabels[entry.eventType] ?? entry.eventType}</span>
+                      {related && <span style={{ fontSize: 10, color: '#3B82F6', fontWeight: 600 }}>{related}</span>}
                     </div>
                     {entry.messagePreview && (
-                      <div style={{ fontSize: 12, color: '#0F172A', lineHeight: 1.45, wordBreak: 'break-word' }}>
-                        {entry.messagePreview}
-                      </div>
+                      <div style={{ fontSize: 12, color: '#0F172A', lineHeight: 1.45, wordBreak: 'break-word' }}>{entry.messagePreview}</div>
                     )}
                     {entry.status === 'failed' && entry.errorMessage && (
-                      <div style={{ fontSize: 11, color: '#B91C1C', marginTop: 4 }}>
-                        {entry.errorMessage}
-                      </div>
+                      <div style={{ fontSize: 11, color: '#B91C1C', marginTop: 4 }}>{entry.errorMessage}</div>
                     )}
                     <div style={{ display: 'flex', gap: 10, fontSize: 10, color: '#94A3B8', marginTop: 6, flexWrap: 'wrap' }}>
                       <span>{timeLabel}</span>
