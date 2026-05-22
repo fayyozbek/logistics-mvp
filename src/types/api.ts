@@ -158,3 +158,22 @@ export interface UpdateTelegramSettingsPayload {
 export interface UpdateTelegramSettingsResponse {
   settings: TelegramSettings;
 }
+
+export interface TelegramStatus {
+  configured: boolean;
+  enabled: boolean;
+  hasChatId: boolean;
+  notificationsEnabled: boolean;
+  botTokenSource: 'env' | null;
+}
+
+export interface SendTestMessagePayload {
+  chatId?: string;
+  message?: string;
+}
+
+export interface SendTestMessageResponse {
+  success: boolean;
+  message: string;
+  telegram_message_id: number | null;
+}

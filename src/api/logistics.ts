@@ -10,8 +10,11 @@ import type {
   ShipmentResponse,
   ShipmentsResponse,
   TelegramSettingsResponse,
+  TelegramStatus,
   UpdateTelegramSettingsPayload,
   UpdateTelegramSettingsResponse,
+  SendTestMessagePayload,
+  SendTestMessageResponse,
   TrackingResponse,
   UpdateCheckpointPayload,
   UpdateShipmentStatusPayload,
@@ -80,6 +83,30 @@ export function updateTelegramSettings(
   }
 
   return patchJson<UpdateTelegramSettingsResponse>('/telegram/settings', payload);
+}
+
+const defaultTelegramStatus: TelegramStatus = {
+  configured: false,
+  enabled: false,
+  hasChatId: false,
+  notificationsEnabled: false,
+  botTokenSource: null,
+};
+
+export function getTelegramStatus(): Promise<TelegramStatus> {
+  return requestWithMockFallback('/telegram/status', () => defaultTelegramStatus);
+}
+
+export function sendTelegramTestMessage(
+  payload?: SendTestMessagePayload,
+): Promise<SendTestMessageResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Отправка тестового сообщения доступна только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  return postJson<SendTestMessageResponse>('/telegram/test-message', payload ?? {});
 }
 
 export function createShipment(payload: CreateShipmentPayload): Promise<ShipmentResponse> {

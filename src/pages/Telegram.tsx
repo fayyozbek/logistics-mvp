@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { managers, clients, type Shipment } from '../data/mock';
-import { ApiError, getTelegramSettings, updateTelegramSettings } from '../api';
-import type { TelegramEventFlags } from '../types/api';
+import { ApiError, getTelegramSettings, getTelegramStatus, sendTelegramTestMessage, updateTelegramSettings } from '../api';
+import type { TelegramEventFlags, TelegramStatus } from '../types/api';
 
 const notifTypes = [
   { id: 'departure', label: 'Отправление груза', desc: 'Уведомление при создании и отправке', default: true },
@@ -16,7 +16,6 @@ const notifTypes = [
 const settingsFieldLabels: Record<string, string> = {
   chatId: 'Chat ID',
   connected: 'Подключение',
-  botToken: 'Bot Token',
   eventFlags: 'Типы уведомлений',
 };
 
@@ -43,25 +42,34 @@ function buildEventFlags(toggles: Record<string, boolean>): TelegramEventFlags {
   ) as TelegramEventFlags;
 }
 
+const defaultBotStatus: TelegramStatus = {
+  configured: false,
+  enabled: false,
+  hasChatId: false,
+  notificationsEnabled: false,
+  botTokenSource: null,
+};
+
 export default function Telegram() {
   const [loading, setLoading] = useState(true);
   const [tgShipments, setTgShipments] = useState<Shipment[]>([]);
-  const [token, setToken] = useState('');
-  const [tokenTouched, setTokenTouched] = useState(false);
   const [chatId, setChatId] = useState('');
   const [connected, setConnected] = useState(true);
   const [toggles, setToggles] = useState(
     Object.fromEntries(notifTypes.map(n => [n.id, n.default]))
   );
   const [testMsg, setTestMsg] = useState('');
-  const [testSent, setTestSent] = useState(false);
+  const [testSending, setTestSending] = useState(false);
+  const [testSuccess, setTestSuccess] = useState('');
+  const [testError, setTestError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [settingsErrors, setSettingsErrors] = useState<string[]>([]);
+  const [botStatus, setBotStatus] = useState<TelegramStatus>(defaultBotStatus);
 
   useEffect(() => {
-    getTelegramSettings()
-      .then(({ settings, shipments: ships }) => {
+    void Promise.all([
+      getTelegramSettings().then(({ settings, shipments: ships }) => {
         setTgShipments(ships);
         if (settings) {
           if (settings.chatId) setChatId(settings.chatId);
@@ -76,37 +84,20 @@ export default function Telegram() {
             }));
           }
         }
-      })
-      .finally(() => setLoading(false));
+      }),
+      getTelegramStatus().then(setBotStatus),
+    ]).finally(() => setLoading(false));
   }, []);
 
   const buildPayload = (overrides?: {
     connected?: boolean;
     chatId?: string;
     toggles?: Record<string, boolean>;
-    includeToken?: boolean;
-  }) => {
-    const nextConnected = overrides?.connected ?? connected;
-    const nextChatId = overrides?.chatId ?? chatId;
-    const nextToggles = overrides?.toggles ?? toggles;
-
-    const payload: {
-      chatId: string;
-      connected: boolean;
-      eventFlags: TelegramEventFlags;
-      botToken?: string;
-    } = {
-      chatId: nextChatId,
-      connected: nextConnected,
-      eventFlags: buildEventFlags(nextToggles),
-    };
-
-    if ((overrides?.includeToken ?? tokenTouched) && token && !token.includes('•')) {
-      payload.botToken = token;
-    }
-
-    return payload;
-  };
+  }) => ({
+    chatId: overrides?.chatId ?? chatId,
+    connected: overrides?.connected ?? connected,
+    eventFlags: buildEventFlags(overrides?.toggles ?? toggles),
+  });
 
   const applySettingsResponse = (settings: { chatId: string | null; connected: boolean; eventFlags: TelegramEventFlags }) => {
     if (settings.chatId) setChatId(settings.chatId);
@@ -120,8 +111,6 @@ export default function Telegram() {
         ),
       }));
     }
-    setTokenTouched(false);
-    setToken('');
   };
 
   const handleSaveSettings = async (overrides?: Parameters<typeof buildPayload>[0]) => {
@@ -151,6 +140,42 @@ export default function Telegram() {
     setConnected(nextConnected);
     void handleSaveSettings({ connected: nextConnected });
   };
+
+  const handleSendTestMessage = async () => {
+    setTestSending(true);
+    setTestSuccess('');
+    setTestError('');
+    try {
+      await sendTelegramTestMessage({
+        chatId: chatId || undefined,
+        message: testMsg || undefined,
+      });
+      setTestSuccess('✓ Сообщение успешно отправлено в Telegram');
+      setTestMsg('');
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('token')) {
+          setTestError('Токен Telegram не настроен. Установите TELEGRAM_BOT_TOKEN на сервере.');
+        } else if (msg.includes('chat id') || msg.includes('chat_id')) {
+          setTestError('Укажите Chat ID в поле выше и сохраните настройки.');
+        } else if (error.status === 502) {
+          setTestError('Не удалось доставить сообщение через Telegram. Проверьте токен и Chat ID.');
+        } else if (error.status === 0) {
+          setTestError('Нет связи с API. Проверьте VITE_API_BASE_URL.');
+        } else {
+          setTestError(error.message);
+        }
+      } else {
+        setTestError('Не удалось отправить сообщение. Проверьте подключение к API.');
+      }
+    } finally {
+      setTestSending(false);
+    }
+  };
+
+  const testButtonDisabled =
+    testSending || submitting || !botStatus.configured || (!chatId && !botStatus.hasChatId);
 
   if (loading) {
     return (
@@ -199,7 +224,7 @@ export default function Telegram() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         {/* Bot Config */}
         <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
             <div style={{ width: 42, height: 42, borderRadius: 10, background: '#0088cc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>✈</div>
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Telegram Bot</div>
@@ -212,22 +237,26 @@ export default function Telegram() {
             </div>
           </div>
 
+          {/* Token status row */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14,
+            padding: '8px 12px', borderRadius: 8,
+            background: botStatus.configured ? '#F0FDF4' : '#FFF7ED',
+            border: `1px solid ${botStatus.configured ? '#BBF7D0' : '#FED7AA'}`,
+          }}>
+            <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>Токен:</span>
+            {botStatus.configured ? (
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#15803D' }}>
+                ● Настроен{botStatus.botTokenSource === 'env' ? ' (env)' : ''}
+              </span>
+            ) : (
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#D97706' }}>
+                ○ Не задан — установите TELEGRAM_BOT_TOKEN на сервере
+              </span>
+            )}
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Bot Token</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  value={token}
-                  onChange={(e) => {
-                    setToken(e.target.value);
-                    setTokenTouched(true);
-                  }}
-                  placeholder="Введите новый токен (оставьте пустым, чтобы не менять)"
-                  disabled={submitting}
-                  style={{ flex: 1, padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, fontFamily: 'monospace', color: '#0F172A', background: '#F8FAFC', outline: 'none' }}
-                />
-              </div>
-            </div>
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Chat ID / Group ID</div>
               <input
@@ -235,7 +264,7 @@ export default function Telegram() {
                 onChange={e => setChatId(e.target.value)}
                 placeholder="-100xxxxxxxxxxxxx"
                 disabled={submitting}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, fontFamily: 'monospace', color: '#0F172A', background: '#F8FAFC', outline: 'none' }}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, fontFamily: 'monospace', color: '#0F172A', background: '#F8FAFC', outline: 'none', boxSizing: 'border-box' }}
               />
               <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4 }}>Укажите ID чата, группы или канала для уведомлений</div>
             </div>
@@ -287,16 +316,55 @@ export default function Telegram() {
                 value={testMsg}
                 onChange={e => setTestMsg(e.target.value)}
                 placeholder="Введите текст тестового сообщения..."
+                disabled={testSending}
                 style={{ flex: 1, padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, color: '#0F172A', background: '#F8FAFC', outline: 'none' }}
               />
               <button
                 type="button"
-                onClick={() => { setTestSent(true); setTimeout(() => setTestSent(false), 3000); }}
-                style={{ padding: '9px 16px', background: '#0088cc', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
-                Отправить
+                disabled={testButtonDisabled}
+                onClick={() => void handleSendTestMessage()}
+                title={
+                  !botStatus.configured
+                    ? 'Токен не настроен на сервере'
+                    : !chatId && !botStatus.hasChatId
+                    ? 'Укажите Chat ID'
+                    : undefined
+                }
+                style={{
+                  padding: '9px 16px',
+                  background: testButtonDisabled ? '#94A3B8' : '#0088cc',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  fontSize: 12,
+                  cursor: testButtonDisabled ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  whiteSpace: 'nowrap',
+                }}>
+                {testSending && (
+                  <span style={{
+                    width: 12, height: 12, borderRadius: '50%',
+                    border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
+                    animation: 'spin 0.7s linear infinite', display: 'inline-block',
+                  }} />
+                )}
+                {testSending ? 'Отправка...' : 'Отправить'}
               </button>
             </div>
-            {testSent && <div style={{ fontSize: 11, color: '#10B981', marginTop: 6 }}>✓ Сообщение отправлено (демо, без реального API)</div>}
+            {testSuccess && (
+              <div style={{ fontSize: 11, color: '#10B981', marginTop: 6, fontWeight: 600 }}>{testSuccess}</div>
+            )}
+            {testError && (
+              <div style={{ fontSize: 11, color: '#EF4444', marginTop: 6 }}>⚠ {testError}</div>
+            )}
+            {!botStatus.configured && (
+              <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 6 }}>
+                Для отправки настройте TELEGRAM_BOT_TOKEN в переменных среды сервера.
+              </div>
+            )}
           </div>
         </div>
 
