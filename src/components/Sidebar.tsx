@@ -22,9 +22,25 @@ const bottomItems: { id: Page; label: string; icon: string }[] = [
 
 export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   return (
-    <aside style={{ width: 220, minHeight: '100vh', background: '#1E293B', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+    <aside style={{
+      width: 220,
+      height: '100vh',
+      maxHeight: '100vh',
+      position: 'sticky',
+      top: 0,
+      alignSelf: 'flex-start',
+      background: '#1E293B',
+      display: 'flex',
+      flexDirection: 'column',
+      flexShrink: 0,
+      overflow: 'hidden',
+    }}>
       {/* Logo */}
-      <div style={{ padding: '28px 24px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+      <div style={{
+        flexShrink: 0,
+        padding: '28px 24px 24px',
+        borderBottom: '1px solid rgba(255,255,255,0.07)',
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 34, height: 34, borderRadius: 8,
@@ -39,8 +55,20 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         </div>
       </div>
 
-      {/* Nav */}
-      <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* Nav — scrolls independently when items overflow */}
+      <nav
+        className="sidebar-nav-scroll"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          padding: '16px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+        }}
+      >
         <div style={{ fontSize: 10, color: '#475569', letterSpacing: 1, fontWeight: 600, paddingLeft: 12, paddingBottom: 8, paddingTop: 4 }}>НАВИГАЦИЯ</div>
         {navItems.map(item => {
           const active = currentPage === item.id;
@@ -66,8 +94,16 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         })}
       </nav>
 
-      {/* Bottom */}
-      <div style={{ padding: '12px 12px 20px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* Bottom — fixed at sidebar foot */}
+      <div style={{
+        flexShrink: 0,
+        padding: '12px 12px 20px',
+        borderTop: '1px solid rgba(255,255,255,0.07)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+        background: '#1E293B',
+      }}>
         {bottomItems.map(item => {
           const active = currentPage === item.id;
           return (
