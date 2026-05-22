@@ -58,6 +58,46 @@ php artisan test
 | GET | `/api/telegram/settings` | Telegram bot settings |
 | PATCH | `/api/telegram/settings` | Save Telegram settings |
 
+## Telegram bot service
+
+`app/Services/TelegramBotService` handles outbound Telegram Bot API notifications.
+
+**Token resolution (priority order):**
+1. `TELEGRAM_BOT_TOKEN` env / `config/telegram.php`
+2. Encrypted `bot_token` stored in `telegram_settings` DB row
+
+**Chat ID resolution (priority order):**
+1. Explicit `$chatId` argument passed to a notification method
+2. `telegram_settings.chat_id` (DB row)
+3. `TELEGRAM_DEFAULT_CHAT_ID` env
+
+**Available methods:**
+
+| Method | Description |
+|--------|-------------|
+| `isConfigured()` | Returns true when a bot token is available |
+| `getDefaultChatId()` | Returns resolved default chat ID (DB → env) |
+| `sendMessage($chatId, $text)` | Send arbitrary text to a chat |
+| `sendTestMessage($chatId?)` | Send a test verification message |
+| `sendShipmentCreatedNotification($shipment, $chatId?)` | Notify on shipment create |
+| `sendShipmentStatusChangedNotification($shipment, $old, $new, $chatId?)` | Notify on status change |
+| `sendCheckpointAddedNotification($shipment, $checkpoint, $chatId?)` | Notify on checkpoint add |
+
+All methods return `['success' => bool, 'message' => string, 'telegram_message_id' => int|null, 'error' => string|null]`.
+Failures never throw — errors are returned as `success: false` and logged via `Log::warning`.
+The bot token is **never** present in returned arrays, logs, or API responses.
+
+**Required env variables (set in Render, never commit values):**
+
+```
+TELEGRAM_BOT_TOKEN=        # From @BotFather
+TELEGRAM_DEFAULT_CHAT_ID=  # Optional bootstrap chat ID
+TELEGRAM_WEBHOOK_SECRET=   # Recommended in production
+TELEGRAM_TIMEOUT=10        # HTTP timeout in seconds
+```
+
+**Wiring notifications to controllers** is done in `TELEGRAM-BOT-EVENTS-001` (next task).
+
 ## Finance amounts (MVP)
 
 `PATCH /api/finance/{id}/status` accepts **`status` only** (no payment gateway or
