@@ -69,6 +69,32 @@ class TelegramBotService
             ?? TelegramNotificationSetting::query()->orderBy('id')->first();
     }
 
+    public function getOrCreateCurrentSetting(): TelegramNotificationSetting
+    {
+        return $this->getCurrentSetting() ?? TelegramNotificationSetting::query()->create([
+            'account_id' => $this->accountsTableExists() ? $this->accountContext->current()->id : null,
+            'enabled' => false,
+            'notifications_enabled' => true,
+            'notify_shipment_created' => true,
+            'notify_status_changed' => true,
+            'notify_checkpoint_added' => true,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes  Database column names.
+     */
+    public function updateCurrentSetting(array $attributes): TelegramNotificationSetting
+    {
+        $setting = $this->getOrCreateCurrentSetting();
+
+        if ($attributes !== []) {
+            $setting->update($attributes);
+        }
+
+        return $setting->refresh();
+    }
+
     public function currentAccount(): Account
     {
         return $this->accountContext->current();

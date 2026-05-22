@@ -4,8 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Account;
 use App\Models\TelegramNotificationSetting;
-use App\Models\TelegramSetting;
-use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\AccountTelegramSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -244,65 +243,84 @@ class TelegramApiEndpointsTest extends TestCase
     }
 
     // =========================================================================
-    // GET /api/telegram/settings — token safety
+    // GET /api/telegram/settings
     // =========================================================================
 
-    public function test_get_settings_does_not_expose_raw_token(): void
+    public function test_get_settings_returns_safe_notification_fields(): void
     {
-        $this->seed(DatabaseSeeder::class);
+        $this->seed(AccountTelegramSeeder::class);
 
         $response = $this->getJson('/api/telegram/settings')->assertOk();
 
-        // botToken in response must be the masked placeholder or null, never the real value.
-        $botToken = $response->json('settings.botToken');
-        $this->assertTrue(
-            $botToken === null || str_contains((string) $botToken, '•'),
-            "settings.botToken must be null or masked, got: {$botToken}",
-        );
+        $response->assertJsonStructure([
+            'settings' => [
+                'id',
+                'displayName',
+                'telegramChatId',
+                'telegramUsername',
+                'enabled',
+                'notificationsEnabled',
+                'notifyShipmentCreated',
+                'notifyStatusChanged',
+                'notifyCheckpointAdded',
+                'lastTestedAt',
+                'lastTestStatus',
+            ],
+            'shipments',
+        ]);
+
+        $this->assertArrayNotHasKey('botToken', $response->json('settings') ?? []);
+        $this->assertStringNotContainsString('token', strtolower($response->content()));
     }
 
     // =========================================================================
-    // PATCH /api/telegram/settings — token safety
+    // PATCH /api/telegram/settings
     // =========================================================================
 
-    public function test_patch_settings_does_not_expose_raw_token_in_response(): void
+    public function test_patch_settings_updates_chat_id_and_preferences(): void
     {
-        $this->seed(DatabaseSeeder::class);
-
-        $response = $this->patchJson('/api/telegram/settings', [
-            'chatId'    => '-100newchat',
-            'connected' => true,
-            'botToken'  => 'new-secret-token-sent-by-admin',
-        ])->assertOk();
-
-        // The actual token must never appear in the response body.
-        $this->assertStringNotContainsString(
-            'new-secret-token-sent-by-admin',
-            $response->content(),
-        );
-
-        // Response must only return the masked placeholder.
-        $botToken = $response->json('settings.botToken');
-        $this->assertTrue(
-            $botToken === null || str_contains((string) $botToken, '•'),
-            "settings.botToken in PATCH response must be masked, got: {$botToken}",
-        );
-    }
-
-    public function test_patch_settings_masked_token_is_not_stored(): void
-    {
-        $this->seed(DatabaseSeeder::class);
-
-        // Sending the masked placeholder back must not overwrite the stored token.
-        $before = TelegramSetting::query()->firstOrFail()->bot_token;
+        $this->seed(AccountTelegramSeeder::class);
 
         $this->patchJson('/api/telegram/settings', [
-            'chatId'   => '-100chat',
-            'botToken' => '••••••••••••',   // masked — must be ignored
+            'telegramChatId' => '-100newchat',
+            'enabled' => true,
+            'notifyShipmentCreated' => false,
+        ])
+            ->assertOk()
+            ->assertJsonPath('settings.telegramChatId', '-100newchat')
+            ->assertJsonPath('settings.enabled', true)
+            ->assertJsonPath('settings.notifyShipmentCreated', false);
+
+        $this->assertDatabaseHas('telegram_notification_settings', [
+            'telegram_chat_id' => '-100newchat',
+            'enabled' => true,
+            'notify_shipment_created' => false,
+        ]);
+    }
+
+    public function test_patch_settings_rejects_bot_token_field(): void
+    {
+        $this->seed(AccountTelegramSeeder::class);
+
+        $this->patchJson('/api/telegram/settings', [
+            'telegramChatId' => '-100chat',
+            'botToken' => 'new-secret-token-sent-by-admin',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['botToken']);
+    }
+
+    public function test_patch_settings_does_not_expose_secrets_in_response(): void
+    {
+        $this->seed(AccountTelegramSeeder::class);
+
+        $response = $this->patchJson('/api/telegram/settings', [
+            'telegramChatId' => '-100safe',
+            'enabled' => true,
         ])->assertOk();
 
-        $after = TelegramSetting::query()->firstOrFail()->bot_token;
-        $this->assertSame($before, $after, 'Masked placeholder must not overwrite stored token.');
+        $this->assertArrayNotHasKey('botToken', $response->json('settings') ?? []);
+        $this->assertStringNotContainsString('secret', strtolower($response->content()));
     }
 
     private function accountTelegramConfig(array $attributes = []): TelegramNotificationSetting

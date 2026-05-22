@@ -109,13 +109,17 @@ class LogisticsApiTest extends TestCase
 
     public function test_telegram_settings_endpoint(): void
     {
+        $this->seed(\Database\Seeders\AccountTelegramSeeder::class);
+
         $this->getJson('/api/telegram/settings')
             ->assertOk()
             ->assertJsonStructure([
                 'settings' => [
-                    'chatId',
-                    'connected',
-                    'eventFlags',
+                    'id',
+                    'telegramChatId',
+                    'enabled',
+                    'notificationsEnabled',
+                    'notifyShipmentCreated',
                 ],
                 'shipments',
             ]);

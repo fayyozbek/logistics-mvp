@@ -55,15 +55,15 @@ php artisan test
 | GET | `/api/managers` | Manager list |
 | GET | `/api/finance` | Finance records |
 | PATCH | `/api/finance/{id}/status` | Update finance status |
-| GET | `/api/telegram/settings` | Telegram bot settings (token masked) |
-| PATCH | `/api/telegram/settings` | Save Telegram settings (token response masked) |
+| GET | `/api/telegram/settings` | Per-account notification settings (no token) + shipments list |
+| PATCH | `/api/telegram/settings` | Update chat id, toggles, display name (`botToken` rejected with 422) |
 | GET | `/api/telegram/status` | Safe bot status: configured/enabled/hasChatId/notificationsEnabled |
 | POST | `/api/telegram/test-message` | Send test message `{ chatId?, message? }` |
 | GET | `/api/telegram/notifications` | Notification journal (`status`, `event_type`, `limit`, `page` query params) |
 
 ## Per-account Telegram notification tables (TELEGRAM-DB-REFINE-001)
 
-One global bot token (`TELEGRAM_BOT_TOKEN` env only). Per-account chat settings and notification journal. Legacy `telegram_settings` remains for the settings API until a follow-on wires `telegram_notification_settings` end-to-end.
+One global bot token (`TELEGRAM_BOT_TOKEN` env only). Per-account chat settings and notification journal via `telegram_notification_settings`. Legacy `telegram_settings` table remains seeded for migration compatibility but is not used by the API.
 
 | Table | Purpose |
 |-------|---------|

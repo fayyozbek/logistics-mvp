@@ -6,9 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\SendTestMessageRequest;
 use App\Http\Requests\UpdateTelegramSettingsRequest;
 use App\Http\Resources\ShipmentResource;
-use App\Http\Resources\TelegramSettingResource;
+use App\Http\Resources\TelegramNotificationSettingResource;
 use App\Models\Shipment;
-use App\Models\TelegramSetting;
 use App\Services\TelegramBotService;
 use Illuminate\Http\JsonResponse;
 
@@ -18,9 +17,9 @@ class TelegramSettingController extends Controller
     // GET /api/telegram/settings
     // -------------------------------------------------------------------------
 
-    public function show(): JsonResponse
+    public function show(TelegramBotService $telegram): JsonResponse
     {
-        $setting = TelegramSetting::query()->first();
+        $setting = $telegram->getCurrentSetting();
 
         $shipments = Shipment::query()
             ->where('telegram_notifications', true)
@@ -30,7 +29,7 @@ class TelegramSettingController extends Controller
 
         return response()->json([
             'settings' => $setting
-                ? (new TelegramSettingResource($setting))->resolve()
+                ? (new TelegramNotificationSettingResource($setting))->resolve()
                 : null,
             'shipments' => ShipmentResource::collection($shipments)->resolve(),
         ]);
@@ -40,40 +39,24 @@ class TelegramSettingController extends Controller
     // PATCH /api/telegram/settings
     // -------------------------------------------------------------------------
 
-    public function update(UpdateTelegramSettingsRequest $request): JsonResponse
-    {
+    public function update(
+        UpdateTelegramSettingsRequest $request,
+        TelegramBotService $telegram,
+    ): JsonResponse {
         $validated = $request->validated();
-        $setting = TelegramSetting::query()->firstOrFail();
 
         $updates = [];
 
-        if (array_key_exists('chatId', $validated)) {
-            $updates['chat_id'] = $validated['chatId'];
+        foreach ($this->settingFieldMap() as $inputKey => $column) {
+            if (array_key_exists($inputKey, $validated)) {
+                $updates[$column] = $validated[$inputKey];
+            }
         }
 
-        if (array_key_exists('connected', $validated)) {
-            $updates['connected'] = $validated['connected'];
-        }
-
-        // Accept a new bot token only when the user explicitly submits one
-        // (non-empty and not the masked placeholder returned by the API).
-        $botToken = $validated['botToken'] ?? null;
-        if (is_string($botToken) && $botToken !== '' && ! str_contains($botToken, '•')) {
-            $updates['bot_token'] = $botToken;
-        }
-
-        if (array_key_exists('eventFlags', $validated)) {
-            $updates['event_flags'] = $validated['eventFlags'];
-        }
-
-        if ($updates !== []) {
-            $setting->update($updates);
-        }
-
-        $setting->refresh();
+        $setting = $telegram->updateCurrentSetting($updates);
 
         return response()->json([
-            'settings' => (new TelegramSettingResource($setting))->resolve(),
+            'settings' => (new TelegramNotificationSettingResource($setting))->resolve(),
         ]);
     }
 
@@ -81,9 +64,6 @@ class TelegramSettingController extends Controller
     // GET /api/telegram/status
     // -------------------------------------------------------------------------
 
-    /**
-     * Returns a safe, token-free status summary for the Telegram integration.
-     */
     public function status(TelegramBotService $telegram): JsonResponse
     {
         $notificationSetting = $telegram->getCurrentSetting();
@@ -124,6 +104,16 @@ class TelegramSettingController extends Controller
             ? $telegram->sendMessage($message, $chatId)
             : $telegram->sendTestMessage(null, $chatId);
 
+        $setting = $telegram->getCurrentSetting();
+        if ($setting !== null) {
+            $setting->update([
+                'last_tested_at' => now(),
+                'last_test_status' => $result['success']
+                    ? 'sent'
+                    : (($result['error'] ?? null) === 'skipped' ? 'skipped' : 'failed'),
+            ]);
+        }
+
         if (! $result['success']) {
             $configErrors = ['missing_token', 'missing_chat_id', 'skipped'];
             $status = in_array($result['error'] ?? null, $configErrors, true) ? 422 : 502;
@@ -140,5 +130,22 @@ class TelegramSettingController extends Controller
             'message'             => $result['message'],
             'telegram_message_id' => $result['telegram_message_id'],
         ]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function settingFieldMap(): array
+    {
+        return [
+            'displayName' => 'display_name',
+            'telegramChatId' => 'telegram_chat_id',
+            'telegramUsername' => 'telegram_username',
+            'enabled' => 'enabled',
+            'notificationsEnabled' => 'notifications_enabled',
+            'notifyShipmentCreated' => 'notify_shipment_created',
+            'notifyStatusChanged' => 'notify_status_changed',
+            'notifyCheckpointAdded' => 'notify_checkpoint_added',
+        ];
     }
 }
