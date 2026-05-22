@@ -1,14 +1,16 @@
 # Telegram Bot MVP — Scope Definition
 
 **Task:** TELEGRAM-BOT-SCOPE-001  
-**Status:** Documentation only (implementation not started)  
-**Last updated:** 2026-05-21
+**Status:** MVP implemented on `feature/telegram-bot-mvp` (sends, status, test message, frontend wiring). Webhook and account-scoped journal are follow-on.
+**Last updated:** 2026-05-22
 
 ## Purpose
 
-Define the minimum viable scope for real Telegram Bot API integration in the Logistics MVP+ project. Today the product has a **Telegram settings page** and **settings persistence API**, but **no outbound Telegram messages** and **no webhook handling**. The test-message button on the UI is demo-only.
+Define the minimum viable scope for real Telegram Bot API integration in the Logistics MVP+ project.
 
-This document is the implementation contract for the next engineering tasks (backend service, API routes, frontend wiring, QA, and production rollout).
+**Account-specific config and notification journal** are specified in [TELEGRAM_ACCOUNT_ARCHITECTURE.md](./TELEGRAM_ACCOUNT_ARCHITECTURE.md) (Default Demo Account now; multi-account when auth exists).
+
+This document remains the contract for bot sends, env vars, endpoints, and production rollout. Use the account architecture doc for DB shape, journal API, and future tenancy.
 
 ---
 
@@ -16,13 +18,15 @@ This document is the implementation contract for the next engineering tasks (bac
 
 | Layer | What exists today |
 |-------|-------------------|
-| **Database** | `telegram_settings` table: `bot_token`, `chat_id`, `connected`, `event_flags` (JSON) |
-| **Backend API** | `GET /api/telegram/settings`, `PATCH /api/telegram/settings` |
-| **Token exposure** | `GET` returns masked token (`••••••••••••`); `PATCH` accepts new token only when user submits a non-masked value |
+| **Database** | `telegram_settings` table: `bot_token` (encrypted cast), `chat_id`, `connected`, `event_flags` (JSON). **No `account_id` yet** — see account architecture doc. |
+| **Backend API** | `GET/PATCH /api/telegram/settings`, `GET /api/telegram/status`, `POST /api/telegram/test-message` |
+| **Token exposure** | `GET` may return masked token (`••••••••••••`) or omit in future; env token never exposed. Frontend **does not** collect token (server env only). |
 | **Shipments** | `telegram_notifications` boolean on create; per-shipment flag in UI |
-| **Event flags** | `departure`, `checkpoint`, `customs`, `delay`, `delivery`, `payment`, `docs` — stored but **not used** for sending |
-| **Frontend** | `src/pages/Telegram.tsx` — save settings, toggles, test message UI (**fake success**, no API call) |
-| **Sending** | None — no Telegram HTTP client, no queue, no webhook |
+| **Event flags** | Used by `TelegramBotService::shouldNotifyForShipment` for automated sends |
+| **Frontend** | `src/pages/Telegram.tsx` — status badge, save settings, real test message API, toggles |
+| **Sending** | `TelegramBotService` — shipment created, status changed, checkpoint added |
+| **Journal** | Static mock rows in UI — **not persisted**; target: `telegram_notification_logs` per account architecture |
+| **Webhook** | Not implemented |
 
 ---
 
@@ -36,7 +40,8 @@ This document is the implementation contract for the next engineering tasks (bac
   - **Optional override:** `telegram_settings.bot_token` in PostgreSQL when an admin updates token via settings UI (write-only from API; read always masked).
 - **Chat target:** `telegram_settings.chat_id` (group/channel/user ID for outbound notifications).
 - **Operational flags:** `connected`, `event_flags` (which notification types are enabled).
-- **Recommendation (post-MVP hardening):** encrypt `bot_token` at rest (Laravel `encrypted` cast or secrets manager); MVP may store plaintext in DB if env is the source of truth and UI token updates are rare.
+- **At rest:** `bot_token` uses Laravel `encrypted` cast on `TelegramSetting`. Env `TELEGRAM_BOT_TOKEN` is never returned to clients.
+- **Per account (future):** one `telegram_bot_configs` row per account — see [TELEGRAM_ACCOUNT_ARCHITECTURE.md](./TELEGRAM_ACCOUNT_ARCHITECTURE.md).
 
 ### 1.2 Send test message from Telegram settings page
 
@@ -98,7 +103,8 @@ This document is the implementation contract for the next engineering tasks (bac
 | Telegram login widget / OAuth | Not needed |
 | Message delivery receipts / read analytics | Optional later |
 | Retry queue with dead-letter (Redis/Horizon) | MVP: synchronous send with try/catch + log; failed send must not break API mutation |
-| Multi-bot / multi-tenant | Single settings row (`first()`) |
+| Multi-bot / multi-tenant | Single settings row (`first()`) until account architecture is implemented |
+| Account-scoped config + notification journal | See [TELEGRAM_ACCOUNT_ARCHITECTURE.md](./TELEGRAM_ACCOUNT_ARCHITECTURE.md) |
 | Editing messages or deleting sent messages | Not needed |
 | Rate-limit handling beyond basic logging | Document for ops; no dedicated worker in MVP |
 
@@ -162,8 +168,9 @@ Implementation note: call notifier **after** DB commit; swallow Telegram API err
 | Chat ID field | Saved via `PATCH` | Keep |
 | Connected toggle | Saves immediately | Keep; when `connected: false`, backend skips all sends |
 | Event type toggles | Save via `PATCH` | Keep; backend respects flags for automated sends |
-| **Test message** | Fake “sent” toast | Call `POST /api/telegram/test`; show success/error toast in Russian |
-| Notification log panel | Static mock rows | **Out of MVP UI change** — may stay mock or show “last test result” only |
+| **Test message** | Real API | `POST /api/telegram/test-message`; success/error in Russian |
+| Notification log panel | Static mock rows | **Follow-on:** `GET /api/telegram/notifications` + account-scoped log table (see account architecture) |
+| Bot token field | Removed | Configured badge only; token server-side env/DB |
 | Shipments list | Live from API | Keep — shows shipments with notifications enabled |
 
 **Shipment create** (`Shipments.tsx`): keep `Telegram-уведомления` checkbox; value already persisted as `telegramNotifications`.
@@ -251,18 +258,23 @@ Implementation note: call notifier **after** DB commit; swallow Telegram API err
 
 ## 9. Suggested implementation tasks (follow-on)
 
-| Task ID | Description |
-|---------|-------------|
-| `TELEGRAM-SERVICE-001` | Laravel `TelegramBotClient` + `TelegramNotifier` with HTTP fake in tests |
-| `TELEGRAM-API-001` | `POST /api/telegram/test` + webhook controller |
-| `TELEGRAM-HOOKS-001` | Wire create/status/checkpoint controllers to notifier |
-| `TELEGRAM-UI-001` | Replace demo test button with real API call |
-| `TELEGRAM-PROD-001` | Webhook registration + production smoke |
+| Task ID | Description | Status |
+|---------|-------------|--------|
+| `TELEGRAM-BOT-BACKEND-001` | `TelegramBotService` + tests | Done |
+| `TELEGRAM-BOT-API-001` | Status + test-message endpoints | Done |
+| `TELEGRAM-BOT-EVENTS-001` | Wire shipment/checkpoint notifications | Done |
+| `TELEGRAM-BOT-FRONTEND-001` | Real test message UI | Done |
+| `TELEGRAM-ACCOUNT-SCOPE-001` | Account architecture doc | Done |
+| `TELEGRAM-ACCOUNT-DB-001` | `accounts` + `telegram_bot_configs` + logs migration | Planned |
+| `TELEGRAM-ACCOUNT-UI-001` | Live notification journal | Planned |
+| `TELEGRAM-WEBHOOK-001` | Webhook controller + `/start`, `/help`, `/track` | Planned |
+| `TELEGRAM-PROD-001` | Webhook registration + production smoke | Planned |
 
 ---
 
 ## 10. References
 
+- Account architecture: `docs/TELEGRAM_ACCOUNT_ARCHITECTURE.md`
 - Existing UI: `src/pages/Telegram.tsx`
 - API types: `src/types/api.ts` (`TelegramSettings`, `TelegramEventFlags`)
 - Backend: `backend/app/Http/Controllers/Api/TelegramSettingController.php`
