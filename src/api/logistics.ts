@@ -9,6 +9,8 @@ import type {
   ManagersResponse,
   ShipmentResponse,
   ShipmentsResponse,
+  TelegramNotificationsQuery,
+  TelegramNotificationsResponse,
   TelegramSettingsResponse,
   TelegramStatus,
   UpdateTelegramSettingsPayload,
@@ -107,6 +109,30 @@ export function sendTelegramTestMessage(
   }
 
   return postJson<SendTestMessageResponse>('/telegram/test-message', payload ?? {});
+}
+
+const emptyNotificationsResponse: TelegramNotificationsResponse = {
+  notifications: [],
+  meta: { page: 1, limit: 50, total: 0 },
+};
+
+export function getTelegramNotifications(
+  query: TelegramNotificationsQuery = {},
+): Promise<TelegramNotificationsResponse> {
+  if (!isApiConfigured()) {
+    return Promise.resolve(emptyNotificationsResponse);
+  }
+
+  const params = new URLSearchParams();
+  if (query.status) params.set('status', query.status);
+  if (query.event_type) params.set('event_type', query.event_type);
+  if (query.limit) params.set('limit', String(query.limit));
+  if (query.page) params.set('page', String(query.page));
+
+  const qs = params.toString();
+  const path = qs ? `/telegram/notifications?${qs}` : '/telegram/notifications';
+
+  return requestWithMockFallback(path, () => emptyNotificationsResponse);
 }
 
 export function createShipment(payload: CreateShipmentPayload): Promise<ShipmentResponse> {

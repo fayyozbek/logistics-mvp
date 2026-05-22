@@ -164,7 +164,38 @@ export interface TelegramStatus {
   enabled: boolean;
   hasChatId: boolean;
   notificationsEnabled: boolean;
-  botTokenSource: 'env' | null;
+  botTokenSource: 'env' | 'config' | null;
+  botUsername?: string | null;
+}
+
+export interface TelegramNotificationEntry {
+  id: string;
+  eventType: string;
+  status: 'sent' | 'failed' | 'skipped';
+  relatedType: string | null;
+  relatedId: string | null;
+  chatId: string | null;
+  messagePreview: string | null;
+  telegramMessageId: string | null;
+  errorMessage: string | null;
+  sentAt: string | null;
+  createdAt: string | null;
+}
+
+export interface TelegramNotificationsResponse {
+  notifications: TelegramNotificationEntry[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+
+export interface TelegramNotificationsQuery {
+  status?: string;
+  event_type?: string;
+  limit?: number;
+  page?: number;
 }
 
 export interface SendTestMessagePayload {

@@ -9,6 +9,7 @@ export {
   getShipments,
   getTelegramSettings,
   getTelegramStatus,
+  getTelegramNotifications,
   getTrackingData,
   sendTelegramTestMessage,
   updateCheckpoint,
