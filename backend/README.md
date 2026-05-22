@@ -79,26 +79,27 @@ See `docs/TELEGRAM_ACCOUNT_ARCHITECTURE.md` in the repo root.
 
 `app/Services/TelegramBotService` handles outbound Telegram Bot API notifications.
 
-**Account resolution (MVP):** `AccountContext` returns the Default Demo Account (`slug=default-demo`). Future auth will resolve the account from the authenticated user.
+**Setting resolution (MVP):** `getCurrentSetting()` loads `telegram_notification_settings` for the Default Demo Account (`AccountContext`). Future auth will resolve the row from the authenticated user/account.
 
-**Token resolution:** `TELEGRAM_BOT_TOKEN` env / `config/telegram.php` only (never stored per account).
+**Token resolution:** `TELEGRAM_BOT_TOKEN` env / `config/telegram.php` only (never from DB).
 
-**Chat ID resolution (per account, priority order):**
+**Chat ID resolution (priority order):**
 1. Explicit `$chatId` argument
-2. `telegram_notification_settings.telegram_chat_id` for the current account
+2. `getCurrentSetting()->telegram_chat_id`
 3. `TELEGRAM_DEFAULT_CHAT_ID` env
 
 **Available methods:**
 
 | Method | Description |
 |--------|-------------|
-| `isConfigured()` | Returns true when a bot token is available |
-| `getDefaultChatId()` | Returns resolved default chat ID (DB → env) |
-| `sendMessage($chatId, $text)` | Send arbitrary text to a chat |
-| `sendTestMessage($chatId?)` | Send a test verification message |
-| `sendShipmentCreatedNotification($shipment, $chatId?)` | Notify on shipment create |
-| `sendShipmentStatusChangedNotification($shipment, $old, $new, $chatId?)` | Notify on status change |
-| `sendCheckpointAddedNotification($shipment, $checkpoint, $chatId?)` | Notify on checkpoint add |
+| `isConfigured()` | True when env bot token is set |
+| `getCurrentSetting()` | Active per-account notification settings row |
+| `getDefaultChatId()` | Resolved chat ID for current principal |
+| `sendMessage($text, $chatId?, $eventType?, $related?)` | Send text; logs every attempt |
+| `sendTestMessage($message?, $chatId?)` | Send verification message |
+| `sendShipmentCreatedNotification($shipment)` | Notify on shipment create |
+| `sendShipmentStatusChangedNotification($shipment, $old, $new)` | Notify on status change |
+| `sendCheckpointAddedNotification($shipment, $checkpoint)` | Notify on checkpoint add |
 
 All methods return `['success' => bool, 'message' => string, 'telegram_message_id' => int|null, 'error' => string|null]`.
 Failures never throw — errors are returned as `success: false` and logged via `Log::warning`.

@@ -7,6 +7,7 @@ use App\Models\Checkpoint;
 use App\Models\Client;
 use App\Models\Manager;
 use App\Models\Shipment;
+use App\Models\TelegramNotificationLog;
 use App\Models\TelegramNotificationSetting;
 use App\Services\TelegramBotService;
 use Database\Seeders\DatabaseSeeder;
@@ -62,7 +63,7 @@ class TelegramBotServiceTest extends TestCase
 
     public function test_send_message_returns_failure_when_token_missing(): void
     {
-        $result = $this->telegram->sendMessage('-100chat', 'Hello');
+        $result = $this->telegram->sendMessage('Hello', '-100chat');
 
         $this->assertFalse($result['success']);
         $this->assertSame('missing_token', $result['error']);
@@ -73,7 +74,7 @@ class TelegramBotServiceTest extends TestCase
     {
         config(['telegram.bot_token' => 'test-token']);
 
-        $result = $this->telegram->sendMessage('', 'Hello');
+        $result = $this->telegram->sendMessage('Hello', '');
 
         $this->assertFalse($result['success']);
         $this->assertSame('missing_chat_id', $result['error']);
@@ -91,7 +92,7 @@ class TelegramBotServiceTest extends TestCase
             ], 400),
         ]);
 
-        $result = $this->telegram->sendMessage('-100chat', 'Hello');
+        $result = $this->telegram->sendMessage('Hello', '-100chat');
 
         $this->assertFalse($result['success']);
         $this->assertSame('api_error', $result['error']);
@@ -106,7 +107,7 @@ class TelegramBotServiceTest extends TestCase
             throw new ConnectionException('Connection refused');
         });
 
-        $result = $this->telegram->sendMessage('-100chat', 'Hello');
+        $result = $this->telegram->sendMessage('Hello', '-100chat');
 
         $this->assertFalse($result['success']);
         $this->assertSame('network_error', $result['error']);
@@ -125,7 +126,7 @@ class TelegramBotServiceTest extends TestCase
             '*' => Http::response(['ok' => true, 'result' => ['message_id' => 42]], 200),
         ]);
 
-        $this->telegram->sendMessage('-100testchat', 'Test message body');
+        $this->telegram->sendMessage('Test message body', '-100testchat');
 
         Http::assertSent(function ($request) {
             return str_contains($request->url(), '/sendMessage')
@@ -145,7 +146,7 @@ class TelegramBotServiceTest extends TestCase
             ], 200),
         ]);
 
-        $result = $this->telegram->sendMessage('-100chat', 'Hello');
+        $result = $this->telegram->sendMessage('Hello', '-100chat');
 
         $this->assertTrue($result['success']);
         $this->assertSame(99, $result['telegram_message_id']);
@@ -194,7 +195,7 @@ class TelegramBotServiceTest extends TestCase
             '*' => Http::response(['ok' => true, 'result' => ['message_id' => 7]], 200),
         ]);
 
-        $result = $this->telegram->sendTestMessage('-100testchat');
+        $result = $this->telegram->sendTestMessage(null, '-100testchat');
 
         $this->assertTrue($result['success']);
         $this->assertSame(7, $result['telegram_message_id']);
@@ -214,7 +215,7 @@ class TelegramBotServiceTest extends TestCase
             '*' => Http::response(['ok' => true, 'result' => ['message_id' => 10]], 200),
         ]);
 
-        $result = $this->telegram->sendTestMessageForAccount($account);
+        $result = $this->telegram->sendTestMessage();
 
         $this->assertTrue($result['success']);
 
@@ -388,7 +389,70 @@ class TelegramBotServiceTest extends TestCase
         $account = $this->defaultAccount();
         $this->accountConfig(['chat_id' => '-100chat']);
 
-        $this->assertSame('env', $this->telegram->tokenSourceForAccount($account));
+        $this->assertSame('env', $this->telegram->tokenSource());
+    }
+
+    // -------------------------------------------------------------------------
+    // Notification journal logging
+    // -------------------------------------------------------------------------
+
+    public function test_successful_send_creates_sent_log(): void
+    {
+        config(['telegram.bot_token' => 'test-token']);
+
+        $this->accountConfig(['chat_id' => '-100log', 'enabled' => true]);
+
+        Http::fake(['*' => Http::response(['ok' => true, 'result' => ['message_id' => 42]], 200)]);
+
+        $this->telegram->sendMessage('Hello log', '-100log');
+
+        $this->assertDatabaseHas('telegram_notification_logs', [
+            'status' => TelegramNotificationLog::STATUS_SENT,
+            'telegram_chat_id' => '-100log',
+            'telegram_message_id' => '42',
+        ]);
+    }
+
+    public function test_failed_send_creates_failed_log(): void
+    {
+        config(['telegram.bot_token' => 'test-token']);
+
+        $this->accountConfig(['chat_id' => '-100log', 'enabled' => true]);
+
+        Http::fake(['*' => Http::response(['ok' => false, 'description' => 'Bad Request'], 400)]);
+
+        $this->telegram->sendMessage('Fail log', '-100log');
+
+        $this->assertDatabaseHas('telegram_notification_logs', [
+            'status' => TelegramNotificationLog::STATUS_FAILED,
+        ]);
+    }
+
+    public function test_skipped_send_creates_skipped_log(): void
+    {
+        config(['telegram.bot_token' => 'test-token']);
+
+        $this->accountConfig(['enabled' => false, 'chat_id' => '-100log']);
+
+        Http::fake();
+
+        $this->telegram->sendMessage('Skip log', '-100log');
+
+        $this->assertDatabaseHas('telegram_notification_logs', [
+            'status' => TelegramNotificationLog::STATUS_SKIPPED,
+        ]);
+        Http::assertNothingSent();
+    }
+
+    public function test_missing_token_creates_failed_log(): void
+    {
+        $this->accountConfig(['chat_id' => '-100log', 'enabled' => true]);
+
+        $this->telegram->sendMessage('No token', '-100log');
+
+        $this->assertDatabaseHas('telegram_notification_logs', [
+            'status' => TelegramNotificationLog::STATUS_FAILED,
+        ]);
     }
 
     // -------------------------------------------------------------------------

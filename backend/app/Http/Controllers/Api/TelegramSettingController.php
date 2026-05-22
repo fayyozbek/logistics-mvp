@@ -9,7 +9,6 @@ use App\Http\Resources\ShipmentResource;
 use App\Http\Resources\TelegramSettingResource;
 use App\Models\Shipment;
 use App\Models\TelegramSetting;
-use App\Services\AccountContext;
 use App\Services\TelegramBotService;
 use Illuminate\Http\JsonResponse;
 
@@ -84,39 +83,29 @@ class TelegramSettingController extends Controller
 
     /**
      * Returns a safe, token-free status summary for the Telegram integration.
-     *
-     * Response shape:
-     * {
-     *   "configured":            bool  – bot token is available (env or DB)
-     *   "enabled":               bool  – connected flag in settings row
-     *   "hasChatId":             bool  – a chat ID is configured
-     *   "notificationsEnabled":  bool  – connected AND at least one event flag on
-     *   "botTokenSource":        "env"|null  – never reveals DB token presence
-     * }
      */
-    public function status(TelegramBotService $telegram, AccountContext $accounts): JsonResponse
+    public function status(TelegramBotService $telegram): JsonResponse
     {
-        $account = $accounts->current();
-        $config  = $telegram->getConfigForAccount($account);
+        $notificationSetting = $telegram->getCurrentSetting();
 
-        $enabled = $config ? (bool) $config->enabled : false;
+        $enabled = $notificationSetting ? (bool) $notificationSetting->enabled : false;
 
-        $notificationsEnabled = $config
+        $notificationsEnabled = $notificationSetting
             && $enabled
-            && $config->notifications_enabled
+            && $notificationSetting->notifications_enabled
             && (
-                $config->notify_shipment_created
-                || $config->notify_status_changed
-                || $config->notify_checkpoint_added
+                $notificationSetting->notify_shipment_created
+                || $notificationSetting->notify_status_changed
+                || $notificationSetting->notify_checkpoint_added
             );
 
         return response()->json([
-            'configured'           => $telegram->isConfiguredForAccount($account),
+            'configured'           => $telegram->isConfigured(),
             'enabled'              => $enabled,
             'hasChatId'            => $telegram->getDefaultChatId() !== null,
             'notificationsEnabled' => (bool) $notificationsEnabled,
-            'botTokenSource'       => $telegram->tokenSourceForAccount($account),
-            'botUsername'          => $config?->bot_username,
+            'botTokenSource'       => $telegram->tokenSource(),
+            'botUsername'          => $notificationSetting?->telegram_username,
         ]);
     }
 
@@ -124,34 +113,16 @@ class TelegramSettingController extends Controller
     // POST /api/telegram/test-message
     // -------------------------------------------------------------------------
 
-    /**
-     * Send a test Telegram message to verify bot configuration.
-     *
-     * Request (all optional):
-     *   { "chatId": "...", "message": "..." }
-     *
-     * Response:
-     *   { "success": bool, "message": "...", "telegram_message_id": int|null }
-     *
-     * HTTP status:
-     *   200  – message delivered
-     *   422  – missing token or chat ID (configuration issue)
-     *   502  – Telegram API or network error (upstream failure)
-     */
     public function testMessage(
         SendTestMessageRequest $request,
         TelegramBotService $telegram,
-        AccountContext $accounts,
     ): JsonResponse {
-        $account = $accounts->current();
         $chatId  = $request->input('chatId') ?: null;
         $message = $request->input('message');
 
-        if ($message !== null && $message !== '') {
-            $result = $telegram->sendMessageForAccount($account, $message, $chatId);
-        } else {
-            $result = $telegram->sendTestMessageForAccount($account, null, $chatId);
-        }
+        $result = ($message !== null && $message !== '')
+            ? $telegram->sendMessage($message, $chatId)
+            : $telegram->sendTestMessage(null, $chatId);
 
         if (! $result['success']) {
             $configErrors = ['missing_token', 'missing_chat_id', 'skipped'];

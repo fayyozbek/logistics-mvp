@@ -5,25 +5,23 @@ namespace App\Services;
 use App\Models\Account;
 use App\Models\Checkpoint;
 use App\Models\Shipment;
-use App\Models\TelegramBotConfig;
 use App\Models\TelegramNotificationLog;
+use App\Models\TelegramNotificationSetting;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
- * Handles outbound Telegram Bot API notifications per account.
+ * Outbound Telegram Bot API notifications using one global bot token and
+ * per-account notification settings (chat id + toggles).
  *
- * Token resolution (per account):
- *   1. telegram_bot_configs.bot_token_encrypted
- *   2. TELEGRAM_BOT_TOKEN env / config
+ * Token: TELEGRAM_BOT_TOKEN env / config only — never from DB.
  *
- * Chat ID resolution (per account):
- *   1. Explicit $chatId argument
- *   2. telegram_bot_configs.chat_id
+ * Chat ID priority:
+ *   1. Explicit argument
+ *   2. Current TelegramNotificationSetting.telegram_chat_id
  *   3. TELEGRAM_DEFAULT_CHAT_ID env / config
- *
- * The bot token is NEVER included in returned result arrays or log output.
  */
 class TelegramBotService
 {
@@ -36,120 +34,120 @@ class TelegramBotService
     public function __construct(private AccountContext $accountContext) {}
 
     // -------------------------------------------------------------------------
-    // Account resolution
+    // Configuration & setting resolution
     // -------------------------------------------------------------------------
+
+    public function isConfigured(): bool
+    {
+        return $this->resolveToken() !== null;
+    }
+
+    /**
+     * Active notification settings for the current principal.
+     *
+     * MVP: Default Demo Account row when accounts exist; otherwise first/singleton row.
+     * Future: resolve from authenticated user/account.
+     */
+    public function getCurrentSetting(): ?TelegramNotificationSetting
+    {
+        if ($this->accountsTableExists()) {
+            $account = $this->accountContext->current();
+
+            $setting = TelegramNotificationSetting::query()
+                ->where('account_id', $account->id)
+                ->first();
+
+            if ($setting !== null) {
+                return $setting;
+            }
+        }
+
+        return TelegramNotificationSetting::query()
+            ->whereNull('account_id')
+            ->orderBy('id')
+            ->first()
+            ?? TelegramNotificationSetting::query()->orderBy('id')->first();
+    }
 
     public function currentAccount(): Account
     {
         return $this->accountContext->current();
     }
 
-    public function getConfigForAccount(Account $account): ?TelegramBotConfig
+    public function getDefaultChatId(): ?string
     {
-        return TelegramBotConfig::query()
+        return $this->resolveChatId(null);
+    }
+
+    /**
+     * @return 'env'|null
+     */
+    public function tokenSource(): ?string
+    {
+        return $this->resolveToken() !== null ? 'env' : null;
+    }
+
+    /**
+     * @return 'env'|null
+     *
+     * @deprecated Use tokenSource(); token is global, not per account.
+     */
+    public function tokenSourceForAccount(Account $account): ?string
+    {
+        return $this->tokenSource();
+    }
+
+    /**
+     * @deprecated Use isConfigured(); token is global.
+     */
+    public function isConfiguredForAccount(Account $account): bool
+    {
+        return $this->isConfigured();
+    }
+
+    /**
+     * @deprecated Use getCurrentSetting().
+     */
+    public function getConfigForAccount(Account $account): ?TelegramNotificationSetting
+    {
+        return TelegramNotificationSetting::query()
             ->where('account_id', $account->id)
             ->first();
     }
 
-    public function isConfiguredForAccount(Account $account): bool
-    {
-        return $this->resolveTokenForAccount($account) !== null;
-    }
-
-    /**
-     * @return 'config'|'env'|null
-     */
-    public function tokenSourceForAccount(Account $account): ?string
-    {
-        $config = $this->getConfigForAccount($account);
-
-        if ($config !== null && $this->configHasToken($config)) {
-            return 'config';
-        }
-
-        $envToken = config('telegram.bot_token');
-
-        if ($envToken !== null && $envToken !== '') {
-            return 'env';
-        }
-
-        return null;
-    }
-
     // -------------------------------------------------------------------------
-    // Legacy convenience (default demo account)
+    // Public send API
     // -------------------------------------------------------------------------
 
-    public function isConfigured(): bool
-    {
-        return $this->isConfiguredForAccount($this->currentAccount());
-    }
-
-    public function getDefaultChatId(): ?string
-    {
-        return $this->resolveChatIdForAccount($this->currentAccount(), null);
-    }
-
     /**
+     * @param  array{type?: string, id?: int}|null  $related
      * @return array{success: bool, message: string, telegram_message_id: int|null, error: string|null}
      */
-    public function sendMessage(string $chatId, string $text): array
-    {
-        return $this->sendMessageForAccount(
-            $this->currentAccount(),
-            $text,
-            $chatId,
-            TelegramNotificationLog::EVENT_TEST_MESSAGE,
-        );
-    }
-
-    /**
-     * @return array{success: bool, message: string, telegram_message_id: int|null, error: string|null}
-     */
-    public function sendTestMessage(?string $chatId = null): array
-    {
-        return $this->sendTestMessageForAccount($this->currentAccount(), null, $chatId);
-    }
-
-    // -------------------------------------------------------------------------
-    // Account-scoped sends
-    // -------------------------------------------------------------------------
-
-    /**
-     * @return array{success: bool, message: string, telegram_message_id: int|null, error: string|null}
-     */
-    public function sendMessageForAccount(
-        Account $account,
+    public function sendMessage(
         string $text,
         ?string $chatId = null,
-        string $eventType = TelegramNotificationLog::EVENT_TEST_MESSAGE,
-        ?string $relatedType = null,
-        ?int $relatedId = null,
+        ?string $eventType = null,
+        ?array $related = null,
     ): array {
-        return $this->dispatchSendForAccount(
-            $account,
+        return $this->dispatchSend(
             $text,
             $chatId,
-            $eventType,
-            $relatedType,
-            $relatedId,
+            $eventType ?? TelegramNotificationLog::EVENT_TEST_MESSAGE,
+            $related['type'] ?? null,
+            isset($related['id']) ? (int) $related['id'] : null,
         );
     }
 
     /**
      * @return array{success: bool, message: string, telegram_message_id: int|null, error: string|null}
      */
-    public function sendTestMessageForAccount(
-        Account $account,
-        ?string $message = null,
-        ?string $chatId = null,
-    ): array {
+    public function sendTestMessage(?string $message = null, ?string $chatId = null): array
+    {
         $text = ($message !== null && $message !== '')
             ? $message
             : "✅ Проверочное сообщение от Logistix.\nУведомления Telegram настроены корректно.";
 
-        return $this->dispatchSendForAccount(
-            $account,
+        return $this->dispatchSend(
             $text,
             $chatId,
             TelegramNotificationLog::EVENT_TEST_MESSAGE,
@@ -159,10 +157,8 @@ class TelegramBotService
     /**
      * @return array{success: bool, message: string, telegram_message_id: int|null, error: string|null}
      */
-    public function sendShipmentCreatedNotification(Shipment $shipment, ?Account $account = null): array
+    public function sendShipmentCreatedNotification(Shipment $shipment): array
     {
-        $account = $account ?? $this->currentAccount();
-
         $text = implode("\n", [
             '🚚 Новый груз создан: ' . $shipment->tracking_number,
             'Маршрут: ' . $shipment->origin . ' → ' . $shipment->destination,
@@ -170,10 +166,9 @@ class TelegramBotService
             'Статус: ' . $this->statusLabel($shipment->status),
         ]);
 
-        return $this->dispatchSendForAccount(
-            $account,
+        return $this->dispatchSend(
             $text,
-            $this->resolveChatIdForAccount($account, null),
+            null,
             TelegramNotificationLog::EVENT_SHIPMENT_CREATED,
             'shipment',
             $shipment->id,
@@ -187,20 +182,16 @@ class TelegramBotService
         Shipment $shipment,
         ?string $oldStatus,
         ?string $newStatus,
-        ?Account $account = null,
     ): array {
-        $account = $account ?? $this->currentAccount();
-
         $text = implode("\n", [
             '🔄 Статус груза обновлён: ' . $shipment->tracking_number,
             'Было: ' . $this->statusLabel($oldStatus),
             'Стало: ' . $this->statusLabel($newStatus),
         ]);
 
-        return $this->dispatchSendForAccount(
-            $account,
+        return $this->dispatchSend(
             $text,
-            $this->resolveChatIdForAccount($account, null),
+            null,
             TelegramNotificationLog::EVENT_SHIPMENT_STATUS_CHANGED,
             'shipment',
             $shipment->id,
@@ -210,13 +201,8 @@ class TelegramBotService
     /**
      * @return array{success: bool, message: string, telegram_message_id: int|null, error: string|null}
      */
-    public function sendCheckpointAddedNotification(
-        Shipment $shipment,
-        Checkpoint $checkpoint,
-        ?Account $account = null,
-    ): array {
-        $account = $account ?? $this->currentAccount();
-
+    public function sendCheckpointAddedNotification(Shipment $shipment, Checkpoint $checkpoint): array
+    {
         $location = trim(implode(', ', array_filter([
             $checkpoint->city,
             $checkpoint->country,
@@ -228,14 +214,42 @@ class TelegramBotService
             'Статус точки: ' . $this->checkpointStatusLabel($checkpoint->status),
         ]);
 
-        return $this->dispatchSendForAccount(
-            $account,
+        return $this->dispatchSend(
             $text,
-            $this->resolveChatIdForAccount($account, null),
+            null,
             TelegramNotificationLog::EVENT_CHECKPOINT_ADDED,
             'checkpoint',
             $checkpoint->id,
         );
+    }
+
+    /**
+     * @return array{success: bool, message: string, telegram_message_id: int|null, error: string|null}
+     *
+     * @deprecated Use sendMessage($text, $chatId, ...).
+     */
+    public function sendMessageForAccount(
+        Account $account,
+        string $text,
+        ?string $chatId = null,
+        string $eventType = TelegramNotificationLog::EVENT_TEST_MESSAGE,
+        ?string $relatedType = null,
+        ?int $relatedId = null,
+    ): array {
+        return $this->dispatchSend($text, $chatId, $eventType, $relatedType, $relatedId);
+    }
+
+    /**
+     * @return array{success: bool, message: string, telegram_message_id: int|null, error: string|null}
+     *
+     * @deprecated Use sendTestMessage().
+     */
+    public function sendTestMessageForAccount(
+        Account $account,
+        ?string $message = null,
+        ?string $chatId = null,
+    ): array {
+        return $this->sendTestMessage($message, $chatId);
     }
 
     // -------------------------------------------------------------------------
@@ -244,14 +258,13 @@ class TelegramBotService
 
     public function shouldNotifyForShipment(Shipment $shipment, string $eventFlagKey): bool
     {
-        $account = $this->currentAccount();
-        $config  = $this->getConfigForAccount($account);
-
-        if (! $this->isConfiguredForAccount($account)) {
+        if (! $this->isConfigured()) {
             return false;
         }
 
-        if ($config === null || ! $config->enabled || ! $config->notifications_enabled) {
+        $setting = $this->getCurrentSetting();
+
+        if ($setting === null || ! $this->settingAllowsNotifications($setting)) {
             return false;
         }
 
@@ -259,7 +272,7 @@ class TelegramBotService
             return false;
         }
 
-        return $this->eventFlagAllowsNotify($config, $eventFlagKey);
+        return $this->eventFlagAllowsNotify($setting, $eventFlagKey);
     }
 
     // -------------------------------------------------------------------------
@@ -269,23 +282,24 @@ class TelegramBotService
     /**
      * @return array{success: bool, message: string, telegram_message_id: int|null, error: string|null}
      */
-    private function dispatchSendForAccount(
-        Account $account,
+    private function dispatchSend(
         string $text,
         ?string $chatId,
         string $eventType,
         ?string $relatedType = null,
         ?int $relatedId = null,
     ): array {
-        $config = $this->getConfigForAccount($account);
+        $setting = $this->getCurrentSetting();
         $preview = $this->messagePreview($text);
-        $resolvedChatId = $this->resolveChatIdForAccount($account, $chatId);
+        $resolvedChatId = $this->resolveChatId($chatId);
+        $accountId = $setting?->account_id ?? ($this->accountsTableExists() ? $this->accountContext->current()->id : null);
 
-        if ($config !== null && ! $config->enabled) {
-            $result = $this->skipped('Telegram bot is disabled for this account.');
-            $this->recordNotificationLog(
-                $account,
-                $config,
+        if ($setting !== null && ! $this->settingAllowsNotifications($setting)) {
+            $result = $this->skipped('Telegram notifications are disabled for this account.');
+
+            return $this->finalizeSend(
+                $setting,
+                $accountId,
                 $eventType,
                 $relatedType,
                 $relatedId,
@@ -293,17 +307,16 @@ class TelegramBotService
                 $preview,
                 $result,
             );
-
-            return $result;
         }
 
-        $token = $this->resolveTokenForAccount($account);
+        $token = $this->resolveToken();
 
         if ($token === null) {
             $result = $this->failure('Telegram bot token not configured.', 'missing_token');
-            $this->recordNotificationLog(
-                $account,
-                $config,
+
+            return $this->finalizeSend(
+                $setting,
+                $accountId,
                 $eventType,
                 $relatedType,
                 $relatedId,
@@ -311,15 +324,14 @@ class TelegramBotService
                 $preview,
                 $result,
             );
-
-            return $result;
         }
 
         if ($resolvedChatId === null || $resolvedChatId === '') {
             $result = $this->failure('Telegram chat ID not configured.', 'missing_chat_id');
-            $this->recordNotificationLog(
-                $account,
-                $config,
+
+            return $this->finalizeSend(
+                $setting,
+                $accountId,
                 $eventType,
                 $relatedType,
                 $relatedId,
@@ -327,8 +339,6 @@ class TelegramBotService
                 $preview,
                 $result,
             );
-
-            return $result;
         }
 
         try {
@@ -346,9 +356,10 @@ class TelegramBotService
                     $body['description'] ?? 'Telegram API returned an error.',
                     'api_error',
                 );
-                $this->recordNotificationLog(
-                    $account,
-                    $config,
+
+                return $this->finalizeSend(
+                    $setting,
+                    $accountId,
                     $eventType,
                     $relatedType,
                     $relatedId,
@@ -356,8 +367,6 @@ class TelegramBotService
                     $preview,
                     $result,
                 );
-
-                return $result;
             }
 
             $result = [
@@ -369,9 +378,9 @@ class TelegramBotService
                 'error' => null,
             ];
 
-            $this->recordNotificationLog(
-                $account,
-                $config,
+            return $this->finalizeSend(
+                $setting,
+                $accountId,
                 $eventType,
                 $relatedType,
                 $relatedId,
@@ -379,11 +388,9 @@ class TelegramBotService
                 $preview,
                 $result,
             );
-
-            return $result;
         } catch (\Throwable $e) {
             Log::warning('TelegramBotService: failed to deliver message.', [
-                'account_id' => $account->id,
+                'account_id' => $accountId,
                 'chat_id' => $resolvedChatId,
                 'error' => $e->getMessage(),
             ]);
@@ -392,9 +399,10 @@ class TelegramBotService
                 'Failed to send Telegram message: network or connection error.',
                 'network_error',
             );
-            $this->recordNotificationLog(
-                $account,
-                $config,
+
+            return $this->finalizeSend(
+                $setting,
+                $accountId,
                 $eventType,
                 $relatedType,
                 $relatedId,
@@ -402,17 +410,43 @@ class TelegramBotService
                 $preview,
                 $result,
             );
-
-            return $result;
         }
+    }
+
+    /**
+     * @param  array{success: bool, message: string, telegram_message_id: int|null, error: string|null}  $result
+     * @return array{success: bool, message: string, telegram_message_id: int|null, error: string|null}
+     */
+    private function finalizeSend(
+        ?TelegramNotificationSetting $setting,
+        ?int $accountId,
+        string $eventType,
+        ?string $relatedType,
+        ?int $relatedId,
+        ?string $chatId,
+        string $messagePreview,
+        array $result,
+    ): array {
+        $this->recordNotificationLog(
+            $setting,
+            $accountId,
+            $eventType,
+            $relatedType,
+            $relatedId,
+            $chatId,
+            $messagePreview,
+            $result,
+        );
+
+        return $result;
     }
 
     /**
      * @param  array{success: bool, message: string, telegram_message_id: int|null, error: string|null}  $result
      */
     private function recordNotificationLog(
-        Account $account,
-        ?TelegramBotConfig $config,
+        ?TelegramNotificationSetting $setting,
+        ?int $accountId,
         string $eventType,
         ?string $relatedType,
         ?int $relatedId,
@@ -420,16 +454,20 @@ class TelegramBotService
         string $messagePreview,
         array $result,
     ): void {
+        if (! Schema::hasTable('telegram_notification_logs')) {
+            return;
+        }
+
         $status = $this->logStatusFromResult($result);
         $sentAt = $status === TelegramNotificationLog::STATUS_SENT ? now() : null;
 
         TelegramNotificationLog::query()->create([
-            'account_id' => $account->id,
-            'telegram_bot_config_id' => $config?->id,
+            'telegram_notification_setting_id' => $setting?->id,
+            'account_id' => $accountId,
             'event_type' => $eventType,
             'related_type' => $relatedType,
             'related_id' => $relatedId,
-            'chat_id' => $chatId,
+            'telegram_chat_id' => $chatId,
             'message_preview' => $messagePreview,
             'status' => $status,
             'telegram_message_id' => $result['telegram_message_id'] !== null
@@ -474,36 +512,23 @@ class TelegramBotService
     // Private helpers
     // -------------------------------------------------------------------------
 
-    private function resolveTokenForAccount(Account $account): ?string
+    private function resolveToken(): ?string
     {
-        $config = $this->getConfigForAccount($account);
-
-        if ($config !== null && $this->configHasToken($config)) {
-            return $config->bot_token_encrypted;
-        }
-
         $envToken = config('telegram.bot_token');
 
         return ($envToken !== null && $envToken !== '') ? $envToken : null;
     }
 
-    private function configHasToken(TelegramBotConfig $config): bool
-    {
-        $token = $config->bot_token_encrypted;
-
-        return $token !== null && $token !== '';
-    }
-
-    private function resolveChatIdForAccount(Account $account, ?string $override): ?string
+    private function resolveChatId(?string $override): ?string
     {
         if ($override !== null && $override !== '') {
             return $override;
         }
 
-        $config = $this->getConfigForAccount($account);
+        $setting = $this->getCurrentSetting();
 
-        if ($config?->chat_id) {
-            return $config->chat_id;
+        if ($setting?->telegram_chat_id) {
+            return $setting->telegram_chat_id;
         }
 
         $fallback = config('telegram.default_chat_id');
@@ -511,18 +536,28 @@ class TelegramBotService
         return ($fallback !== null && $fallback !== '') ? $fallback : null;
     }
 
-    private function eventFlagAllowsNotify(TelegramBotConfig $config, string $eventFlagKey): bool
+    private function settingAllowsNotifications(TelegramNotificationSetting $setting): bool
+    {
+        return $setting->enabled && $setting->notifications_enabled;
+    }
+
+    private function eventFlagAllowsNotify(TelegramNotificationSetting $setting, string $eventFlagKey): bool
     {
         return match ($eventFlagKey) {
-            'departure'  => $config->notify_shipment_created || $config->notify_status_changed,
-            'checkpoint' => $config->notify_checkpoint_added || $config->notify_status_changed,
+            'departure'  => $setting->notify_shipment_created || $setting->notify_status_changed,
+            'checkpoint' => $setting->notify_checkpoint_added,
             'delivery',
             'delay',
-            'customs'    => $config->notify_status_changed,
+            'customs'    => $setting->notify_status_changed,
             'payment',
             'docs'       => false,
             default      => false,
         };
+    }
+
+    private function accountsTableExists(): bool
+    {
+        return Schema::hasTable('accounts');
     }
 
     /**

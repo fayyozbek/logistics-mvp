@@ -42,7 +42,7 @@ class TelegramNotificationJournalTest extends TestCase
 
         Http::fake(['*' => Http::response(['ok' => true, 'result' => ['message_id' => 99]], 200)]);
 
-        $this->telegram->sendTestMessageForAccount($account);
+        $this->telegram->sendTestMessage();
 
         $this->assertDatabaseHas('telegram_notification_logs', [
             'account_id' => $account->id,
@@ -72,7 +72,7 @@ class TelegramNotificationJournalTest extends TestCase
             '*' => Http::response(['ok' => false, 'description' => 'Bad Request'], 400),
         ]);
 
-        $this->telegram->sendTestMessageForAccount($account);
+        $this->telegram->sendTestMessage();
 
         $this->assertDatabaseHas('telegram_notification_logs', [
             'account_id' => $account->id,
@@ -96,7 +96,7 @@ class TelegramNotificationJournalTest extends TestCase
 
         Http::fake();
 
-        $this->telegram->sendTestMessageForAccount($account);
+        $this->telegram->sendTestMessage();
 
         $this->assertDatabaseHas('telegram_notification_logs', [
             'account_id' => $account->id,
@@ -225,7 +225,7 @@ class TelegramNotificationJournalTest extends TestCase
             throw new ConnectionException('timeout');
         });
 
-        $this->telegram->sendTestMessageForAccount($account);
+        $this->telegram->sendTestMessage();
 
         $log = TelegramNotificationLog::query()->firstOrFail();
         $this->assertSame(TelegramNotificationLog::STATUS_FAILED, $log->status);

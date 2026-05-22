@@ -7,8 +7,7 @@ return [
     | Telegram Bot Token
     |--------------------------------------------------------------------------
     | Read from env TELEGRAM_BOT_TOKEN. Never exposed in API responses or logs.
-    | Falls back to the encrypted bot_token stored in telegram_settings DB row
-    | (resolved by TelegramBotService), allowing UI-managed token overrides.
+    | Single global bot identity for the whole application (not per account/user).
     */
     'bot_token' => env('TELEGRAM_BOT_TOKEN') ?: null,
 
@@ -16,8 +15,7 @@ return [
     |--------------------------------------------------------------------------
     | Default Chat ID
     |--------------------------------------------------------------------------
-    | Optional fallback when no chat_id is stored in telegram_settings yet.
-    | Useful for bootstrapping before the admin saves settings through the UI.
+    | Optional fallback when telegram_notification_settings has no chat id yet.
     */
     'default_chat_id' => env('TELEGRAM_DEFAULT_CHAT_ID') ?: null,
 
