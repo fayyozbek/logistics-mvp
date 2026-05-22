@@ -2,11 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Account;
 use App\Models\Checkpoint;
 use App\Models\Client;
 use App\Models\Manager;
 use App\Models\Shipment;
-use App\Models\TelegramSetting;
+use App\Models\TelegramBotConfig;
 use App\Services\TelegramBotService;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -48,13 +49,9 @@ class TelegramBotServiceTest extends TestCase
         $this->assertTrue($this->telegram->isConfigured());
     }
 
-    public function test_service_reports_configured_when_db_token_exists(): void
+    public function test_service_reports_configured_when_account_config_token_exists(): void
     {
-        TelegramSetting::create([
-            'bot_token' => 'db-token-xyz',
-            'chat_id'   => '-100000',
-            'connected' => true,
-        ]);
+        $this->accountConfig(['bot_token_encrypted' => 'db-token-xyz', 'chat_id' => '-100000']);
 
         $this->assertTrue($this->telegram->isConfigured());
     }
@@ -203,20 +200,20 @@ class TelegramBotServiceTest extends TestCase
         $this->assertSame(7, $result['telegram_message_id']);
     }
 
-    public function test_send_test_message_uses_db_chat_id_when_not_overridden(): void
+    public function test_send_test_message_uses_account_config_chat_id_when_not_overridden(): void
     {
-        config(['telegram.bot_token' => 'test-token']);
-
-        TelegramSetting::create([
-            'chat_id'   => '-100dbchat',
-            'connected' => true,
+        $account = $this->defaultAccount();
+        $this->accountConfig([
+            'bot_token_encrypted' => 'test-token',
+            'chat_id' => '-100dbchat',
+            'enabled' => true,
         ]);
 
         Http::fake([
             '*' => Http::response(['ok' => true, 'result' => ['message_id' => 10]], 200),
         ]);
 
-        $result = $this->telegram->sendTestMessage();
+        $result = $this->telegram->sendTestMessageForAccount($account);
 
         $this->assertTrue($result['success']);
 
@@ -309,9 +306,9 @@ class TelegramBotServiceTest extends TestCase
     // getDefaultChatId()
     // -------------------------------------------------------------------------
 
-    public function test_get_default_chat_id_returns_db_value(): void
+    public function test_get_default_chat_id_returns_account_config_value(): void
     {
-        TelegramSetting::create(['chat_id' => '-100fromdb', 'connected' => true]);
+        $this->accountConfig(['chat_id' => '-100fromdb', 'enabled' => true]);
 
         $this->assertSame('-100fromdb', $this->telegram->getDefaultChatId());
     }
@@ -329,8 +326,87 @@ class TelegramBotServiceTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
+    // Account-specific config
+    // -------------------------------------------------------------------------
+
+    public function test_account_config_token_takes_priority_over_env_token(): void
+    {
+        config(['telegram.bot_token' => 'env-token-should-not-be-used']);
+
+        $account = $this->defaultAccount();
+        $this->accountConfig(['bot_token_encrypted' => 'account-config-token', 'chat_id' => '-100chat']);
+
+        Http::fake(['*' => Http::response(['ok' => true, 'result' => ['message_id' => 1]], 200)]);
+
+        $this->telegram->sendMessageForAccount($account, 'Hello', '-100chat');
+
+        Http::assertSent(function ($request) {
+            return str_contains($request->url(), 'account-config-token');
+        });
+    }
+
+    public function test_env_token_used_when_account_config_token_missing(): void
+    {
+        config(['telegram.bot_token' => 'env-only-token']);
+
+        $account = $this->defaultAccount();
+        $this->accountConfig(['bot_token_encrypted' => null, 'chat_id' => '-100chat', 'enabled' => true]);
+
+        Http::fake(['*' => Http::response(['ok' => true, 'result' => ['message_id' => 1]], 200)]);
+
+        $this->telegram->sendMessageForAccount($account, 'Hello', '-100chat');
+
+        Http::assertSent(function ($request) {
+            return str_contains($request->url(), 'env-only-token');
+        });
+    }
+
+    public function test_disabled_account_config_returns_skipped_without_api_call(): void
+    {
+        config(['telegram.bot_token' => 'test-token']);
+
+        $account = $this->defaultAccount();
+        $this->accountConfig(['enabled' => false, 'chat_id' => '-100chat']);
+
+        Http::fake();
+
+        $result = $this->telegram->sendMessageForAccount($account, 'Hello', '-100chat');
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('skipped', $result['error']);
+        Http::assertNothingSent();
+    }
+
+    public function test_token_source_for_account_returns_config_when_db_token_set(): void
+    {
+        $account = $this->defaultAccount();
+        $this->accountConfig(['bot_token_encrypted' => 'db-token']);
+
+        $this->assertSame('config', $this->telegram->tokenSourceForAccount($account));
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    private function defaultAccount(): Account
+    {
+        return Account::query()->firstOrCreate(
+            ['slug' => Account::DEFAULT_SLUG],
+            ['name' => 'Default Demo Account', 'is_active' => true],
+        );
+    }
+
+    private function accountConfig(array $attributes = []): TelegramBotConfig
+    {
+        return TelegramBotConfig::query()->updateOrCreate(
+            ['account_id' => $this->defaultAccount()->id],
+            array_merge([
+                'enabled' => true,
+                'notifications_enabled' => true,
+            ], $attributes),
+        );
+    }
 
     private function makeShipment(array $attributes = []): Shipment
     {

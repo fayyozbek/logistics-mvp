@@ -2,10 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Account;
 use App\Models\Client;
 use App\Models\Manager;
 use App\Models\Shipment;
-use App\Models\TelegramSetting;
+use App\Models\TelegramBotConfig;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
@@ -37,25 +38,51 @@ class TelegramEventNotificationsTest extends TestCase
     // =========================================================================
 
     /**
-     * Create a telegram_settings row with all notification flags enabled.
+     * Enable Telegram for the default demo account via telegram_bot_configs.
      */
-    private function enableTelegram(array $overrides = []): TelegramSetting
+    private function enableTelegram(array $overrides = []): TelegramBotConfig
     {
-        config(['telegram.bot_token' => 'test-token']);
+        $account = Account::query()->firstOrCreate(
+            ['slug' => Account::DEFAULT_SLUG],
+            ['name' => 'Default Demo Account', 'is_active' => true],
+        );
 
-        return TelegramSetting::create(array_merge([
-            'chat_id'     => '-100testchat',
-            'connected'   => true,
-            'event_flags' => [
-                'departure'  => true,
-                'checkpoint' => true,
-                'customs'    => false,
-                'delay'      => true,
-                'delivery'   => true,
-                'payment'    => false,
-                'docs'       => false,
-            ],
-        ], $overrides));
+        if (isset($overrides['connected'])) {
+            $overrides['enabled'] = (bool) $overrides['connected'];
+            unset($overrides['connected']);
+        }
+
+        if (isset($overrides['event_flags'])) {
+            $flags = $overrides['event_flags'];
+            unset($overrides['event_flags']);
+
+            if (array_key_exists('departure', $flags)) {
+                $overrides['notify_shipment_created'] = (bool) $flags['departure'];
+            }
+            if (array_key_exists('checkpoint', $flags)) {
+                $overrides['notify_checkpoint_added'] = (bool) $flags['checkpoint'];
+            }
+
+            $overrides['notify_status_changed'] = (bool) (
+                ($flags['delivery'] ?? false)
+                || ($flags['delay'] ?? false)
+                || ($flags['departure'] ?? false)
+                || ($flags['checkpoint'] ?? false)
+            );
+        }
+
+        return TelegramBotConfig::query()->updateOrCreate(
+            ['account_id' => $account->id],
+            array_merge([
+                'chat_id' => '-100testchat',
+                'enabled' => true,
+                'notifications_enabled' => true,
+                'notify_shipment_created' => true,
+                'notify_status_changed' => true,
+                'notify_checkpoint_added' => true,
+                'bot_token_encrypted' => 'test-token',
+            ], $overrides),
+        );
     }
 
     /** Minimal payload to POST /api/shipments. */
@@ -123,7 +150,9 @@ class TelegramEventNotificationsTest extends TestCase
     public function test_shipment_creation_does_not_notify_when_departure_flag_off(): void
     {
         $this->enableTelegram([
-            'event_flags' => ['departure' => false, 'checkpoint' => true, 'delay' => true, 'delivery' => true],
+            'notify_shipment_created' => false,
+            'notify_status_changed' => false,
+            'notify_checkpoint_added' => true,
         ]);
 
         Http::fake(['*' => Http::response(['ok' => true, 'result' => ['message_id' => 1]], 200)]);
@@ -324,7 +353,9 @@ class TelegramEventNotificationsTest extends TestCase
     public function test_checkpoint_creation_does_not_notify_when_flag_off(): void
     {
         $this->enableTelegram([
-            'event_flags' => ['checkpoint' => false, 'departure' => true, 'delivery' => true, 'delay' => true],
+            'notify_checkpoint_added' => false,
+            'notify_status_changed' => false,
+            'notify_shipment_created' => true,
         ]);
 
         Http::fake(['*' => Http::response(['ok' => true, 'result' => ['message_id' => 7]], 200)]);

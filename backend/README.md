@@ -78,13 +78,17 @@ See `docs/TELEGRAM_ACCOUNT_ARCHITECTURE.md` in the repo root.
 
 `app/Services/TelegramBotService` handles outbound Telegram Bot API notifications.
 
-**Token resolution (priority order):**
-1. `TELEGRAM_BOT_TOKEN` env / `config/telegram.php`
-2. Encrypted `bot_token` stored in `telegram_settings` DB row
+**Account resolution (MVP):** `AccountContext` returns the Default Demo Account (`slug=default-demo`). Future auth will resolve the account from the authenticated user.
 
-**Chat ID resolution (priority order):**
-1. Explicit `$chatId` argument passed to a notification method
-2. `telegram_settings.chat_id` (DB row)
+**Token resolution (per account, priority order):**
+1. `telegram_bot_configs.bot_token_encrypted` for the current account
+2. `TELEGRAM_BOT_TOKEN` env / `config/telegram.php`
+
+Legacy `telegram_settings.bot_token` is not used by `TelegramBotService` after this refactor.
+
+**Chat ID resolution (per account, priority order):**
+1. Explicit `$chatId` argument
+2. `telegram_bot_configs.chat_id` for the current account
 3. `TELEGRAM_DEFAULT_CHAT_ID` env
 
 **Available methods:**
@@ -123,7 +127,7 @@ TELEGRAM_TIMEOUT=10        # HTTP timeout in seconds
 | Status → `delayed` | `delay` | `sendShipmentStatusChangedNotification` |
 | Checkpoint added | `checkpoint` | `sendCheckpointAddedNotification` |
 
-All conditions required to send: token configured **AND** `shipment.telegram_notifications = true` **AND** global `connected = true` **AND** relevant event flag on. Telegram failures never affect the primary API response.
+All conditions required to send: token configured **AND** `shipment.telegram_notifications = true` **AND** account config `enabled` + `notifications_enabled` **AND** relevant notify toggle (`notify_shipment_created`, `notify_status_changed`, `notify_checkpoint_added`). Telegram failures never affect the primary API response.
 
 ## Finance amounts (MVP)
 

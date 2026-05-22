@@ -9,6 +9,7 @@ use App\Http\Resources\ShipmentResource;
 use App\Http\Resources\TelegramSettingResource;
 use App\Models\Shipment;
 use App\Models\TelegramSetting;
+use App\Services\AccountContext;
 use App\Services\TelegramBotService;
 use Illuminate\Http\JsonResponse;
 
@@ -93,25 +94,29 @@ class TelegramSettingController extends Controller
      *   "botTokenSource":        "env"|null  – never reveals DB token presence
      * }
      */
-    public function status(TelegramBotService $telegram): JsonResponse
+    public function status(TelegramBotService $telegram, AccountContext $accounts): JsonResponse
     {
-        $setting    = TelegramSetting::query()->first();
-        $eventFlags = $setting ? ($setting->event_flags ?? []) : [];
-        $connected  = $setting ? (bool) $setting->connected : false;
+        $account = $accounts->current();
+        $config  = $telegram->getConfigForAccount($account);
 
-        $notificationsEnabled = $connected && in_array(true, $eventFlags, strict: true);
+        $enabled = $config ? (bool) $config->enabled : false;
 
-        // Reveal "env" only when TELEGRAM_BOT_TOKEN is explicitly set.
-        // Never indicate whether a DB token exists.
-        $envToken       = config('telegram.bot_token');
-        $botTokenSource = ($envToken !== null && $envToken !== '') ? 'env' : null;
+        $notificationsEnabled = $config
+            && $enabled
+            && $config->notifications_enabled
+            && (
+                $config->notify_shipment_created
+                || $config->notify_status_changed
+                || $config->notify_checkpoint_added
+            );
 
         return response()->json([
-            'configured'           => $telegram->isConfigured(),
-            'enabled'              => $connected,
+            'configured'           => $telegram->isConfiguredForAccount($account),
+            'enabled'              => $enabled,
             'hasChatId'            => $telegram->getDefaultChatId() !== null,
-            'notificationsEnabled' => $notificationsEnabled,
-            'botTokenSource'       => $botTokenSource,
+            'notificationsEnabled' => (bool) $notificationsEnabled,
+            'botTokenSource'       => $telegram->tokenSourceForAccount($account),
+            'botUsername'          => $config?->bot_username,
         ]);
     }
 
@@ -133,32 +138,24 @@ class TelegramSettingController extends Controller
      *   422  – missing token or chat ID (configuration issue)
      *   502  – Telegram API or network error (upstream failure)
      */
-    public function testMessage(SendTestMessageRequest $request, TelegramBotService $telegram): JsonResponse
-    {
+    public function testMessage(
+        SendTestMessageRequest $request,
+        TelegramBotService $telegram,
+        AccountContext $accounts,
+    ): JsonResponse {
+        $account = $accounts->current();
         $chatId  = $request->input('chatId') ?: null;
         $message = $request->input('message');
 
         if ($message !== null && $message !== '') {
-            // Custom message: resolve chat ID explicitly so we can return
-            // a proper 422 before ever calling the service.
-            $resolvedChatId = $chatId ?? $telegram->getDefaultChatId();
-
-            if ($resolvedChatId === null) {
-                return response()->json([
-                    'success'              => false,
-                    'message'              => 'Telegram chat ID not configured.',
-                    'telegram_message_id'  => null,
-                ], 422);
-            }
-
-            $result = $telegram->sendMessage($resolvedChatId, $message);
+            $result = $telegram->sendMessageForAccount($account, $message, $chatId);
         } else {
-            $result = $telegram->sendTestMessage($chatId);
+            $result = $telegram->sendTestMessageForAccount($account, null, $chatId);
         }
 
         if (! $result['success']) {
-            $configErrors = ['missing_token', 'missing_chat_id'];
-            $status = in_array($result['error'] ?? null, $configErrors) ? 422 : 502;
+            $configErrors = ['missing_token', 'missing_chat_id', 'skipped'];
+            $status = in_array($result['error'] ?? null, $configErrors, true) ? 422 : 502;
 
             return response()->json([
                 'success'             => false,

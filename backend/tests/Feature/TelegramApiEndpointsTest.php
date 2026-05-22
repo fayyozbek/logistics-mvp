@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Account;
+use App\Models\TelegramBotConfig;
 use App\Models\TelegramSetting;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -40,10 +42,11 @@ class TelegramApiEndpointsTest extends TestCase
     {
         config(['telegram.bot_token' => 'test-env-token']);
 
-        TelegramSetting::create([
-            'chat_id'     => '-100testchat',
-            'connected'   => true,
-            'event_flags' => ['departure' => true, 'checkpoint' => false],
+        $this->accountTelegramConfig([
+            'chat_id' => '-100testchat',
+            'enabled' => true,
+            'notify_shipment_created' => true,
+            'notify_checkpoint_added' => false,
         ]);
 
         $this->getJson('/api/telegram/status')
@@ -55,29 +58,31 @@ class TelegramApiEndpointsTest extends TestCase
             ->assertJsonPath('botTokenSource', 'env');
     }
 
-    public function test_status_returns_env_source_only_for_env_token(): void
+    public function test_status_returns_config_source_when_account_token_set(): void
     {
-        // DB token present but no env token → botTokenSource must be null.
-        TelegramSetting::create([
-            'bot_token' => 'db-only-token',
-            'chat_id'   => '-100testchat',
-            'connected' => true,
+        config(['telegram.bot_token' => null]);
+
+        $this->accountTelegramConfig([
+            'bot_token_encrypted' => 'db-only-token',
+            'chat_id' => '-100testchat',
+            'enabled' => true,
         ]);
 
         $this->getJson('/api/telegram/status')
             ->assertOk()
-            ->assertJsonPath('botTokenSource', null);   // never reveals 'db'
+            ->assertJsonPath('configured', true)
+            ->assertJsonPath('botTokenSource', 'config');
     }
 
-    public function test_status_notifications_enabled_requires_connected_and_active_flag(): void
+    public function test_status_notifications_enabled_requires_enabled_and_active_toggles(): void
     {
         config(['telegram.bot_token' => 'test-token']);
 
-        // connected=false → notificationsEnabled must be false even with flags on
-        TelegramSetting::create([
-            'chat_id'     => '-100chat',
-            'connected'   => false,
-            'event_flags' => ['departure' => true, 'delivery' => true],
+        $this->accountTelegramConfig([
+            'chat_id' => '-100chat',
+            'enabled' => false,
+            'notify_shipment_created' => true,
+            'notify_status_changed' => true,
         ]);
 
         $this->getJson('/api/telegram/status')
@@ -150,11 +155,13 @@ class TelegramApiEndpointsTest extends TestCase
             ->assertJsonPath('telegram_message_id', 77);
     }
 
-    public function test_test_message_succeeds_using_db_chat_id(): void
+    public function test_test_message_succeeds_using_account_config_chat_id(): void
     {
-        config(['telegram.bot_token' => 'test-token']);
-
-        TelegramSetting::create(['chat_id' => '-100dbchat', 'connected' => true]);
+        $this->accountTelegramConfig([
+            'bot_token_encrypted' => 'test-token',
+            'chat_id' => '-100dbchat',
+            'enabled' => true,
+        ]);
 
         Http::fake(['*' => Http::response(['ok' => true, 'result' => ['message_id' => 5]], 200)]);
 
@@ -296,5 +303,24 @@ class TelegramApiEndpointsTest extends TestCase
 
         $after = TelegramSetting::query()->firstOrFail()->bot_token;
         $this->assertSame($before, $after, 'Masked placeholder must not overwrite stored token.');
+    }
+
+    private function accountTelegramConfig(array $attributes = []): TelegramBotConfig
+    {
+        $account = Account::query()->firstOrCreate(
+            ['slug' => Account::DEFAULT_SLUG],
+            ['name' => 'Default Demo Account', 'is_active' => true],
+        );
+
+        return TelegramBotConfig::query()->updateOrCreate(
+            ['account_id' => $account->id],
+            array_merge([
+                'enabled' => true,
+                'notifications_enabled' => true,
+                'notify_shipment_created' => true,
+                'notify_status_changed' => true,
+                'notify_checkpoint_added' => true,
+            ], $attributes),
+        );
     }
 }
