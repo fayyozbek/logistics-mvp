@@ -1,200 +1,192 @@
-# Account-Specific Telegram Bot Architecture
+# Telegram User & Account Notification Architecture
 
-**Task:** TELEGRAM-ACCOUNT-SCOPE-001  
-**Status:** Architecture documentation (implementation not started)  
+**Task:** TELEGRAM-ACCOUNT-SCOPE-001, corrected by **TELEGRAM-ARCHITECTURE-CORRECTION-001**
+
+**Status:** Architecture documentation (target model; code may lag — see §2)
+
 **Last updated:** 2026-05-22
 
 ## Purpose
 
-Define a **future-ready** architecture for Telegram bot configuration and notification logging that:
+Define how **one shared Logistics Telegram bot** delivers notifications to **many users/accounts**, each with their own chat target and preferences.
 
-- Works today with a single **Default Demo Account** (no auth required).
-- Scales later to **one bot + chat settings per account/workspace** when users and authentication exist.
-- Keeps **bot tokens server-side only** and **never exposes secrets** to the frontend.
+**Correct model:**
 
-This document is the contract for follow-on tasks: notification journal, account-scoped settings, and auth integration.
+- **One** `TELEGRAM_BOT_TOKEN` — global backend environment variable only.
+- **Per user/account** — `telegram_chat_id`, optional `telegram_username`, enabled flags, notification toggles, and **own notification history**.
+- **No** separate bot token per account, user, or tenant.
 
-**Related:** [TELEGRAM_BOT_SCOPE.md](./TELEGRAM_BOT_SCOPE.md) (MVP send/test/status scope, largely implemented on `feature/telegram-bot-mvp`).
+Until auth exists, use a **Default Demo user/account** for settings and logs. When auth is added, resolve the active principal from the session and scope all reads/writes to that user or account.
+
+**Related:** [TELEGRAM_BOT_SCOPE.md](./TELEGRAM_BOT_SCOPE.md) — sends, endpoints, env vars, production checklist.
+
+---
+
+## Architecture correction (TELEGRAM-ARCHITECTURE-CORRECTION-001)
+
+| Topic | Incorrect direction (do not build toward) | Correct direction |
+|-------|----------------------------------------|-------------------|
+| Bot identity | `telegram_bot_configs.bot_token` per account, DB-encrypted token fallback | Single bot from `TELEGRAM_BOT_TOKEN` env only |
+| Token in API | `PATCH` accepts `botToken`, masked `botToken` in GET | No token field in API; `configured: true/false` from env only |
+| Token in DB | `telegram_settings.bot_token`, `telegram_bot_configs.bot_token_encrypted` | **Forbidden** — remove in migration follow-on |
+| Per-account meaning | Each account runs its own @BotFather bot | Each account/user only stores **where to send** (chat id) and **what to send** (toggles) |
+| Logs | Per account (correct) | Per user/account (unchanged intent) |
 
 ---
 
 ## 1. Concepts
 
-### 1.1 Account (workspace)
+### 1.1 Global bot (application-wide)
 
-An **account** is the top-level tenant boundary for logistics data and integrations.
+| Item | Rule |
+|------|------|
+| `TELEGRAM_BOT_TOKEN` | Set once in Render/local backend env. Never in frontend, never in DB, never in API responses or logs. |
+| Bot username | Resolved via Telegram `getMe` and cached in config or returned as read-only metadata in status API. Not a secret. |
+| Webhook | One webhook URL per deployment; `TELEGRAM_WEBHOOK_SECRET` is deployment-wide. |
 
-| Concept | Description |
-|---------|-------------|
-| **Account** | Owns shipments, clients, managers, finance, and Telegram configuration. |
-| **Default Demo Account** | Single fixed account used until real auth exists. All current API traffic resolves to this account. |
-| **Future account** | Created when a customer signs up; has its own bot token, chat ID, toggles, and notification log. |
+### 1.2 User/account notification settings (per principal)
 
-**Naming in code (recommended):** `Account` model, table `accounts`, slug `default-demo` for the MVP row.
-
-### 1.2 Telegram bot configuration (per account)
-
-Each account has **at most one active Telegram integration config** in MVP+ (extensible to multiple channels later).
+Each **user** or **account** (tenant member) has at most one row of **notification settings** — not a separate bot.
 
 | Field | Stored | Returned to frontend |
 |-------|--------|----------------------|
-| `bot_token` | DB (encrypted) and/or env fallback | **Never** — only `configured: true/false` |
-| `bot_username` | DB (from Bot API `getMe` after setup) or cache | **Yes** — public identifier |
-| `chat_id` | DB | **Yes** |
-| `connected` / `enabled` | DB | **Yes** |
-| `event_flags` | DB JSON | **Yes** |
-| `last_test_at`, `last_test_status`, `last_test_message` | DB | **Yes** — short status only, no secrets |
+| `telegram_chat_id` | DB | **Yes** |
+| `telegram_username` | DB (optional, e.g. `@username`) | **Yes** |
+| `enabled` / `connected` | DB | **Yes** |
+| `notifications_enabled` | DB | **Yes** |
+| Event toggles | DB (`notify_shipment_created`, `notify_status_changed`, `notify_checkpoint_added`, or `event_flags` JSON) | **Yes** |
+| `last_tested_at`, `last_test_status` | DB | **Yes** — short status only |
+| `bot_token` | **Must not exist** | **Never** |
 
-### 1.3 Notification log (per account)
+**Default Demo (MVP until auth):** one settings row linked to `accounts.slug = default-demo` or a dedicated demo user id. All current API traffic uses this principal via `AccountContext` / future `UserContext`.
 
-Every outbound Telegram attempt (automated or test) creates a **notification log row** scoped to the account (and optionally linked to shipment/checkpoint).
+### 1.3 Notification log (per user/account)
+
+Every outbound attempt (test or automated) appends a row **scoped to the same user/account** as the settings row. Logs reference the global bot implicitly; they do not store a token.
 
 ---
 
-## 2. Current state vs target
+## 2. Current implementation vs target
 
-### 2.1 Today (implemented on feature branch)
+### 2.1 Implemented today (feature branch — partial drift)
 
-| Piece | Current behavior |
-|-------|------------------|
-| Settings table | Single row `telegram_settings` (no `account_id`) |
-| Token | `encrypted` cast on `bot_token`; masked in API as `••••••••••••` |
-| Status API | `GET /api/telegram/status` — safe fields only |
-| Test message | `POST /api/telegram/test-message` |
-| Event sends | Shipment create, status change, checkpoint add (gated by flags) |
-| UI journal | **Static mock** rows in `Telegram.tsx` — not persisted |
-| Auth | None — implicit single tenant |
+| Piece | Current behavior | Alignment with corrected architecture |
+|-------|------------------|--------------------------------------|
+| Sends | `TelegramBotService` uses env token, with **incorrect** fallback to per-account `bot_token_encrypted` | **Migrate:** env token only |
+| `telegram_settings` | Legacy single row; may include encrypted `bot_token` | **Deprecate** DB token column |
+| `telegram_bot_configs` | Per-account row including `bot_token_encrypted` | **Rename/refactor** to settings-without-token table |
+| `telegram_notification_logs` | Per `account_id` — correct scoping | **Keep**; drop `telegram_bot_config_id` or repoint to settings id |
+| Status API | `botTokenSource: env \| config` | **Change to:** `configured` from env only; remove `config` token source |
+| Frontend | No token input; journal from API | **Aligned** |
+| Auth | Default Demo Account via `AccountContext` | **Aligned** until per-user auth |
 
-### 2.2 Target (account-ready)
+### 2.2 Target (corrected)
 
 | Piece | Target behavior |
-|-------|------------------|
-| `accounts` table | At least one row: Default Demo Account |
-| `telegram_bot_configs` | One row per account (replaces or wraps `telegram_settings`) |
-| `telegram_notification_logs` | Append-only log per send attempt |
-| API resolution | `CurrentAccount::resolve()` → default demo until auth |
-| UI journal | Live data from `GET /api/telegram/notifications` (paginated) |
-| Frontend token field | **Removed** — token env-only or one-time setup API (see §5) |
+|-------|-----------------|
+| Token | `TELEGRAM_BOT_TOKEN` env only; service refuses DB token paths |
+| Settings table | `telegram_notification_settings` (or evolved `telegram_bot_configs` **without** token columns) per `account_id` / `user_id` |
+| Logs table | `telegram_notification_logs` per `account_id` / `user_id` |
+| API | Settings PATCH: chat id, username, toggles, enabled — **no** `botToken` |
+| API status | `configured` = env token present; `hasChatId` = settings chat id present |
 
 ---
 
 ## 3. Data model (target schema)
 
-### 3.1 `accounts`
+### 3.1 `accounts` (workspace — optional until auth)
 
 ```text
 accounts
-  id              bigint PK
-  slug            string unique   -- e.g. "default-demo"
-  name            string          -- "Default Demo Account"
-  is_active       boolean
-  created_at, updated_at
+  id, slug, name, is_active, timestamps
 ```
 
-**MVP seed:** one row `slug = default-demo`, `name = Default Demo Account`.
+MVP seed: `default-demo`. Future: real customer workspaces.
 
-### 3.2 `telegram_bot_configs`
+### 3.2 `telegram_notification_settings` (per account or user)
 
-One config per account (unique `account_id`).
+**One row per account** (or per user when auth exists). **No bot token columns.**
 
 ```text
-telegram_bot_configs
-  id                    bigint PK
-  account_id            bigint FK → accounts, unique
-  bot_token             text nullable, encrypted at rest
-  bot_username          string nullable   -- @MyBot, from getMe
-  chat_id               string nullable
-  connected             boolean default false
-  event_flags           json nullable
-  last_test_at          timestamp nullable
-  last_test_status      enum: success|failed|skipped nullable
-  last_test_error       string nullable   -- short, no token
+telegram_notification_settings
+  id                      bigint PK
+  account_id              bigint FK → accounts, unique   -- or user_id when auth exists
+  telegram_chat_id        string nullable
+  telegram_username       string nullable
+  enabled                 boolean default false
+  notifications_enabled   boolean default true
+  notify_shipment_created boolean default true
+  notify_status_changed   boolean default true
+  notify_checkpoint_added boolean default true
+  last_tested_at          timestamp nullable
+  last_test_status        string nullable   -- success | failed | skipped
+  last_test_error         string nullable   -- short, safe
   created_at, updated_at
 ```
 
-**Token resolution order (unchanged from MVP):**
+**Chat ID resolution (per send):**
 
-1. `telegram_bot_configs.bot_token` for current account (decrypted server-side only).
-2. Else `TELEGRAM_BOT_TOKEN` env (bootstrap / single-tenant deploy).
-3. Else not configured.
+1. Explicit `chat_id` argument (e.g. test message override).
+2. Current principal’s `telegram_notification_settings.telegram_chat_id`.
+3. Optional `TELEGRAM_DEFAULT_CHAT_ID` env (bootstrap / ops only — not per-user).
 
-**Never** store env token in API responses or logs.
+**Token resolution (global only):**
 
-### 3.3 `telegram_notification_logs`
+1. `TELEGRAM_BOT_TOKEN` from env / `config/telegram.php`.
+2. If missing → not configured; no DB fallback.
+
+### 3.3 `telegram_notification_logs` (per account or user)
 
 ```text
 telegram_notification_logs
-  id                bigint PK
-  account_id        bigint FK → accounts
-  telegram_bot_config_id  bigint FK nullable
-  event_type        string   -- test_message | shipment_created | status_changed | checkpoint_added | ...
-  status            enum: sent | failed | skipped
-  shipment_id       bigint FK nullable
-  checkpoint_id     bigint FK nullable
-  tracking_number   string nullable   -- denormalized for journal display
-  message_preview   string nullable   -- first ~200 chars of text sent (no token)
-  error_message     string nullable   -- short user-safe error
-  telegram_message_id bigint nullable
-  created_at        timestamp
+  id                    bigint PK
+  account_id            bigint FK → accounts   -- or user_id
+  settings_id           bigint FK nullable → telegram_notification_settings
+  event_type            string
+  related_type          string nullable      -- shipment | checkpoint
+  related_id            bigint nullable
+  chat_id               string nullable      -- target used for this attempt
+  message_preview       text nullable      -- max ~200 chars
+  status                string             -- sent | failed | skipped
+  telegram_message_id   string nullable
+  error_message         text nullable
+  sent_at               timestamp nullable
+  created_at, updated_at
 ```
 
-**Indexes:** `(account_id, created_at DESC)`, optional `(shipment_id)`.
-
-**`skipped` examples:** `connected: false`, event flag off, `telegram_notifications: false` on shipment — log optional but recommended for support/debug.
+Index: `(account_id, created_at DESC)`.
 
 ---
 
-## 4. API design (account-scoped)
+## 4. API design
 
-Until auth exists, all routes implicitly use **Default Demo Account** via middleware or `AccountContext::default()`.
+Until auth exists, all Telegram routes resolve **Default Demo** settings and logs.
 
-### 4.1 Settings and status (evolve existing)
+### 4.1 Settings and status
 
 | Method | Path | Notes |
 |--------|------|-------|
-| `GET` | `/api/telegram/settings` | Resolve config for current account; **no `botToken` in response** — use `configured` + `botUsername` |
-| `PATCH` | `/api/telegram/settings` | Update `chatId`, `connected`, `eventFlags`; optional **one-time** `botToken` write (never echoed) |
-| `GET` | `/api/telegram/status` | `configured`, `enabled`, `hasChatId`, `notificationsEnabled`, `botTokenSource` (`env` \| `db` \| null), `botUsername`, `lastTestStatus` |
+| `GET` | `/api/telegram/settings` | Principal’s chat id, username, toggles, enabled. **No `botToken`.** |
+| `PATCH` | `/api/telegram/settings` | Update `chatId`, `telegramUsername`, toggles, `connected`/`enabled`. **Reject or ignore `botToken`.** |
+| `GET` | `/api/telegram/status` | `configured` (env token present), `enabled`, `hasChatId`, `notificationsEnabled`, `botUsername` (from getMe cache or static), optional `lastTestStatus` |
 
-**Breaking change (intentional, phased):** remove `botToken` masked field from JSON; replace with `configured: boolean` and `botUsername: string | null`.
+`botTokenSource` should be removed or always imply env-only when `configured` is true.
 
 ### 4.2 Test message
 
 | Method | Path | Behavior |
 |--------|------|----------|
-| `POST` | `/api/telegram/test-message` | Send test; update `last_test_*` on config; append log row `event_type=test_message` |
+| `POST` | `/api/telegram/test-message` | Send via **global** bot to principal’s `chat_id` (or request override); append log row. |
 
-### 4.3 Notification journal (new)
+### 4.3 Notification journal
 
-| Method | Path | Query | Response |
-|--------|------|-------|----------|
-| `GET` | `/api/telegram/notifications` | `?page=1&limit=50&eventType=&status=` | Paginated log rows for current account |
+| Method | Path | Behavior |
+|--------|------|----------|
+| `GET` | `/api/telegram/notifications` | Paginated logs for **current principal only**. Filters: `status`, `event_type`, `limit`, `page`. |
 
-**Row shape (safe):**
+### 4.4 Automated sends
 
-```json
-{
-  "id": "1",
-  "eventType": "checkpoint_added",
-  "status": "sent",
-  "trackingNumber": "LGX-2026-0498",
-  "shipmentId": "2",
-  "checkpointId": "14",
-  "messagePreview": "📍 Новая точка маршрута: LGX-2026-0498...",
-  "errorMessage": null,
-  "createdAt": "2026-05-22T10:15:00Z"
-}
-```
-
-### 4.4 Internal: logging on every send
-
-`TelegramBotService` (or dedicated `TelegramNotificationLogger`) after each attempt:
-
-1. Resolve `account_id` from current context.
-2. Insert `telegram_notification_logs` with outcome.
-3. On test send, update `last_test_*` on config.
-
-Failures must **not** roll back the primary logistics transaction.
+`TelegramBotService` loads global token once, resolves principal settings for chat id and toggles, sends, logs to principal’s history. Failure never breaks shipment/checkpoint/status API.
 
 ---
 
@@ -202,173 +194,101 @@ Failures must **not** roll back the primary logistics transaction.
 
 | Rule | Implementation |
 |------|----------------|
-| Token encrypted in DB | Laravel `encrypted` cast on `bot_token` (already on `TelegramSetting`) |
-| Token never in GET responses | Omit field; return `configured` + `botUsername` only |
-| Token never in logs | Redact in Monolog/context; tests assert no leak |
-| Frontend never displays token | No token input in production UI; setup via server env or admin-only endpoint |
-| PATCH accepts token once | Only non-empty, non-masked value; store encrypted; response without token |
-| `botTokenSource` in status | May be `env` or `db`; never include token value |
-| Journal errors | Short message only; no Telegram API raw body with secrets |
-
-**MVP UI alignment (TELEGRAM-BOT-FRONTEND-001):** token input removed; status badge shows configured/not configured. Account architecture keeps that direction.
+| Single global token | `TELEGRAM_BOT_TOKEN` in backend env only |
+| No token in DB | Drop `bot_token` / `bot_token_encrypted` columns in follow-on migration |
+| No token in API | No GET/PATCH/POST field for token; status uses `configured: boolean` |
+| No token in frontend | No input, no display, no `VITE_*` Telegram secrets |
+| No token in logs | Journal and application logs never contain token or full Telegram error payloads with secrets |
+| Per-principal isolation (future) | User A cannot read or send using User B’s chat id or journal |
 
 ---
 
-## 6. Frontend UI (account-aware)
+## 6. Frontend UI
 
 **Page:** `Telegram-бот` (`src/pages/Telegram.tsx`)
 
-### 6.1 Bot configuration card (safe fields only)
-
-| UI element | Data source |
-|------------|-------------|
-| Configured badge | `GET /api/telegram/status` → `configured` |
-| Bot username | `status.botUsername` or settings (e.g. `@LogistixNotifyBot`) |
-| Chat ID input | `settings.chatId` |
-| Connected toggle | `settings.connected` / `status.enabled` |
-| Notification toggles | `settings.eventFlags` |
-| Last test status | `status.lastTestStatus` + timestamp (optional) |
-| Send test button | `POST /api/telegram/test-message` |
-
-**Must not show:** bot token, token preview, env variable names in production UI (dev docs OK).
-
-### 6.2 Notification journal panel
-
-Replace static `mockLogs` with API-driven list:
-
-| Column | Source |
-|--------|--------|
-| Event type | `eventType` → Russian label map |
-| Related shipment | `trackingNumber` + link if shipment UI exists |
-| Status | `sent` / `failed` / `skipped` — color dot |
-| Time | `createdAt` (localized) |
-| Error | `errorMessage` when `failed` |
-
-Empty state: «Уведомлений пока нет».
+| Area | Behavior |
+|------|----------|
+| Settings | Chat ID, optional username display, enabled, notification toggles |
+| Status badge | «Токен настроен» = env configured (server-side); not user-editable |
+| Test message | Uses global bot + saved chat id |
+| Journal | Principal’s own history from `GET /api/telegram/notifications` |
 
 ---
 
-## 7. Account resolution (no auth yet)
+## 7. Principal resolution (no auth yet)
 
 ```text
-Request → ApiAccountMiddleware
-            → AccountContext::current()
-                 → if authenticated (future): user.account_id
-                 → else: Account::where('slug', 'default-demo')->first()
-            → bind in container for request lifetime
+Request → AccountContext::current()   -- later UserContext or auth()->user()
+            → default-demo until login
+            → load telegram_notification_settings for that account_id
+            → scope telegram_notification_logs to same account_id
 ```
 
-**All** Telegram and logistics writes that need tenancy should use `account_id` from context (future). MVP migration can add `account_id` to new tables with default FK to demo account; existing shipment rows get backfilled to demo account in one migration.
+When auth ships:
 
-**Do not implement** login, JWT, or roles in the account-scoped Telegram tasks unless a separate auth task is approved.
-
----
-
-## 8. Future auth integration
-
-| Phase | Behavior |
-|-------|----------|
-| **Now** | Single Default Demo Account; no login |
-| **Auth phase 1** | Users table + `users.account_id`; session or token identifies user |
-| **Auth phase 2** | API middleware sets `AccountContext` from `auth()->user()->account_id` |
-| **Auth phase 3** | Account admin can rotate bot token via PATCH; invite users per account |
-| **Multi-workspace (later)** | User belongs to many accounts; switcher in UI; Telegram config per account |
-
-**Telegram-specific:** each account may register a different `@BotFather` bot and chat. Webhook URL may include account slug: `/api/telegram/webhook/{accountSlug}` with secret validation per config.
+```text
+authenticated user → user.account_id (or user.id)
+                  → settings row for that principal
+                  → logs row for that principal only
+```
 
 ---
 
-## 9. Migration path from current schema
+## 8. Migration from drifted implementation
 
 | Step | Task | Description |
 |------|------|-------------|
-| 1 | `TELEGRAM-ACCOUNT-DB-001` | Create `accounts`, seed `default-demo` |
-| 2 | `TELEGRAM-ACCOUNT-DB-002` | Rename/migrate `telegram_settings` → `telegram_bot_configs` + `account_id` |
-| 3 | `TELEGRAM-ACCOUNT-DB-003` | Create `telegram_notification_logs` |
-| 4 | `TELEGRAM-ACCOUNT-API-001` | `AccountContext`, scope queries, `GET /api/telegram/notifications` |
-| 5 | `TELEGRAM-ACCOUNT-API-002` | Remove `botToken` from settings JSON; add `botUsername`, `lastTestStatus` |
-| 6 | `TELEGRAM-ACCOUNT-SEND-001` | Log every send/skipped in `telegram_notification_logs` |
-| 7 | `TELEGRAM-ACCOUNT-UI-001` | Wire journal panel to API; remove `mockLogs` |
-| 8 | `TELEGRAM-AUTH-001` | (Later) User model + middleware — out of scope here |
+| 1 | `TELEGRAM-TOKEN-CLEANUP-001` | Stop reading/writing DB token; env only in `TelegramBotService` |
+| 2 | `TELEGRAM-TOKEN-CLEANUP-002` | Remove `botToken` from API request/response; update tests |
+| 3 | `TELEGRAM-SETTINGS-RENAME-001` | Rename `telegram_bot_configs` → `telegram_notification_settings`; drop token column |
+| 4 | `TELEGRAM-LEGACY-SETTINGS-001` | Deprecate `telegram_settings.bot_token`; migrate chat/toggles to per-principal table |
+| 5 | `TELEGRAM-AUTH-001` | (Later) Map settings/logs to authenticated user |
 
-**Backward compatibility:** during step 2, keep reading legacy single row if `account_id` null, then backfill.
+**Do not** add new per-account bot tokens in any migration.
 
 ---
 
-## 10. Event types and journal mapping
+## 9. Event types and journal
 
-| `event_type` | Trigger | `shipment_id` | `checkpoint_id` |
-|--------------|---------|---------------|-----------------|
-| `test_message` | POST test-message | null | null |
-| `shipment_created` | POST /shipments | yes | null |
-| `status_changed` | PATCH /shipments/{id}/status | yes | null |
-| `checkpoint_added` | POST /shipments/{id}/checkpoints | yes | yes |
-| `finance_status_changed` | (future) PATCH finance | optional | null |
-
-**Skipped logging:** when `shouldNotifyForShipment` returns false, optionally insert `status=skipped` with reason in `error_message` (e.g. `event_flag_disabled`) — product decision; recommended for journal clarity.
+| `event_type` | Trigger |
+|--------------|---------|
+| `test_message` | POST `/api/telegram/test-message` |
+| `shipment_created` | POST `/api/shipments` |
+| `shipment_status_changed` | PATCH `/api/shipments/{id}/status` |
+| `checkpoint_added` | POST `/api/shipments/{id}/checkpoints` |
+| `finance_status_changed` | (optional future) |
 
 ---
 
-## 11. Environment variables (unchanged)
+## 10. Environment variables
 
 | Variable | Scope |
 |----------|--------|
-| `TELEGRAM_BOT_TOKEN` | Server-only; default bot for demo account when DB empty |
-| `TELEGRAM_DEFAULT_CHAT_ID` | Server-only fallback chat |
-| `TELEGRAM_WEBHOOK_SECRET` | Per-deploy; future per-account webhook secrets in DB |
+| `TELEGRAM_BOT_TOKEN` | **Required** for sending — global, server-only |
+| `TELEGRAM_DEFAULT_CHAT_ID` | Optional ops bootstrap only — not a substitute for per-user chat id |
+| `TELEGRAM_WEBHOOK_SECRET` | Global per deployment |
 | `TELEGRAM_TIMEOUT` | HTTP client timeout |
 
 No `VITE_TELEGRAM_*` variables.
 
 ---
 
-## 12. QA checklist (account architecture)
+## 11. Out of scope
 
-### Data and security
-
-- [ ] Default Demo Account exists after seed/migration.
-- [ ] `bot_token` encrypted in DB; raw value not in `SELECT` output via API.
-- [ ] `GET /api/telegram/settings` has no `botToken` field (or only `configured`).
-- [ ] `PATCH` with token does not return token in response.
-- [ ] Logs table rows scoped to demo account only in single-tenant mode.
-
-### Journal API
-
-- [ ] Test message creates `sent` or `failed` log row.
-- [ ] Shipment create with notifications on creates log row when send attempted.
-- [ ] Disabled settings create `skipped` or no send (document chosen behavior).
-- [ ] Pagination works on `GET /api/telegram/notifications`.
-
-### UI
-
-- [ ] Journal shows real rows; no mock data.
-- [ ] Failed row shows short Russian error.
-- [ ] Token not visible in DOM or network responses.
-
-### Future auth (when implemented)
-
-- [ ] User A cannot read account B Telegram config or logs.
-- [ ] Webhook routes resolve account by slug or secret.
+- Multiple bot tokens per account/tenant.
+- Storing bot token in PostgreSQL (encrypted or not).
+- Frontend token setup form.
+- Per-client Telegram subscription flows (DM opt-in) — later product.
+- Auth implementation in this doc — separate tasks.
 
 ---
 
-## 13. Out of scope (this architecture)
-
-- User login, registration, password reset, RBAC.
-- Per-client Telegram subscriptions (DM opt-in).
-- Multiple bots per account (single config in MVP+).
-- Message edit/delete in Telegram.
-- Horizon/queue workers (sync send + log acceptable for MVP+).
-
----
-
-## 14. References
+## 12. References
 
 | Resource | Path |
 |----------|------|
-| MVP bot scope | `docs/TELEGRAM_BOT_SCOPE.md` |
+| MVP scope | `docs/TELEGRAM_BOT_SCOPE.md` |
 | Telegram page | `src/pages/Telegram.tsx` |
-| Settings API | `backend/app/Http/Controllers/Api/TelegramSettingController.php` |
 | Bot service | `backend/app/Services/TelegramBotService.php` |
-| Current model | `backend/app/Models/TelegramSetting.php` |
-| Settings migration | `backend/database/migrations/2026_05_20_100006_create_telegram_settings_table.php` |
+| Account context | `backend/app/Services/AccountContext.php` |
