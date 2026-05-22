@@ -59,6 +59,7 @@ php artisan test
 | PATCH | `/api/telegram/settings` | Save Telegram settings (token response masked) |
 | GET | `/api/telegram/status` | Safe bot status: configured/enabled/hasChatId/notificationsEnabled |
 | POST | `/api/telegram/test-message` | Send test message `{ chatId?, message? }` |
+| GET | `/api/telegram/notifications` | Notification journal (`status`, `event_type`, `limit`, `page` query params) |
 
 ## Account-scoped Telegram tables (TELEGRAM-DB-001)
 
@@ -128,6 +129,8 @@ TELEGRAM_TIMEOUT=10        # HTTP timeout in seconds
 | Checkpoint added | `checkpoint` | `sendCheckpointAddedNotification` |
 
 All conditions required to send: token configured **AND** `shipment.telegram_notifications = true` **AND** account config `enabled` + `notifications_enabled` **AND** relevant notify toggle (`notify_shipment_created`, `notify_status_changed`, `notify_checkpoint_added`). Telegram failures never affect the primary API response.
+
+**Notification journal:** every send attempt (sent / failed / skipped) is stored in `telegram_notification_logs` with a short `message_preview` (max 200 chars) and safe `error_message` (no bot token). Query via `GET /api/telegram/notifications`. Retry endpoint is **post-MVP** (not implemented).
 
 ## Finance amounts (MVP)
 
