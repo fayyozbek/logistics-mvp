@@ -98,7 +98,18 @@ TELEGRAM_WEBHOOK_SECRET=   # Recommended in production
 TELEGRAM_TIMEOUT=10        # HTTP timeout in seconds
 ```
 
-**Wiring notifications to controllers** is done in `TELEGRAM-BOT-EVENTS-001` (next task).
+**Events that trigger notifications** (wired in `TELEGRAM-BOT-EVENTS-001`):
+
+| Event | Flag checked | Method called |
+|-------|-------------|---------------|
+| Shipment created | `departure` | `sendShipmentCreatedNotification` |
+| Status → `in_transit` | `departure` | `sendShipmentStatusChangedNotification` |
+| Status → `at_checkpoint` | `checkpoint` | `sendShipmentStatusChangedNotification` |
+| Status → `delivered` | `delivery` | `sendShipmentStatusChangedNotification` |
+| Status → `delayed` | `delay` | `sendShipmentStatusChangedNotification` |
+| Checkpoint added | `checkpoint` | `sendCheckpointAddedNotification` |
+
+All conditions required to send: token configured **AND** `shipment.telegram_notifications = true` **AND** global `connected = true` **AND** relevant event flag on. Telegram failures never affect the primary API response.
 
 ## Finance amounts (MVP)
 

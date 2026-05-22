@@ -8,15 +8,18 @@ use App\Http\Requests\UpdateCheckpointRequest;
 use App\Http\Resources\CheckpointResource;
 use App\Models\Checkpoint;
 use App\Models\Shipment;
+use App\Services\TelegramBotService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
 class CheckpointController extends Controller
 {
+    public function __construct(private TelegramBotService $telegram) {}
+
     public function store(StoreCheckpointRequest $request, Shipment $shipment): JsonResponse
     {
-        $validated = $request->validated();
+        $validated   = $request->validated();
         $insertAfter = $validated['insertAfter'] ?? -1;
 
         $checkpoint = DB::transaction(function () use ($shipment, $validated, $insertAfter) {
@@ -27,16 +30,16 @@ class CheckpointController extends Controller
 
             $checkpoint = Checkpoint::query()->create([
                 'shipment_id' => $shipment->id,
-                'sequence' => 0,
-                'city' => $validated['city'],
-                'country' => $validated['country'] ?? null,
-                'address' => $validated['address'],
-                'planned_at' => Carbon::parse($validated['plannedAt']),
-                'arrived_at' => isset($validated['arrivedAt'])
+                'sequence'    => 0,
+                'city'        => $validated['city'],
+                'country'     => $validated['country'] ?? null,
+                'address'     => $validated['address'],
+                'planned_at'  => Carbon::parse($validated['plannedAt']),
+                'arrived_at'  => isset($validated['arrivedAt'])
                     ? Carbon::parse($validated['arrivedAt'])
                     : null,
                 'status' => $validated['status'] ?? 'upcoming',
-                'note' => $validated['note'] ?? null,
+                'note'   => $validated['note'] ?? null,
             ]);
 
             $orderedIds = $existing->pluck('id')->all();
@@ -48,6 +51,12 @@ class CheckpointController extends Controller
 
             return $checkpoint->fresh();
         });
+
+        // Send Telegram notification outside the transaction — failure must not
+        // affect the checkpoint creation response.
+        if ($this->telegram->shouldNotifyForShipment($shipment, 'checkpoint')) {
+            $this->telegram->sendCheckpointAddedNotification($shipment, $checkpoint);
+        }
 
         return response()->json([
             'checkpoint' => (new CheckpointResource($checkpoint))->resolve(),

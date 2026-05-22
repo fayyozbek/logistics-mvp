@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateShipmentStatusRequest;
 use App\Http\Resources\ShipmentResource;
 use App\Models\Checkpoint;
 use App\Models\Shipment;
+use App\Services\TelegramBotService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\DB;
 
 class ShipmentController extends Controller
 {
+    public function __construct(private TelegramBotService $telegram) {}
+
     public function index(Request $request): JsonResponse
     {
         $query = Shipment::query()
@@ -45,9 +48,11 @@ class ShipmentController extends Controller
 
     public function updateStatus(UpdateShipmentStatusRequest $request, Shipment $shipment): JsonResponse
     {
-        $validated = $request->validated();
+        $validated  = $request->validated();
+        $oldStatus  = $shipment->status;
+        $newStatus  = $validated['status'];
 
-        $shipment->update(['status' => $validated['status']]);
+        $shipment->update(['status' => $newStatus]);
 
         if (! empty($validated['note'])) {
             $checkpoint = $shipment->checkpoints()
@@ -62,6 +67,19 @@ class ShipmentController extends Controller
         }
 
         $shipment->load(['client', 'manager', 'checkpoints', 'financeRecord']);
+
+        // Send Telegram notification — failure must not affect the HTTP response.
+        $eventFlag = match ($newStatus) {
+            'in_transit'    => 'departure',
+            'at_checkpoint' => 'checkpoint',
+            'delivered'     => 'delivery',
+            'delayed'       => 'delay',
+            default         => null,
+        };
+
+        if ($eventFlag !== null && $this->telegram->shouldNotifyForShipment($shipment, $eventFlag)) {
+            $this->telegram->sendShipmentStatusChangedNotification($shipment, $oldStatus, $newStatus);
+        }
 
         return response()->json([
             'shipment' => (new ShipmentResource($shipment))->resolve(),
@@ -108,6 +126,11 @@ class ShipmentController extends Controller
         });
 
         $shipment->load(['client', 'manager', 'checkpoints', 'financeRecord']);
+
+        // Send Telegram notification — failure must not affect the HTTP response.
+        if ($this->telegram->shouldNotifyForShipment($shipment, 'departure')) {
+            $this->telegram->sendShipmentCreatedNotification($shipment);
+        }
 
         return response()->json([
             'shipment' => (new ShipmentResource($shipment))->resolve(),

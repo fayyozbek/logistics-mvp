@@ -207,6 +207,42 @@ class TelegramBotService
     }
 
     // -------------------------------------------------------------------------
+    // Event gating
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns true when ALL conditions are met for sending a shipment-related
+     * notification with the given event flag key:
+     *   1. Bot token is configured (env or DB).
+     *   2. The shipment's telegram_notifications flag is enabled.
+     *   3. The global `connected` flag in telegram_settings is true.
+     *   4. The specific event flag (departure / checkpoint / delivery / delay …) is on.
+     *
+     * Callers should call this before any notification method so that a missing
+     * token or disabled setting never results in an unnecessary API query.
+     */
+    public function shouldNotifyForShipment(Shipment $shipment, string $eventFlagKey): bool
+    {
+        if (! $this->isConfigured()) {
+            return false;
+        }
+
+        if (! $shipment->telegram_notifications) {
+            return false;
+        }
+
+        $setting = TelegramSetting::query()->first();
+
+        if (! $setting?->connected) {
+            return false;
+        }
+
+        $flags = $setting->event_flags ?? [];
+
+        return (bool) ($flags[$eventFlagKey] ?? false);
+    }
+
+    // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
 
