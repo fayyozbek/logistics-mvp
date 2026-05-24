@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             FinanceRecordSeeder::class,
             TelegramSettingSeeder::class,
             AccountTelegramSeeder::class,
+            UserSeeder::class,
         ]);
     }
 }

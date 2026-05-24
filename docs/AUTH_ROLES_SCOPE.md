@@ -1,7 +1,7 @@
 # Authentication & Role-Based Access Scope
 
 **Task:** AUTH-ROLES-SCOPE-001  
-**Status:** Scope definition — documentation only (no implementation in this task)  
+**Status:** Scope definition — **backend auth implemented** in AUTH-BACKEND-001 (Sanctum login/logout/me, demo users, partial route protection).
 **Branch context:** `feature/telegram-bot-mvp`  
 **Last updated:** 2026-05-24
 

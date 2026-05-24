@@ -13,10 +13,12 @@ use App\Services\TelegramBotService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Tests\Concerns\AuthenticatesApiUsers;
 use Tests\TestCase;
 
 class TelegramNotificationJournalTest extends TestCase
 {
+    use AuthenticatesApiUsers;
     use RefreshDatabase;
 
     private TelegramBotService $telegram;
@@ -27,7 +29,9 @@ class TelegramNotificationJournalTest extends TestCase
 
         config(['telegram.bot_token' => null, 'telegram.default_chat_id' => null]);
 
+        $this->seed(\Database\Seeders\DatabaseSeeder::class);
         $this->telegram = app(TelegramBotService::class);
+        $this->actingAsAdmin();
     }
 
     public function test_successful_send_creates_sent_log(): void

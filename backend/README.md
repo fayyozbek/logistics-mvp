@@ -39,6 +39,39 @@ php artisan serve --host=127.0.0.1 --port=8000
 php artisan test
 ```
 
+## Authentication (Sanctum)
+
+Token-based API auth via Laravel Sanctum. Login returns a Bearer token; protected write routes require `Authorization: Bearer {token}`.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/auth/login` | Public | `{ email, password }` → `{ token, user }` |
+| POST | `/api/auth/logout` | Bearer | Revokes current token |
+| GET | `/api/auth/me` | Bearer | Current user (no password) |
+
+### Demo users (local seed only)
+
+Password for all demo users: **`password`** (see `UserSeeder::DEMO_PASSWORD` — local/demo only, never use in production).
+
+| Email | Role |
+|-------|------|
+| `admin@example.com` | admin |
+| `manager@example.com` | manager |
+| `operator@example.com` | operator |
+| `finance@example.com` | finance |
+| `viewer@example.com` | viewer |
+
+### Protected write routes (first auth pass)
+
+| Route | Roles |
+|-------|-------|
+| `DELETE /api/shipments/{id}` | admin |
+| `PATCH /api/telegram/settings` | admin |
+| `POST /api/telegram/test-message` | admin |
+| `PATCH /api/finance/{id}/status` | admin, finance |
+
+Read routes remain public until frontend auth is wired. See `docs/AUTH_ROLES_SCOPE.md`.
+
 ## Endpoints
 
 | Method | Path | Description |
@@ -49,16 +82,17 @@ php artisan test
 | POST | `/api/shipments` | Create shipment |
 | GET | `/api/shipments/{id}` | Single shipment |
 | PATCH | `/api/shipments/{id}/status` | Update shipment status |
+| DELETE | `/api/shipments/{id}` | Archive shipment (soft delete) — **admin** |
 | POST | `/api/shipments/{id}/checkpoints` | Add checkpoint |
 | PATCH | `/api/checkpoints/{id}` | Update checkpoint |
 | GET | `/api/tracking` | Tracking view |
 | GET | `/api/managers` | Manager list |
 | GET | `/api/finance` | Finance records |
-| PATCH | `/api/finance/{id}/status` | Update finance status |
+| PATCH | `/api/finance/{id}/status` | Update finance status — **admin, finance** |
 | GET | `/api/telegram/settings` | Per-account notification settings (no token) + shipments list |
-| PATCH | `/api/telegram/settings` | Update chat id, toggles, display name (`botToken` rejected with 422) |
+| PATCH | `/api/telegram/settings` | Update chat id, toggles, display name (`botToken` rejected with 422) — **admin** |
 | GET | `/api/telegram/status` | Safe bot status: configured/enabled/hasChatId/notificationsEnabled |
-| POST | `/api/telegram/test-message` | Send test message `{ chatId?, message? }` |
+| POST | `/api/telegram/test-message` | Send test message `{ chatId?, message? }` — **admin** |
 | GET | `/api/telegram/notifications` | Notification journal (`status`, `event_type`, `limit`, `page` query params) |
 
 ## Per-account Telegram notification tables (TELEGRAM-DB-REFINE-001)

@@ -5,12 +5,15 @@ namespace Tests\Feature;
 use App\Models\Account;
 use App\Models\TelegramNotificationSetting;
 use Database\Seeders\AccountTelegramSeeder;
+use Database\Seeders\UserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Tests\Concerns\AuthenticatesApiUsers;
 use Tests\TestCase;
 
 class TelegramApiEndpointsTest extends TestCase
 {
+    use AuthenticatesApiUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -19,6 +22,9 @@ class TelegramApiEndpointsTest extends TestCase
 
         // Ensure no env token leaks into tests unless explicitly set.
         config(['telegram.bot_token' => null, 'telegram.default_chat_id' => null]);
+
+        $this->seed(UserSeeder::class);
+        $this->actingAsAdmin();
     }
 
     // =========================================================================

@@ -6,16 +6,19 @@ use App\Models\FinanceRecord;
 use App\Models\Shipment;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesApiUsers;
 use Tests\TestCase;
 
 class DeleteShipmentApiTest extends TestCase
 {
+    use AuthenticatesApiUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(DatabaseSeeder::class);
+        $this->actingAsAdmin();
     }
 
     public function test_can_archive_shipment_via_delete(): void

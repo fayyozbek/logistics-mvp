@@ -5,17 +5,21 @@ namespace Tests\Feature;
 use App\Models\Account;
 use App\Models\TelegramNotificationSetting;
 use Database\Seeders\AccountTelegramSeeder;
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesApiUsers;
 use Tests\TestCase;
 
 class UpdateTelegramSettingsApiTest extends TestCase
 {
+    use AuthenticatesApiUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->seed(AccountTelegramSeeder::class);
+        $this->seed(DatabaseSeeder::class);
+        $this->actingAsAdmin();
     }
 
     public function test_can_update_telegram_notification_settings(): void

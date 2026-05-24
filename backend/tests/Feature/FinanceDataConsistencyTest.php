@@ -6,16 +6,19 @@ use App\Models\FinanceRecord;
 use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\Support\FinanceAmountRules;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesApiUsers;
 use Tests\TestCase;
 
 class FinanceDataConsistencyTest extends TestCase
 {
+    use AuthenticatesApiUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(DatabaseSeeder::class);
+        $this->actingAsFinance();
     }
 
     public function test_seeded_finance_records_match_amount_rules(): void
