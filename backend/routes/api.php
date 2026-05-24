@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CheckpointController;
+use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\ManagerController;
@@ -30,6 +31,22 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::middleware('role:admin,manager,operator')->group(function () {
         Route::get('/managers', [ManagerController::class, 'index']);
+    });
+
+    Route::middleware('role:admin,manager,operator,finance,viewer')->group(function () {
+        Route::get('/clients', [ClientController::class, 'index']);
+    });
+
+    Route::middleware('role:admin,manager,operator')->group(function () {
+        Route::post('/clients', [ClientController::class, 'store']);
+        Route::patch('/clients/{client}', [ClientController::class, 'update']);
+    });
+
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/managers', [ManagerController::class, 'store']);
+        Route::patch('/managers/{manager}', [ManagerController::class, 'update']);
+        Route::delete('/managers/{manager}', [ManagerController::class, 'destroy']);
+        Route::delete('/clients/{client}', [ClientController::class, 'destroy']);
     });
 
     Route::middleware('role:admin,manager,operator,finance')->group(function () {

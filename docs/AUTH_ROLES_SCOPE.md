@@ -204,6 +204,13 @@ Legend: **R** = read/list/show, **C** = create, **U** = update, **D** = delete/a
 | PATCH | `/api/checkpoints/{id}` | operator+ |
 | GET | `/api/tracking` | viewer+ |
 | GET | `/api/managers` | operator+ |
+| POST | `/api/managers` | admin |
+| PATCH | `/api/managers/{id}` | admin |
+| DELETE | `/api/managers/{id}` | admin |
+| GET | `/api/clients` | viewer+ |
+| POST | `/api/clients` | operator+ |
+| PATCH | `/api/clients/{id}` | operator+ |
+| DELETE | `/api/clients/{id}` | admin |
 | GET | `/api/finance` | viewer+ |
 | PATCH | `/api/finance/{id}/status` | finance+ (admin override) |
 | GET | `/api/telegram/status` | operator+ |

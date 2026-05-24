@@ -88,7 +88,14 @@ Read routes remain public until frontend auth is wired. See `docs/AUTH_ROLES_SCO
 | POST | `/api/shipments/{id}/checkpoints` | Add checkpoint |
 | PATCH | `/api/checkpoints/{id}` | Update checkpoint |
 | GET | `/api/tracking` | Tracking view |
-| GET | `/api/managers` | Manager list |
+| GET | `/api/managers` | Manager list (+ embedded clients/shipments) — **admin, manager, operator** |
+| POST | `/api/managers` | Create manager — **admin** |
+| PATCH | `/api/managers/{id}` | Update manager — **admin** |
+| DELETE | `/api/managers/{id}` | Delete unassigned manager (422 if active shipments) — **admin** |
+| GET | `/api/clients` | Client/partner list — **viewer+** |
+| POST | `/api/clients` | Create client — **admin, manager, operator** |
+| PATCH | `/api/clients/{id}` | Update client — **admin, manager, operator** |
+| DELETE | `/api/clients/{id}` | Delete unassigned client (422 if linked) — **admin** |
 | GET | `/api/finance` | Finance records |
 | PATCH | `/api/finance/{id}/status` | Update finance status — **admin, finance** |
 | GET | `/api/telegram/settings` | Per-account notification settings (no token) + shipments list |
