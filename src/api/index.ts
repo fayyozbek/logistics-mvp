@@ -1,4 +1,5 @@
 export { ApiError, getApiBaseUrl, getApiErrorMessage, isApiConfigured } from './client';
+export { login, logout, fetchMe } from './auth';
 export {
   addShipmentCheckpoint,
   createShipment,

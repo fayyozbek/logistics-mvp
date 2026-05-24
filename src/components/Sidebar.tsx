@@ -1,8 +1,13 @@
+import { LogOut } from 'lucide-react';
 import { type Page } from '../App';
+import { canAccessPage, roleLabels, userInitials } from '../auth/roles';
+import type { AuthUser } from '../types/auth';
 
 interface SidebarProps {
   currentPage: Page;
   onNavigate: (page: Page) => void;
+  user: AuthUser | null;
+  onLogout?: () => void;
 }
 
 const navItems: { id: Page; label: string; icon: string }[] = [
@@ -16,7 +21,15 @@ const navItems: { id: Page; label: string; icon: string }[] = [
 
 const bottomItems: { id: Page; label: string; icon: string }[] = [];
 
-export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
+export default function Sidebar({ currentPage, onNavigate, user, onLogout }: SidebarProps) {
+  const visibleNavItems = user
+    ? navItems.filter((item) => canAccessPage(user.role, item.id))
+    : navItems;
+
+  const displayName = user?.name ?? 'Демо';
+  const displayRole = user ? roleLabels[user.role] : 'Без API';
+  const initials = user ? userInitials(user.name) : 'ДМ';
+
   return (
     <aside style={{
       width: 220,
@@ -66,7 +79,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         }}
       >
         <div style={{ fontSize: 10, color: '#475569', letterSpacing: 1, fontWeight: 600, paddingLeft: 12, paddingBottom: 8, paddingTop: 4 }}>НАВИГАЦИЯ</div>
-        {navItems.map(item => {
+        {visibleNavItems.map(item => {
           const active = currentPage === item.id;
           return (
             <button
@@ -122,12 +135,52 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         })}
         {/* User */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 12px 0' }}>
-          <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 700 }}>АД</div>
-          <div>
-            <div style={{ color: '#E2E8F0', fontSize: 12, fontWeight: 600 }}>Админ</div>
-            <div style={{ color: '#64748B', fontSize: 10 }}>Суперадмин</div>
+          <div style={{
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            background: '#3B82F6',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontSize: 11,
+            fontWeight: 700,
+            flexShrink: 0,
+          }}>
+            {initials}
+          </div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ color: '#E2E8F0', fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {displayName}
+            </div>
+            <div style={{ color: '#64748B', fontSize: 10 }}>{displayRole}</div>
           </div>
         </div>
+        {onLogout && (
+          <button
+            type="button"
+            onClick={onLogout}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginTop: 8,
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'transparent',
+              color: '#94A3B8',
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: 'pointer',
+              width: '100%',
+            }}
+          >
+            <LogOut size={14} />
+            Выйти
+          </button>
+        )}
       </div>
     </aside>
   );
