@@ -46,7 +46,19 @@ class AuthApiTest extends TestCase
             'password' => 'wrong-password',
         ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['email']);
+            ->assertJsonValidationErrors(['email'])
+            ->assertJsonPath('errors.email.0', 'Неверный email или пароль');
+    }
+
+    public function test_login_unknown_email_returns_same_credentials_message(): void
+    {
+        $this->postJson('/api/auth/login', [
+            'email' => 'nobody@example.com',
+            'password' => 'wrong-password',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email'])
+            ->assertJsonPath('errors.email.0', 'Неверный email или пароль');
     }
 
     public function test_inactive_user_cannot_login(): void
