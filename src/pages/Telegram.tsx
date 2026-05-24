@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
-import { managers, clients, type Shipment } from '../data/mock';
 import {
   ApiError,
+  getApiErrorMessage,
   getTelegramNotifications,
   getTelegramSettings,
   getTelegramStatus,
@@ -13,6 +13,8 @@ import type {
   TelegramNotificationSettings,
   TelegramStatus,
 } from '../types/api';
+import type { Shipment } from '../data/mock';
+import ApiLoadErrorBanner from '../components/ApiLoadErrorBanner';
 
 const notificationPrefs: {
   key: keyof Pick<
@@ -211,6 +213,7 @@ export default function Telegram() {
   const [journalEntries, setJournalEntries] = useState<TelegramNotificationEntry[]>([]);
   const [journalLoading, setJournalLoading] = useState(false);
   const [journalError, setJournalError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [eventTypeFilter, setEventTypeFilter] = useState('');
 
@@ -254,7 +257,11 @@ export default function Telegram() {
         if (settings) applySettings(settings);
       }),
       getTelegramStatus().then(setBotStatus),
-    ]).finally(() => setLoading(false));
+    ])
+      .catch((error) => {
+        setLoadError(getApiErrorMessage(error, 'Не удалось загрузить настройки Telegram.'));
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -368,6 +375,14 @@ export default function Telegram() {
         />
         Загрузка...
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ padding: pagePadding }}>
+        <ApiLoadErrorBanner message={loadError} />
       </div>
     );
   }
@@ -675,8 +690,6 @@ export default function Telegram() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))', gap: 10 }}>
           {tgShipments.map((s) => {
-            const client = clients.find((c) => c.id === s.clientId);
-            const manager = managers.find((m) => m.id === s.managerId);
             const statusC: Record<string, string> = {
               planned: '#F59E0B',
               in_transit: '#3B82F6',
@@ -701,8 +714,8 @@ export default function Telegram() {
                 </div>
                 <div style={{ fontSize: 11, color: '#64748B', marginTop: 3 }}>{s.origin} → {s.destination}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 10, color: '#94A3B8', flexWrap: 'wrap', gap: 4 }}>
-                  <span>{client?.company}</span>
-                  <span style={{ color: '#0088cc' }}>{manager?.telegramId}</span>
+                  <span>{s.client?.company ?? '—'}</span>
+                  <span style={{ color: '#0088cc' }}>{s.manager?.telegramId ?? '—'}</span>
                 </div>
               </div>
             );

@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useState } from 'react';
 import { type Client, type FinanceRecord } from '../data/mock';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { ApiError, getFinance, updateFinanceStatus } from '../api';
+import { ApiError, getApiErrorMessage, getFinance, updateFinanceStatus } from '../api';
+import ApiLoadErrorBanner from '../components/ApiLoadErrorBanner';
 
 const statusConfig = {
   paid: { label: 'Оплачен', color: '#10B981', bg: '#F0FDF4' },
@@ -32,12 +33,16 @@ export default function Finance() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [statusErrors, setStatusErrors] = useState<string[]>([]);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     getFinance()
       .then(({ financeRecords: f, clients: c }) => {
         setFinanceRecords(f);
         setClients(c);
+      })
+      .catch((error) => {
+        setLoadError(getApiErrorMessage(error, 'Не удалось загрузить финансовые данные.'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -98,6 +103,10 @@ export default function Finance() {
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
+  }
+
+  if (loadError && financeRecords.length === 0) {
+    return <ApiLoadErrorBanner message={loadError} />;
   }
 
   return (

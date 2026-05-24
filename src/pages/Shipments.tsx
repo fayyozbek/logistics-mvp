@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { Client, Manager, Shipment, ShipmentStatus, TransportType } from '../data/mock';
-import { ApiError, createShipment, getManagers, getShipments, updateShipmentStatus } from '../api';
+import { ApiError, createShipment, deleteShipment, getApiErrorMessage, getManagers, getShipments, updateShipmentStatus } from '../api';
 import type { CreateShipmentPayload } from '../types/api';
+import ApiLoadErrorBanner from '../components/ApiLoadErrorBanner';
 
 const statusColors: Record<string, string> = {
   planned: '#F59E0B', in_transit: '#3B82F6', at_checkpoint: '#8B5CF6', delivered: '#10B981', delayed: '#EF4444',
@@ -183,6 +184,9 @@ export default function Shipments() {
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusSuccessMessage, setStatusSuccessMessage] = useState('');
   const [statusUpdateErrors, setStatusUpdateErrors] = useState<string[]>([]);
+  const [loadError, setLoadError] = useState('');
+  const [archiving, setArchiving] = useState(false);
+  const [archiveErrors, setArchiveErrors] = useState<string[]>([]);
 
   useEffect(() => {
     Promise.all([getShipments(), getManagers()])
@@ -190,6 +194,9 @@ export default function Shipments() {
         setShipments(shipmentsRes.shipments);
         setClients(managersRes.clients);
         setManagers(managersRes.managers);
+      })
+      .catch((error) => {
+        setLoadError(getApiErrorMessage(error, 'Не удалось загрузить список грузов.'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -206,6 +213,34 @@ export default function Shipments() {
   const mergeShipment = (shipment: Shipment) => {
     setShipments((current) => current.map((item) => (item.id === shipment.id ? shipment : item)));
     setSelected(shipment);
+  };
+
+  const handleArchiveShipment = async () => {
+    if (!selected) return;
+    if (!window.confirm(`Архивировать груз ${selected.trackingNumber}? Он исчезнет из списка.`)) {
+      return;
+    }
+
+    setArchiving(true);
+    setArchiveErrors([]);
+    setSuccessMessage('');
+    setStatusSuccessMessage('');
+
+    try {
+      const trackingNumber = selected.trackingNumber;
+      await deleteShipment(selected.id);
+      setShipments((current) => current.filter((item) => item.id !== selected.id));
+      setSelected(null);
+      setSuccessMessage(`Груз ${trackingNumber} архивирован`);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setArchiveErrors([error.message]);
+      } else {
+        setArchiveErrors(['Не удалось архивировать груз.']);
+      }
+    } finally {
+      setArchiving(false);
+    }
   };
 
   const handleStatusUpdate = async (status: ShipmentStatus, note?: string) => {
@@ -330,6 +365,10 @@ export default function Shipments() {
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
+  }
+
+  if (loadError && shipments.length === 0) {
+    return <ApiLoadErrorBanner message={loadError} />;
   }
 
   return (
@@ -650,6 +689,32 @@ export default function Shipments() {
                   }} />
                 )}
                 {statusUpdating ? 'Сохранение...' : 'Сохранить статус'}
+              </button>
+            </div>
+
+            <div style={{ marginBottom: 18, paddingTop: 14, borderTop: '1px solid #F1F5F9' }}>
+              {archiveErrors.length > 0 && (
+                <div style={{ padding: '8px 10px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 11, marginBottom: 10 }}>
+                  {archiveErrors.map((error) => <div key={error}>{error}</div>)}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleArchiveShipment()}
+                disabled={archiving || statusUpdating}
+                style={{
+                  width: '100%',
+                  padding: '9px 14px',
+                  background: '#fff',
+                  color: '#B91C1C',
+                  border: '1px solid #FECACA',
+                  borderRadius: 8,
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: archiving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {archiving ? 'Архивация...' : 'Архивировать груз'}
               </button>
             </div>
 

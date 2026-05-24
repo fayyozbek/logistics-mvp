@@ -62,6 +62,8 @@ export interface Shipment {
   checkpoints: CheckPoint[];
   financeId: string;
   telegramNotifications: boolean;
+  client?: Client;
+  manager?: Manager | null;
 }
 
 export const managers: Manager[] = [

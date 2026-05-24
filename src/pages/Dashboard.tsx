@@ -14,8 +14,9 @@ import {
   YAxis,
 } from 'recharts';
 import { CalendarDays, ChevronDown, PackageCheck, TrendingUp } from 'lucide-react';
-import { getDashboardData } from '../api';
+import { getDashboardData, getApiErrorMessage } from '../api';
 import type { DashboardData } from '../types/api';
+import ApiLoadErrorBanner from '../components/ApiLoadErrorBanner';
 
 // Static chart data for periods the API does not yet return.
 const moneyByWeek = [
@@ -246,11 +247,15 @@ function PeriodTabs({ value, onChange }: { value: ChartPeriod; onChange: (value:
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
 
   useEffect(() => {
     getDashboardData()
       .then(setDashboardData)
+      .catch((error) => {
+        setLoadError(getApiErrorMessage(error, 'Не удалось загрузить дашборд.'));
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -307,6 +312,10 @@ export default function Dashboard() {
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
+  }
+
+  if (loadError && !dashboardData) {
+    return <ApiLoadErrorBanner message={loadError} />;
   }
 
   return (

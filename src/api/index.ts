@@ -1,7 +1,8 @@
-export { ApiError, getApiBaseUrl, isApiConfigured } from './client';
+export { ApiError, getApiBaseUrl, getApiErrorMessage, isApiConfigured } from './client';
 export {
   addShipmentCheckpoint,
   createShipment,
+  deleteShipment,
   getDashboardData,
   getFinance,
   getManagers,

@@ -24,6 +24,20 @@ export class ApiError extends Error {
   }
 }
 
+export function getApiErrorMessage(
+  error: unknown,
+  fallback = 'Не удалось загрузить данные с API.',
+): string {
+  if (error instanceof ApiError) {
+    if (error.status === 0) {
+      return 'API недоступен. Проверьте, что backend запущен и VITE_API_BASE_URL указан верно.';
+    }
+    return error.message;
+  }
+
+  return fallback;
+}
+
 async function parseErrorBody(response: Response): Promise<{ message?: string; errors?: ApiValidationErrors }> {
   try {
     return await response.json() as { message?: string; errors?: ApiValidationErrors };
@@ -39,14 +53,20 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
   }
 
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const response = await fetch(`${base}${normalizedPath}`, {
-    ...options,
-    headers: {
-      Accept: 'application/json',
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(options.headers ?? {}),
-    },
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${base}${normalizedPath}`, {
+      ...options,
+      headers: {
+        Accept: 'application/json',
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(options.headers ?? {}),
+      },
+    });
+  } catch {
+    throw new ApiError('API недоступен. Проверьте, что backend запущен и VITE_API_BASE_URL указан верно.', 0);
+  }
 
   if (!response.ok) {
     const body = await parseErrorBody(response);
@@ -77,6 +97,12 @@ export function patchJson<T>(path: string, data: unknown): Promise<T> {
   });
 }
 
+export function deleteJson<T>(path: string): Promise<T> {
+  return requestJson<T>(path, {
+    method: 'DELETE',
+  });
+}
+
 export async function requestWithMockFallback<T>(
   path: string,
   mock: () => T,
@@ -85,9 +111,5 @@ export async function requestWithMockFallback<T>(
     return mock();
   }
 
-  try {
-    return await fetchJson<T>(path);
-  } catch {
-    return mock();
-  }
+  return fetchJson<T>(path);
 }

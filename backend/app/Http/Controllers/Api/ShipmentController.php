@@ -137,6 +137,15 @@ class ShipmentController extends Controller
         ], 201);
     }
 
+    public function destroy(Shipment $shipment): JsonResponse
+    {
+        $shipment->delete();
+
+        return response()->json([
+            'message' => 'Shipment archived.',
+        ]);
+    }
+
     private function generateTrackingNumber(): string
     {
         $year = now()->year;

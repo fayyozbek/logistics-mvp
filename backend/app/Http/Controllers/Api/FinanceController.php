@@ -18,6 +18,7 @@ class FinanceController extends Controller
     {
         $query = FinanceRecord::query()
             ->with('client')
+            ->whereHas('shipment')
             ->orderByDesc('invoice_date');
 
         if ($request->filled('status')) {

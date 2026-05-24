@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, Search, Send, X } from 'lucide-react';
 import { clients, managers, type CheckPoint, type Shipment } from '../data/mock';
-import { addShipmentCheckpoint, ApiError, getTrackingData, updateCheckpoint } from '../api';
+import { addShipmentCheckpoint, ApiError, getApiErrorMessage, getTrackingData, updateCheckpoint } from '../api';
+import ApiLoadErrorBanner from '../components/ApiLoadErrorBanner';
 
 const checkpointFieldLabels: Record<string, string> = {
   city: 'Город',
@@ -306,6 +307,7 @@ function WorldMap({ selected }: { selected: Shipment }) {
 
 export default function Tracking() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [allShipments, setAllShipments] = useState<Shipment[]>([]);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Shipment | null>(null);
@@ -332,6 +334,9 @@ export default function Tracking() {
         const mapped = data.map((s) => ({ ...s, checkpoints: [...s.checkpoints] }));
         setAllShipments(mapped);
         setSelected(mapped[1] ?? mapped[0] ?? null);
+      })
+      .catch((error) => {
+        setLoadError(getApiErrorMessage(error, 'Не удалось загрузить данные отслеживания.'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -360,6 +365,10 @@ export default function Tracking() {
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
+  }
+
+  if (loadError && allShipments.length === 0) {
+    return <ApiLoadErrorBanner message={loadError} />;
   }
 
   if (!selected) return null;

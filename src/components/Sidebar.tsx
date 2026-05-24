@@ -11,14 +11,10 @@ const navItems: { id: Page; label: string; icon: string }[] = [
   { id: 'tracking', label: 'Отслеживание', icon: '◎' },
   { id: 'managers', label: 'Менеджеры', icon: '◈' },
   { id: 'finance', label: 'Финансы', icon: '▤' },
-  { id: 'users', label: 'Пользователи', icon: '◉' },
-  { id: 'archive', label: 'Архив', icon: '▣' },
   { id: 'telegram', label: 'Telegram-бот', icon: '✈' },
 ];
 
-const bottomItems: { id: Page; label: string; icon: string }[] = [
-  { id: 'settings', label: 'Настройки', icon: '⚙' },
-];
+const bottomItems: { id: Page; label: string; icon: string }[] = [];
 
 export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   return (

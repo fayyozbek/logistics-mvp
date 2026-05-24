@@ -13,8 +13,10 @@ class DashboardController extends Controller
 {
     public function index(): JsonResponse
     {
-        $totalRevenue = (float) FinanceRecord::query()->sum('total_amount');
-        $totalPaid = (float) FinanceRecord::query()->sum('paid_amount');
+        $financeQuery = FinanceRecord::query()->whereHas('shipment');
+
+        $totalRevenue = (float) (clone $financeQuery)->sum('total_amount');
+        $totalPaid = (float) (clone $financeQuery)->sum('paid_amount');
         $receivable = $totalRevenue - $totalPaid;
 
         $activeShipments = Shipment::query()
@@ -49,6 +51,7 @@ class DashboardController extends Controller
         $invoicePeriodSql = $this->invoicePeriodSql();
 
         $monthlyStats = FinanceRecord::query()
+            ->whereHas('shipment')
             ->selectRaw("{$invoicePeriodSql} as period")
             ->selectRaw('count(*) as shipments')
             ->selectRaw('sum(total_amount) as revenue')

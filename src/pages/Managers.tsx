@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { type Client, type Manager, type Shipment } from '../data/mock';
-import { getManagers } from '../api';
+import { getManagers, getApiErrorMessage } from '../api';
+import ApiLoadErrorBanner from '../components/ApiLoadErrorBanner';
 
 export default function Managers() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [managers, setManagers] = useState<Manager[]>([]);
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -17,6 +19,9 @@ export default function Managers() {
         setManagers(m);
         setShipments(s);
         setClients(c);
+      })
+      .catch((error) => {
+        setLoadError(getApiErrorMessage(error, 'Не удалось загрузить менеджеров.'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -33,6 +38,10 @@ export default function Managers() {
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
+  }
+
+  if (loadError && managers.length === 0) {
+    return <ApiLoadErrorBanner message={loadError} />;
   }
 
   return (

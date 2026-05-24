@@ -21,7 +21,7 @@ import type {
   UpdateCheckpointPayload,
   UpdateShipmentStatusPayload,
 } from '../types/api';
-import { ApiError, isApiConfigured, patchJson, postJson, requestWithMockFallback } from './client';
+import { ApiError, deleteJson, isApiConfigured, patchJson, postJson, requestWithMockFallback } from './client';
 import {
   getDashboardDataMock,
   getFinanceMock,
@@ -157,6 +157,17 @@ export function updateShipmentStatus(
 
   const encodedId = encodeURIComponent(id);
   return patchJson<ShipmentResponse>(`/shipments/${encodedId}/status`, payload);
+}
+
+export function deleteShipment(id: string): Promise<{ message: string }> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Архивация груза доступна только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  const encodedId = encodeURIComponent(id);
+  return deleteJson<{ message: string }>(`/shipments/${encodedId}`);
 }
 
 export function addShipmentCheckpoint(
