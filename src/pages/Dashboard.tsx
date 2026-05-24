@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { CalendarDays, ChevronDown, PackageCheck, TrendingUp } from 'lucide-react';
 import { getDashboardData, getApiErrorMessage } from '../api';
+import { isApiConfigured } from '../api/client';
 import type { DashboardData } from '../types/api';
 import ApiLoadErrorBanner from '../components/ApiLoadErrorBanner';
 
@@ -83,6 +84,28 @@ const calendarEvents = [
 ];
 
 type ChartPeriod = 'Неделя' | 'Месяц' | 'Год';
+
+function DemoDataLabel() {
+  if (!isApiConfigured()) {
+    return null;
+  }
+
+  return (
+    <span style={{
+      fontSize: 10,
+      color: '#94A3B8',
+      fontWeight: 800,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+      padding: '4px 8px',
+      borderRadius: 999,
+      background: '#F8FAFC',
+      border: '1px solid #E2E8F0',
+    }}>
+      Демо-данные
+    </span>
+  );
+}
 
 function formatMoney(value: number) {
   if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
@@ -292,6 +315,9 @@ export default function Dashboard() {
 
   const shipmentChartData = chartDataByPeriod[shipmentPeriod];
   const moneyChartData = chartDataByPeriod[moneyPeriod];
+  const apiMode = isApiConfigured();
+  const shipmentChartIsDemo = apiMode && shipmentPeriod !== 'Месяц';
+  const moneyChartIsDemo = apiMode && moneyPeriod !== 'Месяц';
 
   const handlePickDate = (day: number) => {
     setDateRange((current) => {
@@ -367,7 +393,10 @@ export default function Dashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
         <section style={{ background: '#fff', borderRadius: 22, padding: '20px 22px', border: '1px solid rgba(255,255,255,0.8)', minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div style={{ fontSize: 18, fontWeight: 950, color: '#111827' }}>Грузы по месяцам</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 18, fontWeight: 950, color: '#111827' }}>Грузы по месяцам</div>
+              {shipmentChartIsDemo && <DemoDataLabel />}
+            </div>
             <PeriodTabs value={shipmentPeriod} onChange={setShipmentPeriod} />
           </div>
           <ResponsiveContainer width="100%" height={235}>
@@ -390,7 +419,10 @@ export default function Dashboard() {
 
         <section style={{ background: '#fff', borderRadius: 22, padding: '20px 22px', border: '1px solid rgba(255,255,255,0.8)', minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div style={{ fontSize: 18, fontWeight: 950, color: '#111827' }}>Оборот и оплаты</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 18, fontWeight: 950, color: '#111827' }}>Оборот и оплаты</div>
+              {moneyChartIsDemo && <DemoDataLabel />}
+            </div>
             <PeriodTabs value={moneyPeriod} onChange={setMoneyPeriod} />
           </div>
           <ResponsiveContainer width="100%" height={235}>
@@ -446,7 +478,10 @@ export default function Dashboard() {
 
         <section style={{ background: '#fff', borderRadius: 22, padding: '20px 22px', border: '1px solid rgba(255,255,255,0.8)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-            <div style={{ fontSize: 18, fontWeight: 950, color: '#111827' }}>Популярные направления</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 18, fontWeight: 950, color: '#111827' }}>Популярные направления</div>
+              {apiMode && <DemoDataLabel />}
+            </div>
             <span style={{ fontSize: 12, color: '#111827', fontWeight: 900 }}>Все ↗</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -467,7 +502,10 @@ export default function Dashboard() {
 
         <section style={{ background: '#fff', borderRadius: 22, padding: '20px 22px', border: '1px solid rgba(255,255,255,0.8)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-            <div style={{ fontSize: 18, fontWeight: 950, color: '#111827' }}>Ср. задержка менеджеров</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 18, fontWeight: 950, color: '#111827' }}>Ср. задержка менеджеров</div>
+              {apiMode && <DemoDataLabel />}
+            </div>
             <span style={{ fontSize: 12, color: '#111827', fontWeight: 900 }}>Все ↗</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
@@ -495,7 +533,10 @@ export default function Dashboard() {
             <TrendingUp size={18} />
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 950, color: '#111827' }}>Ключевые направления месяца</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 16, fontWeight: 950, color: '#111827' }}>Ключевые направления месяца</div>
+              {apiMode && <DemoDataLabel />}
+            </div>
             <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>Показывает, куда чаще всего идут активные B2B-грузы</div>
           </div>
         </div>

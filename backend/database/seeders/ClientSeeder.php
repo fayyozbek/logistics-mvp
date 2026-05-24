@@ -13,7 +13,7 @@ class ClientSeeder extends Seeder
     {
         foreach (DemoData::clients() as $key => $attributes) {
             $client = Client::query()->updateOrCreate(
-                ['email' => $attributes['email']],
+                ['company' => $attributes['company']],
                 $attributes,
             );
 

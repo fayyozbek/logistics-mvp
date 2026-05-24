@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Bell, Search } from 'lucide-react';
-import NotificationsPanel, { taskNotifications } from './NotificationsPanel';
+import NotificationsPanel, { useNotificationBadgeCount } from './NotificationsPanel';
 
 interface HeaderProps {
   title: string;
@@ -9,7 +9,7 @@ interface HeaderProps {
 
 export default function Header({ title, subtitle }: HeaderProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const unreadCount = taskNotifications.filter((item) => item.unread).length;
+  const unreadCount = useNotificationBadgeCount();
 
   return (
     <>
@@ -48,13 +48,15 @@ export default function Header({ title, subtitle }: HeaderProps) {
             }}>
               <Bell size={17} />
             </div>
-            <div style={{
-              position: 'absolute', top: -4, right: -4,
-              minWidth: 17, height: 17, borderRadius: 999, background: '#EF4444',
-              border: '2px solid #fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 9, color: '#fff', fontWeight: 900, padding: '0 4px',
-            }}>{unreadCount}</div>
+            {unreadCount > 0 && (
+              <div style={{
+                position: 'absolute', top: -4, right: -4,
+                minWidth: 17, height: 17, borderRadius: 999, background: '#EF4444',
+                border: '2px solid #fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 9, color: '#fff', fontWeight: 900, padding: '0 4px',
+              }}>{unreadCount}</div>
+            )}
           </button>
           {/* Date */}
           <div style={{ fontSize: 12, color: '#94A3B8' }}>

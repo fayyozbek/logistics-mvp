@@ -62,4 +62,14 @@ class LogisticsDemoSeederTest extends TestCase
         $this->assertSame(6, FinanceRecord::count());
         $this->assertSame(1, TelegramSetting::count());
     }
+
+    public function test_db_seed_after_database_seeder_does_not_duplicate_clients(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->artisan('db:seed', ['--force' => true])->assertExitCode(0);
+
+        $this->assertSame(5, Client::count());
+        $this->assertSame(4, Manager::count());
+        $this->assertSame(6, Shipment::count());
+    }
 }

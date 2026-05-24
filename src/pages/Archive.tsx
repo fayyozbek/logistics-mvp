@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import DemoPrototypeBanner from '../components/DemoPrototypeBanner';
 import { Archive as ArchiveIcon, CalendarDays, Eye, FileText, PackageCheck, Search, X } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -141,6 +142,7 @@ export default function Archive() {
 
   return (
     <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <DemoPrototypeBanner message="Архив проектов — демо-данные. Актуальные партнёры и грузы — в разделах «Партнёры» и «Грузы»." />
       <section style={{ background: '#fff', border: '1px solid #EEF2FF', borderRadius: 16, padding: '20px 22px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>

@@ -17,6 +17,7 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
+import DemoPrototypeBanner from '../components/DemoPrototypeBanner';
 
 type UserRole = 'admin' | 'head' | 'manager' | 'finance';
 
@@ -300,6 +301,7 @@ export default function Users() {
 
   return (
     <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <DemoPrototypeBanner message="Прототип управления пользователями. Данные не синхронизируются с backend." />
       <SectionCard>
         <div style={{
           padding: '20px 22px',

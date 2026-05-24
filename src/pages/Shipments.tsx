@@ -566,9 +566,9 @@ export default function Shipments() {
 
                   {/* Right meta */}
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{clientName ?? '—'}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{clientName ?? 'Не указан'}</div>
                     <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
-                      <span style={{ fontWeight: 500 }}>Менеджер:</span> {managerName?.split(' ').slice(0, 2).join(' ') ?? '—'}
+                      <span style={{ fontWeight: 500 }}>Менеджер:</span> {managerName?.split(' ').slice(0, 2).join(' ') ?? 'Не назначен'}
                     </div>
                     {(s.weight || s.volume) && (
                       <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }}>
@@ -674,8 +674,8 @@ export default function Shipments() {
             {/* Details grid */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
               {[
-                { icon: '🏢', label: 'Клиент', value: shipmentClientLabel(selected) ?? clients.find(c => c.id === selected.clientId)?.company },
-                { icon: '👤', label: 'Менеджер', value: shipmentManagerLabel(selected) ?? managers.find(m => m.id === selected.managerId)?.name },
+                { icon: '🏢', label: 'Клиент', value: shipmentClientLabel(selected) ?? 'Не указан' },
+                { icon: '👤', label: 'Менеджер', value: shipmentManagerLabel(selected) ?? 'Не назначен' },
                 { icon: '📦', label: 'Груз', value: selected.cargo },
                 { icon: '⚖', label: 'Вес / Объём', value: [selected.weight, selected.volume].filter(Boolean).join(' · ') || undefined },
                 { icon: '📅', label: 'Плановая дата', value: selected.estimatedDelivery },
