@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\TelegramNotificationLogResource;
 use App\Models\TelegramNotificationLog;
-use App\Services\TelegramBotService;
+use App\Services\AccountContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -15,15 +15,16 @@ class TelegramNotificationController extends Controller
 
     private const MAX_LIMIT = 100;
 
-    public function index(Request $request, TelegramBotService $telegram): JsonResponse
+    public function index(Request $request, AccountContext $accountContext): JsonResponse
     {
-        $accountId = $telegram->getCurrentSetting()?->account_id
-            ?? ($telegram->currentAccount()->id ?? null);
+        $scope = $accountContext->telegramScope();
 
         $query = TelegramNotificationLog::query()->orderByDesc('created_at');
 
-        if ($accountId !== null) {
-            $query->where('account_id', $accountId);
+        if ($scope['account_id'] !== null) {
+            $query->where('account_id', $scope['account_id']);
+        } elseif ($scope['user_id'] !== null) {
+            $query->where('user_id', $scope['user_id'])->whereNull('account_id');
         }
 
         $status = $request->query('status');

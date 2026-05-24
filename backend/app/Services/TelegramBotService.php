@@ -43,18 +43,20 @@ class TelegramBotService
     }
 
     /**
-     * Active notification settings for the current principal.
+     * Active notification settings for the authenticated principal.
      *
-     * MVP: Default Demo Account row when accounts exist; otherwise first/singleton row.
-     * Future: resolve from authenticated user/account.
+     * Resolution order:
+     *   1. Authenticated user with account_id → account-scoped row
+     *   2. Authenticated user without account_id → user-scoped row
+     *   3. Unauthenticated → Default Demo Account (local/demo only)
      */
     public function getCurrentSetting(): ?TelegramNotificationSetting
     {
-        if ($this->accountsTableExists()) {
-            $account = $this->accountContext->current();
+        $scope = $this->accountContext->telegramScope();
 
+        if ($scope['account_id'] !== null) {
             $setting = TelegramNotificationSetting::query()
-                ->where('account_id', $account->id)
+                ->where('account_id', $scope['account_id'])
                 ->first();
 
             if ($setting !== null) {
@@ -62,23 +64,61 @@ class TelegramBotService
             }
         }
 
-        return TelegramNotificationSetting::query()
-            ->whereNull('account_id')
-            ->orderBy('id')
-            ->first()
-            ?? TelegramNotificationSetting::query()->orderBy('id')->first();
+        if ($scope['user_id'] !== null) {
+            $setting = TelegramNotificationSetting::query()
+                ->where('user_id', $scope['user_id'])
+                ->whereNull('account_id')
+                ->first();
+
+            if ($setting !== null) {
+                return $setting;
+            }
+        }
+
+        if ($scope['demo']) {
+            return TelegramNotificationSetting::query()
+                ->where('account_id', $scope['account_id'])
+                ->first();
+        }
+
+        return null;
     }
 
     public function getOrCreateCurrentSetting(): TelegramNotificationSetting
     {
-        return $this->getCurrentSetting() ?? TelegramNotificationSetting::query()->create([
-            'account_id' => $this->accountsTableExists() ? $this->accountContext->current()->id : null,
+        $scope = $this->accountContext->telegramScope();
+
+        $defaults = [
             'enabled' => false,
             'notifications_enabled' => true,
             'notify_shipment_created' => true,
             'notify_status_changed' => true,
             'notify_checkpoint_added' => true,
-        ]);
+        ];
+
+        if ($scope['account_id'] !== null) {
+            return TelegramNotificationSetting::query()->updateOrCreate(
+                ['account_id' => $scope['account_id']],
+                array_merge($defaults, [
+                    'user_id' => $scope['user_id'],
+                ]),
+            );
+        }
+
+        if ($scope['user_id'] !== null) {
+            return TelegramNotificationSetting::query()->updateOrCreate(
+                [
+                    'user_id' => $scope['user_id'],
+                    'account_id' => null,
+                ],
+                $defaults,
+            );
+        }
+
+        return TelegramNotificationSetting::query()->updateOrCreate(
+            ['account_id' => $this->accountContext->demoAccount()->id],
+            $defaults,
+        );
     }
 
     /**
@@ -318,7 +358,8 @@ class TelegramBotService
         $setting = $this->getCurrentSetting();
         $preview = $this->messagePreview($text);
         $resolvedChatId = $this->resolveChatId($chatId);
-        $accountId = $setting?->account_id ?? ($this->accountsTableExists() ? $this->accountContext->current()->id : null);
+        $scope = $this->accountContext->telegramScope();
+        $accountId = $setting?->account_id ?? $scope['account_id'];
 
         if ($setting !== null && ! $this->settingAllowsNotifications($setting)) {
             $result = $this->skipped('Telegram notifications are disabled for this account.');
@@ -486,10 +527,12 @@ class TelegramBotService
 
         $status = $this->logStatusFromResult($result);
         $sentAt = $status === TelegramNotificationLog::STATUS_SENT ? now() : null;
+        $scope = $this->accountContext->telegramScope();
 
         TelegramNotificationLog::query()->create([
             'telegram_notification_setting_id' => $setting?->id,
-            'account_id' => $accountId,
+            'account_id' => $accountId ?? $scope['account_id'],
+            'user_id' => $scope['user_id'],
             'event_type' => $eventType,
             'related_type' => $relatedType,
             'related_id' => $relatedId,

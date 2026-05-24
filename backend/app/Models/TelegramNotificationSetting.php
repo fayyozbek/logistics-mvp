@@ -42,6 +42,11 @@ class TelegramNotificationSetting extends Model
         return $this->belongsTo(Account::class);
     }
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function telegramNotificationLogs(): HasMany
     {
         return $this->hasMany(TelegramNotificationLog::class);
