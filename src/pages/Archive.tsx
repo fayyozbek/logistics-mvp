@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Archive as ArchiveIcon, Building2, CalendarDays, Eye, FileText, PackageCheck, Search, X } from 'lucide-react';
+import { Archive as ArchiveIcon, CalendarDays, Eye, FileText, PackageCheck, Search, X } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
-type ArchiveTab = 'projects' | 'partners';
 type ArchiveStatus = 'completed' | 'paused' | 'closed';
 
 interface ArchivedProject {
@@ -109,13 +108,6 @@ const archivedProjects: ArchivedProject[] = [
   },
 ];
 
-const partners = [
-  { name: 'KazExport LLP', country: 'Казахстан', projects: 8, amount: 38400, lastActivity: '2026-05-12' },
-  { name: 'EuroCargo SA', country: 'Франция', projects: 5, amount: 47000, lastActivity: '2026-05-14' },
-  { name: 'Global Trade GmbH', country: 'Германия', projects: 12, amount: 151200, lastActivity: '2025-12-02' },
-  { name: 'Silk Road Cargo', country: 'Китай', projects: 7, amount: 154000, lastActivity: '2025-09-20' },
-];
-
 const statusMeta: Record<ArchiveStatus, { label: string; color: string; bg: string }> = {
   completed: { label: 'Завершён', color: '#047857', bg: '#D1FAE5' },
   paused: { label: 'На паузе', color: '#B45309', bg: '#FEF3C7' },
@@ -123,7 +115,6 @@ const statusMeta: Record<ArchiveStatus, { label: string; color: string; bg: stri
 };
 
 export default function Archive() {
-  const [tab, setTab] = useState<ArchiveTab>('projects');
   const [query, setQuery] = useState('');
   const [year, setYear] = useState('all');
   const [month, setMonth] = useState('all');
@@ -159,7 +150,7 @@ export default function Archive() {
             <div>
               <div style={{ fontSize: 18, fontWeight: 900, color: '#0F172A' }}>Архив проектов</div>
               <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 3 }}>
-                История завершённых проектов, архивные партнёры, активность по месяцам и годам.
+                История завершённых проектов (демо-данные). Актуальные партнёры — в разделе «Партнёры».
               </div>
             </div>
           </div>
@@ -167,7 +158,6 @@ export default function Archive() {
             {[
               { label: 'Проекты', value: filteredProjects.length },
               { label: 'Сумма', value: `$${totalAmount.toLocaleString()}` },
-              { label: 'Партнёры', value: partners.length },
             ].map((stat) => (
               <div key={stat.label} style={{ minWidth: 92, background: '#F8FAFC', border: '1px solid #EEF2FF', borderRadius: 12, padding: '10px 12px' }}>
                 <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800 }}>{stat.label}</div>
@@ -180,32 +170,9 @@ export default function Archive() {
 
       <section style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
         <div style={{ background: '#fff', border: '1px solid #EEF2FF', borderRadius: 16, padding: '18px 20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ display: 'flex', gap: 6, background: '#F8FAFC', padding: 4, borderRadius: 10, border: '1px solid #E2E8F0' }}>
-              {[
-                { id: 'projects', label: 'Проекты' },
-                { id: 'partners', label: 'Партнёры' },
-              ].map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setTab(item.id as ArchiveTab)}
-                  style={{
-                    border: 'none',
-                    borderRadius: 8,
-                    padding: '7px 16px',
-                    background: tab === item.id ? '#16834A' : 'transparent',
-                    color: tab === item.id ? '#fff' : '#64748B',
-                    fontSize: 12,
-                    fontWeight: 900,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 900, color: '#0F172A' }}>Архивные проекты</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '8px 12px', width: 250 }}>
                 <Search size={14} color="#94A3B8" />
                 <input
@@ -232,68 +199,40 @@ export default function Archive() {
             </div>
           </div>
 
-          {tab === 'projects' ? (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                  {['Партнёр', 'Описание', 'Тип', 'Сумма', 'Статус', 'Дата оплаты', 'Подтвердил', 'Добавлен', 'Действия'].map((heading) => (
-                    <th key={heading} style={{ textAlign: 'left', padding: '11px 12px', color: '#94A3B8', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 900 }}>{heading}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProjects.map((project) => {
-                  const status = statusMeta[project.status];
-                  return (
-                    <tr key={project.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <td style={{ padding: '13px 12px' }}>
-                        <div style={{ fontSize: 12, color: '#0F172A', fontWeight: 900 }}>{project.partner}</div>
-                        <div style={{ fontSize: 10, color: '#94A3B8' }}>{project.id}</div>
-                      </td>
-                      <td style={{ padding: '13px 12px', color: '#64748B', maxWidth: 220 }}>{project.description}</td>
-                      <td style={{ padding: '13px 12px', color: '#334155', fontWeight: 800 }}>{project.type}</td>
-                      <td style={{ padding: '13px 12px', color: '#0F172A', fontWeight: 900 }}>${project.amount.toLocaleString()}</td>
-                      <td style={{ padding: '13px 12px' }}><span style={{ padding: '4px 9px', borderRadius: 999, background: status.bg, color: status.color, fontSize: 10, fontWeight: 900 }}>{status.label}</span></td>
-                      <td style={{ padding: '13px 12px', color: '#64748B' }}>{project.paidAt}</td>
-                      <td style={{ padding: '13px 12px', color: '#64748B' }}>{project.confirmedBy}</td>
-                      <td style={{ padding: '13px 12px', color: '#64748B' }}>{project.addedAt}</td>
-                      <td style={{ padding: '13px 12px' }}>
-                        <button onClick={() => setSelected(project)} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', color: '#64748B', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Eye size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                  {['Партнёр', 'Страна', 'Проектов', 'Архивная сумма', 'Последняя активность'].map((heading) => (
-                    <th key={heading} style={{ textAlign: 'left', padding: '11px 12px', color: '#94A3B8', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 900 }}>{heading}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {partners.map((partner) => (
-                  <tr key={partner.name} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                    <td style={{ padding: '13px 12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 10, background: '#ECFDF5', color: '#047857', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Building2 size={16} /></div>
-                        <span style={{ color: '#0F172A', fontWeight: 900 }}>{partner.name}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '13px 12px', color: '#64748B' }}>{partner.country}</td>
-                    <td style={{ padding: '13px 12px', color: '#0F172A', fontWeight: 900 }}>{partner.projects}</td>
-                    <td style={{ padding: '13px 12px', color: '#0F172A', fontWeight: 900 }}>${partner.amount.toLocaleString()}</td>
-                    <td style={{ padding: '13px 12px', color: '#64748B' }}>{partner.lastActivity}</td>
-                  </tr>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                {['Партнёр', 'Описание', 'Тип', 'Сумма', 'Статус', 'Дата оплаты', 'Подтвердил', 'Добавлен', 'Действия'].map((heading) => (
+                  <th key={heading} style={{ textAlign: 'left', padding: '11px 12px', color: '#94A3B8', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 900 }}>{heading}</th>
                 ))}
-              </tbody>
-            </table>
-          )}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProjects.map((project) => {
+                const status = statusMeta[project.status];
+                return (
+                  <tr key={project.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                    <td style={{ padding: '13px 12px' }}>
+                      <div style={{ fontSize: 12, color: '#0F172A', fontWeight: 900 }}>{project.partner}</div>
+                      <div style={{ fontSize: 10, color: '#94A3B8' }}>{project.id}</div>
+                    </td>
+                    <td style={{ padding: '13px 12px', color: '#64748B', maxWidth: 220 }}>{project.description}</td>
+                    <td style={{ padding: '13px 12px', color: '#334155', fontWeight: 800 }}>{project.type}</td>
+                    <td style={{ padding: '13px 12px', color: '#0F172A', fontWeight: 900 }}>${project.amount.toLocaleString()}</td>
+                    <td style={{ padding: '13px 12px' }}><span style={{ padding: '4px 9px', borderRadius: 999, background: status.bg, color: status.color, fontSize: 10, fontWeight: 900 }}>{status.label}</span></td>
+                    <td style={{ padding: '13px 12px', color: '#64748B' }}>{project.paidAt}</td>
+                    <td style={{ padding: '13px 12px', color: '#64748B' }}>{project.confirmedBy}</td>
+                    <td style={{ padding: '13px 12px', color: '#64748B' }}>{project.addedAt}</td>
+                    <td style={{ padding: '13px 12px' }}>
+                      <button onClick={() => setSelected(project)} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', color: '#64748B', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Eye size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

@@ -1,9 +1,50 @@
 import { useEffect, useState } from 'react';
-import { type Client, type Manager, type Shipment } from '../data/mock';
-import { getManagers, getApiErrorMessage } from '../api';
+import type { Client, Manager, Shipment } from '../data/mock';
+import {
+  ApiError,
+  createManager,
+  deleteManager,
+  formatValidationErrors,
+  getActionErrorMessage,
+  getApiErrorMessage,
+  getManagers,
+  updateManager,
+} from '../api';
+import type { CreateManagerPayload } from '../types/api';
 import ApiLoadErrorBanner from '../components/ApiLoadErrorBanner';
+import { usePermissions } from '../hooks/usePermissions';
+
+const statusColors: Record<string, string> = {
+  planned: '#F59E0B', in_transit: '#3B82F6', at_checkpoint: '#8B5CF6', delivered: '#10B981', delayed: '#EF4444',
+};
+const statusLabel: Record<string, string> = {
+  planned: 'Запланирован', in_transit: 'В пути', at_checkpoint: 'На пункте', delivered: 'Доставлен', delayed: 'Задержка',
+};
+
+interface ManagerFormState {
+  name: string;
+  email: string;
+  phone: string;
+  telegramId: string;
+  region: string;
+  avatar: string;
+}
+
+const emptyForm: ManagerFormState = {
+  name: '',
+  email: '',
+  phone: '',
+  telegramId: '',
+  region: '',
+  avatar: '',
+};
 
 export default function Managers() {
+  const { can } = usePermissions();
+  const canCreate = can('manager.create');
+  const canUpdate = can('manager.update');
+  const canDelete = can('manager.delete');
+
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [managers, setManagers] = useState<Manager[]>([]);
@@ -11,7 +52,13 @@ export default function Managers() {
   const [clients, setClients] = useState<Client[]>([]);
   const [selected, setSelected] = useState<Manager | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [newRoute, setNewRoute] = useState({ city: '', country: '', address: '', note: '' });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<ManagerFormState>(emptyForm);
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [actionError, setActionError] = useState('');
 
   useEffect(() => {
     getManagers()
@@ -25,6 +72,98 @@ export default function Managers() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const openCreateForm = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setFormErrors([]);
+    setActionError('');
+    setShowForm(true);
+  };
+
+  const openEditForm = (manager: Manager) => {
+    setEditingId(manager.id);
+    setForm({
+      name: manager.name,
+      email: manager.email ?? '',
+      phone: manager.phone ?? '',
+      telegramId: manager.telegramId ?? '',
+      region: manager.region ?? '',
+      avatar: manager.avatar ?? '',
+    });
+    setFormErrors([]);
+    setActionError('');
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    if (submitting) return;
+    setShowForm(false);
+    setFormErrors([]);
+  };
+
+  const buildPayload = (): CreateManagerPayload => ({
+    name: form.name.trim(),
+    email: form.email.trim() || undefined,
+    phone: form.phone.trim() || undefined,
+    telegramId: form.telegramId.trim() || undefined,
+    region: form.region.trim() || undefined,
+    avatar: form.avatar.trim() || undefined,
+  });
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setFormErrors([]);
+    setActionError('');
+    setSuccessMessage('');
+
+    try {
+      if (editingId) {
+        const { manager } = await updateManager(editingId, buildPayload());
+        setManagers((current) => current.map((item) => (item.id === manager.id ? manager : item)));
+        if (selected?.id === manager.id) {
+          setSelected(manager);
+        }
+        setSuccessMessage(`Менеджер «${manager.name}» обновлён`);
+      } else {
+        const { manager } = await createManager(buildPayload());
+        setManagers((current) => [...current, manager]);
+        setSuccessMessage(`Менеджер «${manager.name}» создан`);
+      }
+      setShowForm(false);
+    } catch (error) {
+      if (error instanceof ApiError && error.validationErrors) {
+        setFormErrors(formatValidationErrors(error.validationErrors));
+      } else {
+        setFormErrors([getActionErrorMessage(error, 'Не удалось сохранить менеджера.')]);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (manager: Manager) => {
+    if (!window.confirm(`Удалить менеджера «${manager.name}»?`)) {
+      return;
+    }
+
+    setDeleting(true);
+    setActionError('');
+    setSuccessMessage('');
+
+    try {
+      await deleteManager(manager.id);
+      setManagers((current) => current.filter((item) => item.id !== manager.id));
+      if (selected?.id === manager.id) {
+        setSelected(null);
+      }
+      setSuccessMessage(`Менеджер «${manager.name}» удалён`);
+    } catch (error) {
+      setActionError(getActionErrorMessage(error, 'Не удалось удалить менеджера.'));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -45,21 +184,39 @@ export default function Managers() {
   }
 
   return (
-    <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontSize: 13, color: '#64748B' }}>Всего менеджеров: <strong>{managers.length}</strong></div>
+    <div style={{ padding: '20px clamp(14px, 3vw, 28px)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {(successMessage || actionError) && (
+        <div style={{
+          padding: '10px 14px',
+          borderRadius: 10,
+          background: actionError ? '#FEF2F2' : '#F0FDF4',
+          border: `1px solid ${actionError ? '#FECACA' : '#BBF7D0'}`,
+          color: actionError ? '#B91C1C' : '#166534',
+          fontSize: 13,
+          fontWeight: 600,
+        }}>
+          {actionError || successMessage}
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          style={{ padding: '8px 18px', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-          + Добавить менеджера
-        </button>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ fontSize: 13, color: '#64748B' }}>
+          Всего менеджеров: <strong>{managers.length}</strong>
+        </div>
+        {canCreate && (
+          <button
+            type="button"
+            onClick={openCreateForm}
+            style={{ padding: '8px 18px', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+          >
+            + Добавить менеджера
+          </button>
+        )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
-        {managers.map(m => {
-          const managerShipments = shipments.filter(s => s.managerId === m.id);
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: 14 }}>
+        {managers.map((m) => {
+          const managerShipments = shipments.filter((s) => s.managerId === m.id);
           const isSelected = selected?.id === m.id;
           return (
             <div
@@ -77,34 +234,27 @@ export default function Managers() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: '#fff', fontSize: 15, fontWeight: 700, flexShrink: 0,
                 }}>{m.avatar}</div>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{m.name}</div>
-                  <div style={{ fontSize: 11, color: '#94A3B8' }}>{m.region}</div>
+                  <div style={{ fontSize: 11, color: '#94A3B8' }}>{m.region || '—'}</div>
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {[
-                  ['📧', m.email],
-                  ['📞', m.phone],
-                  ['✈', m.telegramId],
-                ].map(([icon, val]) => (
-                  <div key={val} style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+                {[['📧', m.email], ['📞', m.phone], ['✈', m.telegramId]].map(([icon, val]) => (
+                  <div key={String(val)} style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
                     <span style={{ fontSize: 11 }}>{icon}</span>
-                    <span style={{ fontSize: 11, color: '#64748B' }}>{val}</span>
+                    <span style={{ fontSize: 11, color: '#64748B' }}>{val || '—'}</span>
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                 <div>
                   <div style={{ fontSize: 10, color: '#94A3B8' }}>Активных грузов</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: '#3B82F6' }}>{m.activeShipments}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 10, color: '#94A3B8' }}>Всего за месяц</div>
+                  <div style={{ fontSize: 10, color: '#94A3B8' }}>Всего</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: '#0F172A' }}>{managerShipments.length}</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                  <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 20, background: '#F0FDF4', color: '#10B981', fontWeight: 600 }}>Активен</span>
                 </div>
               </div>
             </div>
@@ -112,42 +262,53 @@ export default function Managers() {
         })}
       </div>
 
-      {/* Selected manager detail */}
       {selected && (
-        <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0', overflowX: 'auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Грузы менеджера: {selected.name}</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => setShowForm(true)}
-                style={{ padding: '6px 14px', background: '#F0FDF4', color: '#10B981', border: '1px solid #D1FAE5', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                + Добавить маршрут
-              </button>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {canUpdate && (
+                <button
+                  type="button"
+                  onClick={() => openEditForm(selected)}
+                  style={{ padding: '6px 14px', background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Редактировать
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  type="button"
+                  onClick={() => void handleDelete(selected)}
+                  disabled={deleting}
+                  style={{ padding: '6px 14px', background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FECACA', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: deleting ? 'not-allowed' : 'pointer' }}
+                >
+                  {deleting ? 'Удаление…' : 'Удалить'}
+                </button>
+              )}
             </div>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 640 }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #F1F5F9' }}>
-                {['Трекинг', 'Тип', 'Клиент', 'Откуда', 'Куда', 'Статус', 'ETA'].map(h => (
+                {['Трекинг', 'Тип', 'Клиент', 'Откуда', 'Куда', 'Статус', 'ETA'].map((h) => (
                   <th key={h} style={{ textAlign: 'left', padding: '8px 10px', color: '#94A3B8', fontWeight: 600, fontSize: 11 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {shipments.filter(s => s.managerId === selected.id).map(s => {
-                const client = clients.find(c => c.id === s.clientId);
-                const statusC: Record<string, string> = { planned: '#F59E0B', in_transit: '#3B82F6', delivered: '#10B981', delayed: '#EF4444', at_checkpoint: '#8B5CF6' };
-                const statusL: Record<string, string> = { planned: 'Запланирован', in_transit: 'В пути', delivered: 'Доставлен', delayed: 'Задержка', at_checkpoint: 'На пункте' };
+              {shipments.filter((s) => s.managerId === selected.id).map((s) => {
+                const client = clients.find((c) => c.id === s.clientId) ?? s.client;
                 return (
                   <tr key={s.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
                     <td style={{ padding: '9px 10px', fontWeight: 700, color: '#0F172A' }}>{s.trackingNumber}</td>
                     <td style={{ padding: '9px 10px' }}>{s.type === 'auto' ? '🚛' : s.type === 'air' ? '✈' : s.type === 'sea' ? '🚢' : '🔀'}</td>
-                    <td style={{ padding: '9px 10px', color: '#64748B' }}>{client?.company}</td>
+                    <td style={{ padding: '9px 10px', color: '#64748B' }}>{client?.company ?? '—'}</td>
                     <td style={{ padding: '9px 10px', color: '#64748B' }}>{s.origin}</td>
                     <td style={{ padding: '9px 10px', color: '#64748B' }}>{s.destination}</td>
                     <td style={{ padding: '9px 10px' }}>
-                      <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: statusC[s.status] + '18', color: statusC[s.status] }}>
-                        {statusL[s.status]}
+                      <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: `${statusColors[s.status]}18`, color: statusColors[s.status] }}>
+                        {statusLabel[s.status]}
                       </span>
                     </td>
                     <td style={{ padding: '9px 10px', color: '#94A3B8' }}>{s.estimatedDelivery}</td>
@@ -159,52 +320,59 @@ export default function Managers() {
         </div>
       )}
 
-      {/* Add Route Modal */}
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.48)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(3px)', padding: 24 }}>
-          <div style={{ background: '#fff', borderRadius: 22, width: 860, maxWidth: '96vw', border: '1px solid #E2E8F0', overflow: 'hidden' }}>
-            <div style={{ padding: '26px 30px 18px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.48)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(3px)', padding: 24,
+        }}>
+          <div style={{ background: '#fff', borderRadius: 14, width: 520, maxWidth: '96vw', maxHeight: '92vh', overflowY: 'auto', border: '1px solid #E2E8F0' }}>
+            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: 21, fontWeight: 950, color: '#0F172A', letterSpacing: -0.4 }}>Добавить точку маршрута</div>
-                <div style={{ fontSize: 13, color: '#94A3B8', marginTop: 5 }}>Менеджер вручную добавляет город, терминал и комментарий</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>{editingId ? 'Редактировать менеджера' : 'Новый менеджер'}</div>
+                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 3 }}>Контакты и регион ответственности</div>
               </div>
-              <button onClick={() => setShowForm(false)} style={{ width: 38, height: 38, borderRadius: 12, border: 'none', background: '#F8FAFC', cursor: 'pointer', fontSize: 20, color: '#94A3B8' }}>×</button>
+              <button type="button" onClick={closeForm} disabled={submitting} style={{
+                background: '#F1F5F9', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer',
+                width: 28, height: 28, borderRadius: 7, color: '#64748B', fontSize: 16, fontWeight: 700,
+              }}>×</button>
             </div>
-            <div style={{ padding: '22px 30px 26px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ background: '#F7F8FA', borderRadius: 18, padding: 18, border: '1px solid #EEF2F7', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              {[
-                { label: 'Город', key: 'city', placeholder: 'например: Алматы' },
-                { label: 'Страна', key: 'country', placeholder: 'например: Казахстан' },
-                { label: 'Адрес / Терминал', key: 'address', placeholder: 'Полный адрес или название терминала' },
-                { label: 'Примечание', key: 'note', placeholder: 'Доп. информация (необязательно)' },
-              ].map(field => (
-                <div key={field.key}>
-                  <div style={{ fontSize: 11, fontWeight: 900, color: '#64748B', marginBottom: 7, textTransform: 'uppercase' }}>{field.label}</div>
-                  <input
-                    value={(newRoute as any)[field.key]}
-                    onChange={e => setNewRoute(prev => ({ ...prev, [field.key]: e.target.value }))}
-                    placeholder={field.placeholder}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: 14, border: '1px solid #E2E8F0', fontSize: 14, outline: 'none', color: '#0F172A', background: '#fff' }}
-                  />
+
+            <div style={{ padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {formErrors.length > 0 && (
+                <div style={{ padding: '10px 12px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 12 }}>
+                  {formErrors.map((error) => <div key={error}>{error}</div>)}
                 </div>
+              )}
+
+              {[
+                { key: 'name', label: 'ФИО *', required: true },
+                { key: 'email', label: 'Email', type: 'email' },
+                { key: 'phone', label: 'Телефон' },
+                { key: 'telegramId', label: 'Telegram' },
+                { key: 'region', label: 'Регион' },
+                { key: 'avatar', label: 'Инициалы (необяз.)' },
+              ].map((field) => (
+                <label key={field.key}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>{field.label}</div>
+                  <input
+                    type={field.type ?? 'text'}
+                    required={field.required}
+                    value={form[field.key as keyof ManagerFormState]}
+                    onChange={(e) => setForm((current) => ({ ...current, [field.key]: e.target.value }))}
+                    disabled={submitting}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
+                  />
+                </label>
               ))}
-            </div>
-              <div style={{ marginTop: 4 }}>
-                <div style={{ fontSize: 11, fontWeight: 900, color: '#64748B', marginBottom: 7, textTransform: 'uppercase' }}>Менеджер</div>
-                <select style={{ width: '100%', padding: '13px 14px', borderRadius: 14, border: '1px solid #E2E8F0', fontSize: 14, outline: 'none', color: '#0F172A', background: '#fff' }}>
-                  {managers.map(m => <option key={m.id} value={m.id}>{m.name} — {m.region}</option>)}
-                </select>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                <button type="button" onClick={closeForm} disabled={submitting} style={{ padding: '10px 16px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', color: '#64748B', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+                  Отмена
+                </button>
+                <button type="button" onClick={() => void handleSubmit()} disabled={submitting} style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: submitting ? '#93C5FD' : '#3B82F6', color: '#fff', fontWeight: 700, fontSize: 13, cursor: submitting ? 'not-allowed' : 'pointer' }}>
+                  {submitting ? 'Сохранение…' : editingId ? 'Сохранить' : 'Создать'}
+                </button>
               </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
-              <button onClick={() => setShowForm(false)}
-                style={{ minWidth: 138, padding: '13px 22px', background: '#fff', color: '#64748B', border: '1px solid #E2E8F0', borderRadius: 14, fontWeight: 900, fontSize: 14, cursor: 'pointer' }}>
-                Отмена
-              </button>
-              <button onClick={() => { setShowForm(false); setNewRoute({ city: '', country: '', address: '', note: '' }); }}
-                style={{ minWidth: 190, padding: '13px 22px', background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 14, fontWeight: 950, fontSize: 14, cursor: 'pointer' }}>
-                Добавить точку
-              </button>
-            </div>
             </div>
           </div>
         </div>

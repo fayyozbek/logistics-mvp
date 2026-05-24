@@ -1,11 +1,19 @@
 import type {
   AddShipmentCheckpointPayload,
   CheckpointResponse,
+  ClientsResponse,
+  ClientResponse,
+  CreateClientPayload,
+  CreateManagerPayload,
   CreateShipmentPayload,
   DashboardData,
+  DeleteEntityResponse,
   FinanceRecordResponse,
   FinanceResponse,
+  ManagerResponse,
   UpdateFinanceStatusPayload,
+  UpdateClientPayload,
+  UpdateManagerPayload,
   ManagersResponse,
   ShipmentResponse,
   ShipmentsResponse,
@@ -26,6 +34,7 @@ import {
   getDashboardDataMock,
   getFinanceMock,
   getManagersMock,
+  getClientsMock,
   getShipmentMock,
   getShipmentsMock,
   getTelegramSettingsMock,
@@ -51,6 +60,46 @@ export function getTrackingData(): Promise<TrackingResponse> {
 
 export function getManagers(): Promise<ManagersResponse> {
   return requestWithMockFallback('/managers', getManagersMock);
+}
+
+export function getClients(): Promise<ClientsResponse> {
+  return requestWithMockFallback('/clients', getClientsMock);
+}
+
+function requireApi(): void {
+  if (!isApiConfigured()) {
+    throw new ApiError('Действие доступно только при подключённом API (VITE_API_BASE_URL).', 0);
+  }
+}
+
+export function createManager(payload: CreateManagerPayload): Promise<ManagerResponse> {
+  requireApi();
+  return postJson<ManagerResponse>('/managers', payload);
+}
+
+export function updateManager(id: string, payload: UpdateManagerPayload): Promise<ManagerResponse> {
+  requireApi();
+  return patchJson<ManagerResponse>(`/managers/${encodeURIComponent(id)}`, payload);
+}
+
+export function deleteManager(id: string): Promise<DeleteEntityResponse> {
+  requireApi();
+  return deleteJson<DeleteEntityResponse>(`/managers/${encodeURIComponent(id)}`);
+}
+
+export function createClient(payload: CreateClientPayload): Promise<ClientResponse> {
+  requireApi();
+  return postJson<ClientResponse>('/clients', payload);
+}
+
+export function updateClient(id: string, payload: UpdateClientPayload): Promise<ClientResponse> {
+  requireApi();
+  return patchJson<ClientResponse>(`/clients/${encodeURIComponent(id)}`, payload);
+}
+
+export function deleteClient(id: string): Promise<DeleteEntityResponse> {
+  requireApi();
+  return deleteJson<DeleteEntityResponse>(`/clients/${encodeURIComponent(id)}`);
 }
 
 export function getFinance(): Promise<FinanceResponse> {

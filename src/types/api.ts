@@ -112,6 +112,58 @@ export interface ManagersResponse {
   shipments: Shipment[];
 }
 
+export interface ClientsResponse {
+  clients: Client[];
+}
+
+export interface ManagerResponse {
+  manager: Manager;
+}
+
+export interface ClientResponse {
+  client: Client;
+}
+
+export interface CreateManagerPayload {
+  name: string;
+  avatar?: string;
+  email?: string;
+  phone?: string;
+  telegramId?: string;
+  region?: string;
+}
+
+export interface UpdateManagerPayload {
+  name?: string;
+  avatar?: string;
+  email?: string;
+  phone?: string;
+  telegramId?: string;
+  region?: string;
+}
+
+export interface CreateClientPayload {
+  company: string;
+  contact?: string;
+  contactName?: string;
+  email?: string;
+  phone?: string;
+  country?: string;
+}
+
+export interface UpdateClientPayload {
+  company?: string;
+  contact?: string;
+  contactName?: string;
+  email?: string;
+  phone?: string;
+  country?: string;
+}
+
+export interface DeleteEntityResponse {
+  message: string;
+}
+
 export interface FinanceResponse {
   financeRecords: FinanceRecord[];
   clients: Client[];

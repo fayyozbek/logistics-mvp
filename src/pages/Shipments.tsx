@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Client, Manager, Shipment, ShipmentStatus, TransportType } from '../data/mock';
-import { ApiError, createShipment, deleteShipment, getApiErrorMessage, getManagers, getShipments, updateShipmentStatus } from '../api';
+import { ApiError, createShipment, deleteShipment, getApiErrorMessage, getClients, getManagers, getShipments, updateShipmentStatus } from '../api';
 import type { CreateShipmentPayload } from '../types/api';
 import ApiLoadErrorBanner from '../components/ApiLoadErrorBanner';
 import { usePermissions } from '../hooks/usePermissions';
@@ -178,6 +178,8 @@ function shipmentManagerLabel(shipment: Shipment): string | undefined {
 export default function Shipments() {
   const { can } = usePermissions();
   const canCreate = can('shipment.create');
+  const canReadManagers = can('manager.read');
+  const canReadClients = can('client.read');
   const canUpdateStatus = can('shipment.updateStatus');
   const canDelete = can('shipment.delete');
   const [loading, setLoading] = useState(true);
@@ -286,15 +288,36 @@ export default function Shipments() {
   };
 
   const loadCreateFormOptions = async () => {
-    if (clients.length > 0 && managers.length > 0) {
+    const needsClients = canReadClients && clients.length === 0;
+    const needsManagers = canReadManagers && managers.length === 0;
+
+    if (!needsClients && !needsManagers) {
       return;
     }
 
     setCreateOptionsLoading(true);
+    setFormErrors([]);
+
     try {
-      const managersRes = await getManagers();
-      setClients(managersRes.clients);
-      setManagers(managersRes.managers);
+      const requests: Promise<void>[] = [];
+
+      if (needsClients) {
+        requests.push(
+          getClients().then(({ clients: loaded }) => {
+            setClients(loaded);
+          }),
+        );
+      }
+
+      if (needsManagers) {
+        requests.push(
+          getManagers().then(({ managers: loaded }) => {
+            setManagers(loaded);
+          }),
+        );
+      }
+
+      await Promise.all(requests);
     } catch (error) {
       setFormErrors([getApiErrorMessage(error, 'Не удалось загрузить клиентов и менеджеров для формы.')]);
       throw error;

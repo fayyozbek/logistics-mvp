@@ -18,13 +18,22 @@ export type ApiAction =
   | 'finance.updateStatus'
   | 'telegram.updateSettings'
   | 'telegram.testMessage'
-  | 'telegram.viewJournal';
+  | 'telegram.viewJournal'
+  | 'manager.read'
+  | 'manager.create'
+  | 'manager.update'
+  | 'manager.delete'
+  | 'client.read'
+  | 'client.create'
+  | 'client.update'
+  | 'client.delete';
 
 const pageAccess: Record<Page, UserRole[]> = {
   dashboard: ['admin', 'manager', 'operator', 'finance', 'viewer'],
   shipments: ['admin', 'manager', 'operator', 'finance', 'viewer'],
   tracking: ['admin', 'manager', 'operator', 'finance', 'viewer'],
   managers: ['admin', 'manager', 'operator'],
+  clients: ['admin', 'manager', 'operator', 'finance', 'viewer'],
   finance: ['admin', 'manager', 'operator', 'finance', 'viewer'],
   telegram: ['admin', 'manager', 'operator', 'finance'],
   users: ['admin'],
@@ -42,6 +51,14 @@ const actionAccess: Record<ApiAction, UserRole[]> = {
   'telegram.updateSettings': ['admin'],
   'telegram.testMessage': ['admin'],
   'telegram.viewJournal': ['admin', 'manager'],
+  'manager.read': ['admin', 'manager', 'operator'],
+  'manager.create': ['admin'],
+  'manager.update': ['admin'],
+  'manager.delete': ['admin'],
+  'client.read': ['admin', 'manager', 'operator', 'finance', 'viewer'],
+  'client.create': ['admin', 'manager', 'operator'],
+  'client.update': ['admin', 'manager', 'operator'],
+  'client.delete': ['admin'],
 };
 
 export function canAccessPage(role: UserRole, page: Page): boolean {

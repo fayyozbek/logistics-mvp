@@ -2,8 +2,13 @@ export { ApiError, getApiBaseUrl, getApiErrorMessage, isApiConfigured } from './
 export { login, logout, fetchMe } from './auth';
 export {
   addShipmentCheckpoint,
+  createClient,
+  createManager,
   createShipment,
+  deleteClient,
+  deleteManager,
   deleteShipment,
+  getClients,
   getDashboardData,
   getFinance,
   getManagers,
@@ -15,7 +20,10 @@ export {
   getTrackingData,
   sendTelegramTestMessage,
   updateCheckpoint,
+  updateClient,
   updateFinanceStatus,
+  updateManager,
   updateShipmentStatus,
   updateTelegramSettings,
 } from './logistics';
+export { formatValidationErrors, getActionErrorMessage } from './crudErrors';

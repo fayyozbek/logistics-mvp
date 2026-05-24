@@ -15,6 +15,7 @@ const navItems: { id: Page; label: string; icon: string }[] = [
   { id: 'shipments', label: 'Грузы', icon: '⬡' },
   { id: 'tracking', label: 'Отслеживание', icon: '◎' },
   { id: 'managers', label: 'Менеджеры', icon: '◈' },
+  { id: 'clients', label: 'Партнёры', icon: '◫' },
   { id: 'finance', label: 'Финансы', icon: '▤' },
   { id: 'telegram', label: 'Telegram-бот', icon: '✈' },
 ];

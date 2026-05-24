@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Shipments from './pages/Shipments';
 import Tracking from './pages/Tracking';
 import Managers from './pages/Managers';
+import Clients from './pages/Clients';
 import Finance from './pages/Finance';
 import Telegram from './pages/Telegram';
 import Settings from './pages/Settings';
@@ -17,13 +18,14 @@ import { canAccessPage } from './auth/roles';
 import { useAuth } from './context/AuthContext';
 import type { UserRole } from './types/auth';
 
-export type Page = 'dashboard' | 'shipments' | 'tracking' | 'managers' | 'finance' | 'users' | 'archive' | 'telegram' | 'settings';
+export type Page = 'dashboard' | 'shipments' | 'tracking' | 'managers' | 'clients' | 'finance' | 'users' | 'archive' | 'telegram' | 'settings';
 
 const pageTitles: Record<Page, { title: string; subtitle: string }> = {
   dashboard: { title: 'Дашборд', subtitle: 'Общая сводка по грузам и финансам' },
   shipments: { title: 'Грузы', subtitle: 'Управление и мониторинг отправлений' },
   tracking: { title: 'Отслеживание', subtitle: 'Реальное время · маршруты и контрольные точки' },
   managers: { title: 'Менеджеры', subtitle: 'Команда, регионы и активные грузы' },
+  clients: { title: 'Партнёры', subtitle: 'Клиенты и контрагенты компании' },
   finance: { title: 'Финансы', subtitle: 'Счета, оплаты и задолженности по клиентам' },
   users: { title: 'Пользователи', subtitle: 'Роли, Telegram-доступы, логины и права аккаунта' },
   archive: { title: 'Архив', subtitle: 'Завершённые проекты, партнёры и активность по периодам' },
@@ -75,6 +77,7 @@ function AppShell() {
           {page === 'shipments' && <Shipments />}
           {page === 'tracking' && <Tracking />}
           {page === 'managers' && <Managers />}
+          {page === 'clients' && <Clients />}
           {page === 'finance' && <Finance />}
           {page === 'users' && <Users />}
           {page === 'archive' && <Archive />}

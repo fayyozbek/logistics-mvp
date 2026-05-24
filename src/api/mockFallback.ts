@@ -7,6 +7,7 @@ import {
   transportShare,
 } from '../data/mock';
 import type {
+  ClientsResponse,
   DashboardData,
   FinanceResponse,
   ManagersResponse,
@@ -84,6 +85,10 @@ export function getTrackingDataMock(): TrackingResponse {
 
 export function getManagersMock(): ManagersResponse {
   return { managers, clients, shipments };
+}
+
+export function getClientsMock(): ClientsResponse {
+  return { clients };
 }
 
 export function getFinanceMock(): FinanceResponse {
