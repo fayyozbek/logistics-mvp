@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, Search, Send, X } from 'lucide-react';
-import { clients, managers, type CheckPoint, type Shipment } from '../data/mock';
+import type { CheckPoint, Shipment } from '../data/mock';
 import { addShipmentCheckpoint, ApiError, getApiErrorMessage, getTrackingData, updateCheckpoint } from '../api';
 import ApiLoadErrorBanner from '../components/ApiLoadErrorBanner';
 import { usePermissions } from '../hooks/usePermissions';
@@ -34,6 +34,19 @@ function toPlannedAt(value: string): string {
     return new Date().toISOString().slice(0, 16).replace('T', ' ');
   }
   return value.includes('T') ? value.replace('T', ' ') : value;
+}
+
+function shipmentClientLabel(shipment: Shipment): string | undefined {
+  return shipment.client?.company;
+}
+
+function shipmentManagerLabel(shipment: Shipment): string | undefined {
+  return shipment.manager?.name;
+}
+
+function shortManagerName(name?: string | null): string {
+  if (!name) return '—';
+  return name.split(' ').slice(0, 2).join(' ');
 }
 
 const statusColors: Record<string, string> = {
@@ -345,12 +358,15 @@ export default function Tracking() {
       .finally(() => setLoading(false));
   }, []);
 
-  const results = useMemo(() => allShipments.filter((shipment) =>
-    !query
-    || shipment.trackingNumber.toLowerCase().includes(query.toLowerCase())
-    || shipment.origin.toLowerCase().includes(query.toLowerCase())
-    || shipment.destination.toLowerCase().includes(query.toLowerCase())
-  ), [allShipments, query]);
+  const results = useMemo(() => allShipments.filter((shipment) => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    const clientName = shipmentClientLabel(shipment)?.toLowerCase() ?? '';
+    return shipment.trackingNumber.toLowerCase().includes(q)
+      || shipment.origin.toLowerCase().includes(q)
+      || shipment.destination.toLowerCase().includes(q)
+      || clientName.includes(q);
+  }), [allShipments, query]);
 
   const filteredCities = popularCities.filter((city) =>
     city.city.toLowerCase().includes(citySearch.toLowerCase())
@@ -377,8 +393,8 @@ export default function Tracking() {
 
   if (!selected) return null;
 
-  const client = clients.find((item) => item.id === selected.clientId);
-  const manager = managers.find((item) => item.id === selected.managerId);
+  const clientName = shipmentClientLabel(selected);
+  const managerName = shipmentManagerLabel(selected);
   const progress = progressPercent(selected.checkpoints);
 
   const handleAddPoint = async () => {
@@ -497,8 +513,6 @@ export default function Tracking() {
           </div>
 
           {results.map((shipment) => {
-            const shipmentClient = clients.find((item) => item.id === shipment.clientId);
-            const shipmentManager = managers.find((item) => item.id === shipment.managerId);
             const currentPoint = shipment.checkpoints.find((point) => point.status === 'current') || shipment.checkpoints[shipment.checkpoints.length - 1];
             const selectedCard = selected.id === shipment.id;
             const shipmentProgress = progressPercent(shipment.checkpoints);
@@ -538,11 +552,11 @@ export default function Tracking() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 13, position: 'relative', zIndex: 1 }}>
                   <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '8px 10px' }}>
                     <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800 }}>Клиент</div>
-                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 900, marginTop: 2 }}>{shipmentClient?.company}</div>
+                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 900, marginTop: 2 }}>{shipmentClientLabel(shipment) ?? '—'}</div>
                   </div>
                   <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '8px 10px' }}>
                     <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800 }}>Менеджер</div>
-                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 900, marginTop: 2 }}>{shipmentManager?.name.split(' ').slice(0, 2).join(' ')}</div>
+                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 900, marginTop: 2 }}>{shortManagerName(shipmentManagerLabel(shipment))}</div>
                   </div>
                 </div>
 
@@ -599,8 +613,8 @@ export default function Tracking() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 18 }}>
               {[
-                { label: 'Клиент', value: client?.company },
-                { label: 'Менеджер', value: manager?.name },
+                { label: 'Клиент', value: clientName ?? '—' },
+                { label: 'Менеджер', value: managerName ?? '—' },
                 { label: 'Направление', value: `${selected.origin} → ${selected.destination}` },
                 { label: 'Прогресс', value: `${progress}%` },
               ].map((item) => (

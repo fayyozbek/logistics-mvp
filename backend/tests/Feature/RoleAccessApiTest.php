@@ -37,6 +37,20 @@ class RoleAccessApiTest extends TestCase
         $this->getJson('/api/finance')->assertOk();
     }
 
+    public function test_finance_and_viewer_tracking_includes_client_and_manager(): void
+    {
+        foreach (['actingAsFinance', 'actingAsViewer'] as $method) {
+            $this->{$method}();
+
+            $response = $this->getJson('/api/tracking')->assertOk();
+            $first = $response->json('shipments.0');
+
+            $this->assertArrayHasKey('client', $first);
+            $this->assertArrayHasKey('company', $first['client']);
+            $this->assertArrayHasKey('manager', $first);
+        }
+    }
+
     public function test_viewer_cannot_access_managers_or_telegram(): void
     {
         $this->actingAsViewer();

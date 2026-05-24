@@ -79,7 +79,26 @@ class LogisticsApiTest extends TestCase
     {
         $this->getJson('/api/tracking')
             ->assertOk()
-            ->assertJsonStructure(['shipments']);
+            ->assertJsonStructure([
+                'shipments' => [
+                    '*' => [
+                        'trackingNumber',
+                        'client' => ['id', 'company'],
+                        'manager',
+                        'checkpoints',
+                    ],
+                ],
+            ]);
+    }
+
+    public function test_tracking_endpoint_includes_client_and_manager_names(): void
+    {
+        $response = $this->getJson('/api/tracking')->assertOk();
+        $first = $response->json('shipments.0');
+
+        $this->assertIsArray($first);
+        $this->assertArrayHasKey('company', $first['client']);
+        $this->assertNotEmpty($first['client']['company']);
     }
 
     public function test_managers_endpoint(): void
