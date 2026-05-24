@@ -120,6 +120,37 @@ class RoleAccessApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_finance_can_read_shipments_but_not_managers(): void
+    {
+        $this->actingAsFinance();
+
+        $response = $this->getJson('/api/shipments')
+            ->assertOk();
+
+        $shipments = $response->json('shipments');
+        $this->assertNotEmpty($shipments);
+        $this->assertArrayHasKey('client', $shipments[0]);
+        $this->assertArrayHasKey('company', $shipments[0]['client']);
+
+        $this->getJson('/api/managers')
+            ->assertForbidden()
+            ->assertJson(['message' => 'This action is unauthorized.']);
+    }
+
+    public function test_viewer_shipments_include_client_and_manager_display_fields(): void
+    {
+        $this->actingAsViewer();
+
+        $response = $this->getJson('/api/shipments')
+            ->assertOk();
+
+        $shipments = $response->json('shipments');
+        $this->assertNotEmpty($shipments);
+        $this->assertArrayHasKey('client', $shipments[0]);
+        $this->assertArrayHasKey('company', $shipments[0]['client']);
+        $this->assertArrayHasKey('manager', $shipments[0]);
+    }
+
     public function test_finance_can_update_finance_status_but_not_shipments(): void
     {
         $this->actingAsFinance();

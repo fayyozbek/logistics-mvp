@@ -50,6 +50,8 @@ class LogisticsApiTest extends TestCase
                         'type',
                         'status',
                         'clientId',
+                        'client' => ['id', 'company'],
+                        'manager',
                         'checkpoints',
                     ],
                 ],

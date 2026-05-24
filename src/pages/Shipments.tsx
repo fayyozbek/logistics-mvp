@@ -167,6 +167,14 @@ function pluralPoints(n: number): string {
   return `${n} точек`;
 }
 
+function shipmentClientLabel(shipment: Shipment): string | undefined {
+  return shipment.client?.company;
+}
+
+function shipmentManagerLabel(shipment: Shipment): string | undefined {
+  return shipment.manager?.name;
+}
+
 export default function Shipments() {
   const { can } = usePermissions();
   const canCreate = can('shipment.create');
@@ -192,13 +200,12 @@ export default function Shipments() {
   const [loadError, setLoadError] = useState('');
   const [archiving, setArchiving] = useState(false);
   const [archiveErrors, setArchiveErrors] = useState<string[]>([]);
+  const [createOptionsLoading, setCreateOptionsLoading] = useState(false);
 
   useEffect(() => {
-    Promise.all([getShipments(), getManagers()])
-      .then(([shipmentsRes, managersRes]) => {
-        setShipments(shipmentsRes.shipments);
-        setClients(managersRes.clients);
-        setManagers(managersRes.managers);
+    getShipments()
+      .then(({ shipments: loaded }) => {
+        setShipments(loaded);
       })
       .catch((error) => {
         setLoadError(getApiErrorMessage(error, 'Не удалось загрузить список грузов.'));
@@ -278,12 +285,33 @@ export default function Shipments() {
     }
   };
 
+  const loadCreateFormOptions = async () => {
+    if (clients.length > 0 && managers.length > 0) {
+      return;
+    }
+
+    setCreateOptionsLoading(true);
+    try {
+      const managersRes = await getManagers();
+      setClients(managersRes.clients);
+      setManagers(managersRes.managers);
+    } catch (error) {
+      setFormErrors([getApiErrorMessage(error, 'Не удалось загрузить клиентов и менеджеров для формы.')]);
+      throw error;
+    } finally {
+      setCreateOptionsLoading(false);
+    }
+  };
+
   const openCreateForm = () => {
     setCreateForm(emptyCreateForm);
     setFormErrors([]);
     setSuccessMessage('');
     setStatusSuccessMessage('');
     setShowCreateForm(true);
+    void loadCreateFormOptions().catch(() => {
+      // Errors are stored in formErrors for the modal.
+    });
   };
 
   const closeCreateForm = () => {
@@ -451,8 +479,8 @@ export default function Shipments() {
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
           {filtered.map(s => {
-            const client = clients.find(c => c.id === s.clientId);
-            const manager = managers.find(m => m.id === s.managerId);
+            const clientName = shipmentClientLabel(s);
+            const managerName = shipmentManagerLabel(s);
             const isSelected = selected?.id === s.id;
             const stepIdx = s.status === 'delayed' ? 1 : Math.max(0, stepKeys.indexOf(s.status));
 
@@ -515,9 +543,9 @@ export default function Shipments() {
 
                   {/* Right meta */}
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{client?.company}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{clientName ?? '—'}</div>
                     <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
-                      <span style={{ fontWeight: 500 }}>Менеджер:</span> {manager?.name.split(' ').slice(0, 2).join(' ')}
+                      <span style={{ fontWeight: 500 }}>Менеджер:</span> {managerName?.split(' ').slice(0, 2).join(' ') ?? '—'}
                     </div>
                     {(s.weight || s.volume) && (
                       <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }}>
@@ -623,8 +651,8 @@ export default function Shipments() {
             {/* Details grid */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
               {[
-                { icon: '🏢', label: 'Клиент', value: clients.find(c => c.id === selected.clientId)?.company },
-                { icon: '👤', label: 'Менеджер', value: managers.find(m => m.id === selected.managerId)?.name },
+                { icon: '🏢', label: 'Клиент', value: shipmentClientLabel(selected) ?? clients.find(c => c.id === selected.clientId)?.company },
+                { icon: '👤', label: 'Менеджер', value: shipmentManagerLabel(selected) ?? managers.find(m => m.id === selected.managerId)?.name },
                 { icon: '📦', label: 'Груз', value: selected.cargo },
                 { icon: '⚖', label: 'Вес / Объём', value: [selected.weight, selected.volume].filter(Boolean).join(' · ') || undefined },
                 { icon: '📅', label: 'Плановая дата', value: selected.estimatedDelivery },
@@ -805,8 +833,9 @@ export default function Shipments() {
                   value={createForm.clientId}
                   onChange={(e) => setCreateForm((f) => ({ ...f, clientId: e.target.value }))}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
+                  disabled={createOptionsLoading || submitting}
                 >
-                  <option value="">Выберите клиента</option>
+                  <option value="">{createOptionsLoading ? 'Загрузка…' : 'Выберите клиента'}</option>
                   {clients.map((c) => <option key={c.id} value={c.id}>{c.company}</option>)}
                 </select>
               </label>
@@ -817,8 +846,9 @@ export default function Shipments() {
                   value={createForm.managerId}
                   onChange={(e) => setCreateForm((f) => ({ ...f, managerId: e.target.value }))}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
+                  disabled={createOptionsLoading || submitting}
                 >
-                  <option value="">Не назначен</option>
+                  <option value="">{createOptionsLoading ? 'Загрузка…' : 'Не назначен'}</option>
                   {managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
               </label>
