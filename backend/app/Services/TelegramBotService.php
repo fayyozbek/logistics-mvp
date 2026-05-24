@@ -48,7 +48,7 @@ class TelegramBotService
      * Resolution order:
      *   1. Authenticated user with account_id → account-scoped row
      *   2. Authenticated user without account_id → user-scoped row
-     *   3. Unauthenticated → Default Demo Account (local/demo only)
+     *   3. Unauthenticated → Admin Demo Account (local/demo only)
      */
     public function getCurrentSetting(): ?TelegramNotificationSetting
     {

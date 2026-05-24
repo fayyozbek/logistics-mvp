@@ -78,7 +78,7 @@ Extend the existing Laravel `users` table (see `backend/database/migrations/0001
 | `email` | string | yes | Unique login |
 | `password` | string | yes | Hashed; never returned in API |
 | `role` | string(32) | yes | Enum: `admin`, `manager`, `operator`, `finance`, `viewer` |
-| `account_id` | FK → `accounts.id` | nullable | Tenant/account scope (future multi-tenant); MVP may use single default account |
+| `account_id` | FK → `accounts.id` | nullable | Tenant/account scope; demo seed assigns one account per demo user |
 | `is_active` | boolean | yes | Default `true`; inactive users cannot log in |
 | `telegram_username` | string | nullable | Optional display/link; not used for auth |
 | `last_login_at` | timestamp | nullable | Audit helper |
@@ -105,15 +105,15 @@ Never expose: `password`, `remember_token`, internal tokens.
 
 ### Seeded demo users (implementation task)
 
-| Email | Role | Purpose |
-|-------|------|---------|
-| `admin@demo.local` | admin | Full access QA |
-| `manager@demo.local` | manager | Operations QA |
-| `operator@demo.local` | operator | Tracking/status QA |
-| `finance@demo.local` | finance | Finance QA |
-| `viewer@demo.local` | viewer | Read-only QA |
+| Email | Role | Demo account |
+|-------|------|--------------|
+| `admin@example.com` | admin | Admin Demo Account |
+| `manager@example.com` | manager | Manager Demo Account |
+| `operator@example.com` | operator | Operator Demo Account |
+| `finance@example.com` | finance | Finance Demo Account |
+| `viewer@example.com` | viewer | Viewer Demo Account |
 
-Passwords: single known demo password in seeder docs only — not committed in plaintext.
+Each seeded user has a distinct `account_id` and per-account `telegram_notification_settings` row for Telegram isolation QA. Password: `password` (local seed only; see `UserSeeder::DEMO_PASSWORD`).
 
 ---
 

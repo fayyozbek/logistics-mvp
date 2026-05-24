@@ -53,13 +53,15 @@ Token-based API auth via Laravel Sanctum. Login returns a Bearer token; protecte
 
 Password for all demo users: **`password`** (see `UserSeeder::DEMO_PASSWORD` — local/demo only, never use in production).
 
-| Email | Role |
-|-------|------|
-| `admin@example.com` | admin |
-| `manager@example.com` | manager |
-| `operator@example.com` | operator |
-| `finance@example.com` | finance |
-| `viewer@example.com` | viewer |
+| Email | Role | Demo account |
+|-------|------|--------------|
+| `admin@example.com` | admin | Admin Demo Account (`admin-demo`) |
+| `manager@example.com` | manager | Manager Demo Account (`manager-demo`) |
+| `operator@example.com` | operator | Operator Demo Account (`operator-demo`) |
+| `finance@example.com` | finance | Finance Demo Account (`finance-demo`) |
+| `viewer@example.com` | viewer | Viewer Demo Account (`viewer-demo`) |
+
+Each demo user has a separate `account_id` and `telegram_notification_settings` row for Telegram isolation testing. Login credentials are unchanged.
 
 ### Protected write routes (first auth pass)
 
@@ -101,7 +103,7 @@ One global bot token (`TELEGRAM_BOT_TOKEN` env only). Per-account chat settings 
 
 | Table | Purpose |
 |-------|---------|
-| `accounts` | Workspace/tenant; MVP seeds one row `slug=default-demo` |
+| `accounts` | Workspace/tenant; MVP seeds five demo rows (one per demo role) |
 | `telegram_notification_settings` | Per account: `telegram_chat_id`, `telegram_username`, toggles — **no bot token** |
 | `telegram_notification_logs` | Append-only send journal (`sent` / `failed` / `skipped`) |
 
@@ -113,7 +115,7 @@ See `docs/TELEGRAM_ACCOUNT_ARCHITECTURE.md` in the repo root.
 
 `app/Services/TelegramBotService` handles outbound Telegram Bot API notifications.
 
-**Setting resolution (MVP):** `getCurrentSetting()` loads `telegram_notification_settings` for the Default Demo Account (`AccountContext`). Future auth will resolve the row from the authenticated user/account.
+**Setting resolution (MVP):** `getCurrentSetting()` loads `telegram_notification_settings` for the authenticated user's account (`AccountContext`). Unauthenticated local/demo requests fall back to the Admin Demo Account.
 
 **Token resolution:** `TELEGRAM_BOT_TOKEN` env / `config/telegram.php` only (never from DB).
 

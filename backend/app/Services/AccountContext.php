@@ -32,7 +32,7 @@ class AccountContext
         return Account::query()->firstOrCreate(
             ['slug' => Account::DEFAULT_SLUG],
             [
-                'name' => 'Default Demo Account',
+                'name' => 'Admin Demo Account',
                 'is_active' => true,
             ],
         );

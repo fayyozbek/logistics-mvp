@@ -7,6 +7,7 @@ use App\Models\TelegramNotificationLog;
 use App\Models\TelegramNotificationSetting;
 use Database\Seeders\AccountTelegramSeeder;
 use Database\Seeders\DatabaseSeeder;
+use Database\Seeders\Support\DemoAccounts;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -24,23 +25,26 @@ class TelegramAccountTablesTest extends TestCase
         $this->assertFalse(Schema::hasColumn('telegram_notification_settings', 'bot_token_encrypted'));
     }
 
-    public function test_account_telegram_seeder_creates_default_account_and_setting(): void
+    public function test_account_telegram_seeder_creates_demo_accounts_and_settings(): void
     {
         $this->seed(AccountTelegramSeeder::class);
 
-        $this->assertSame(1, Account::count());
-        $this->assertSame(1, TelegramNotificationSetting::count());
+        $this->assertSame(5, Account::count());
+        $this->assertSame(5, TelegramNotificationSetting::count());
+
+        $admin = DemoAccounts::all()[0];
 
         $this->assertDatabaseHas('accounts', [
-            'slug' => Account::DEFAULT_SLUG,
-            'name' => 'Default Demo Account',
+            'slug' => DemoAccounts::ADMIN_SLUG,
+            'name' => 'Admin Demo Account',
             'is_active' => true,
         ]);
 
-        $account = Account::query()->where('slug', Account::DEFAULT_SLUG)->firstOrFail();
+        $account = Account::query()->where('slug', DemoAccounts::ADMIN_SLUG)->firstOrFail();
         $this->assertDatabaseHas('telegram_notification_settings', [
             'account_id' => $account->id,
-            'telegram_chat_id' => '-1001234567890',
+            'telegram_chat_id' => $admin['telegram_chat_id'],
+            'display_name' => $admin['telegram_display_name'],
             'enabled' => true,
         ]);
     }
@@ -50,17 +54,18 @@ class TelegramAccountTablesTest extends TestCase
         $this->seed(AccountTelegramSeeder::class);
         $this->seed(AccountTelegramSeeder::class);
 
-        $this->assertSame(1, Account::count());
-        $this->assertSame(1, TelegramNotificationSetting::count());
+        $this->assertSame(5, Account::count());
+        $this->assertSame(5, TelegramNotificationSetting::count());
     }
 
-    public function test_database_seeder_includes_default_setting_without_duplicates(): void
+    public function test_database_seeder_includes_demo_settings_without_duplicates(): void
     {
         $this->seed(DatabaseSeeder::class);
         $this->seed(DatabaseSeeder::class);
 
-        $this->assertSame(1, Account::query()->where('slug', Account::DEFAULT_SLUG)->count());
-        $this->assertSame(1, TelegramNotificationSetting::count());
+        $this->assertSame(1, Account::query()->where('slug', DemoAccounts::ADMIN_SLUG)->count());
+        $this->assertSame(5, Account::count());
+        $this->assertSame(5, TelegramNotificationSetting::count());
     }
 
     public function test_notification_setting_has_no_token_fields_in_serialization(): void

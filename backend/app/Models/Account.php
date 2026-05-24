@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Account extends Model
 {
-    public const DEFAULT_SLUG = 'default-demo';
+    /** Primary demo account slug (admin / unauthenticated local fallback). */
+    public const DEFAULT_SLUG = 'admin-demo';
 
     protected $fillable = [
         'name',

@@ -47,10 +47,13 @@ class TelegramEventNotificationsTest extends TestCase
      */
     private function enableTelegram(array $overrides = []): TelegramNotificationSetting
     {
-        $account = Account::query()->firstOrCreate(
-            ['slug' => Account::DEFAULT_SLUG],
-            ['name' => 'Default Demo Account', 'is_active' => true],
-        );
+        $user = auth()->user();
+        $account = $user?->account_id !== null
+            ? Account::query()->findOrFail($user->account_id)
+            : Account::query()->firstOrCreate(
+                ['slug' => Account::DEFAULT_SLUG],
+                ['name' => 'Admin Demo Account', 'is_active' => true],
+            );
 
         if (isset($overrides['connected'])) {
             $overrides['enabled'] = (bool) $overrides['connected'];
