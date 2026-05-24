@@ -72,7 +72,7 @@ Each demo user has a separate `account_id` and `telegram_notification_settings` 
 | `POST /api/telegram/test-message` | admin |
 | `PATCH /api/finance/{id}/status` | admin, finance |
 
-Read routes remain public until frontend auth is wired. See `docs/AUTH_ROLES_SCOPE.md`.
+All routes except `GET /api/health` and `POST /api/auth/login` require Sanctum auth. Role middleware applies per route group. See `docs/AUTH_ROLES_SCOPE.md`.
 
 ## Endpoints
 
@@ -83,19 +83,27 @@ Read routes remain public until frontend auth is wired. See `docs/AUTH_ROLES_SCO
 | GET | `/api/shipments` | Shipment list |
 | POST | `/api/shipments` | Create shipment |
 | GET | `/api/shipments/{id}` | Single shipment |
-| PATCH | `/api/shipments/{id}/status` | Update shipment status |
-| DELETE | `/api/shipments/{id}` | Archive shipment (soft delete) — **admin** |
-| POST | `/api/shipments/{id}/checkpoints` | Add checkpoint |
-| PATCH | `/api/checkpoints/{id}` | Update checkpoint |
+| PATCH | `/api/shipments/{id}` | Update shipment fields — **admin, manager, operator** |
+| DELETE | `/api/shipments/{id}` | Archive shipment (soft delete) — **admin, manager** |
+| PATCH | `/api/shipments/{id}/status` | Update shipment status — **admin, manager, operator** |
+| POST | `/api/shipments/{id}/checkpoints` | Add checkpoint — **admin, manager, operator** |
+| PATCH | `/api/checkpoints/{id}` | Update checkpoint — **admin, manager, operator** |
+| DELETE | `/api/checkpoints/{id}` | Delete checkpoint — **admin, manager, operator** |
 | GET | `/api/tracking` | Tracking view |
-| GET | `/api/managers` | Manager list (+ embedded clients/shipments) — **admin, manager, operator** |
+| GET | `/api/clients` | Partner/client list — **admin, manager, operator, finance, viewer** |
+| POST | `/api/clients` | Create partner/client — **admin, manager, operator** |
+| GET | `/api/clients/{id}` | Single partner/client — **viewer+** |
+| PATCH | `/api/clients/{id}` | Update partner/client — **admin, manager, operator** |
+| DELETE | `/api/clients/{id}` | Delete partner/client (blocked if referenced) — **admin** |
+| GET | `/api/managers` | Manager list — **admin, manager, operator** |
+| GET | `/api/managers/overview` | Managers page bundle (managers + clients + shipments) — **admin, manager, operator** |
 | POST | `/api/managers` | Create manager — **admin** |
+| GET | `/api/managers/{id}` | Single manager — **admin, manager, operator** |
 | PATCH | `/api/managers/{id}` | Update manager — **admin** |
-| DELETE | `/api/managers/{id}` | Delete unassigned manager (422 if active shipments) — **admin** |
-| GET | `/api/clients` | Client/partner list — **viewer+** |
-| POST | `/api/clients` | Create client — **admin, manager, operator** |
-| PATCH | `/api/clients/{id}` | Update client — **admin, manager, operator** |
-| DELETE | `/api/clients/{id}` | Delete unassigned client (422 if linked) — **admin** |
+| DELETE | `/api/managers/{id}` | Delete manager (blocked if active shipments assigned) — **admin** |
+| GET | `/api/export/shipments.csv` | Export shipments CSV — **admin, manager, operator, finance** |
+| GET | `/api/export/finance.csv` | Export finance CSV — **admin, manager, operator, finance** |
+| GET | `/api/finance/report` | Finance report summary — **viewer+** |
 | GET | `/api/finance` | Finance records |
 | PATCH | `/api/finance/{id}/status` | Update finance status — **admin, finance** |
 | GET | `/api/telegram/settings` | Per-account notification settings (no token) + shipments list |
@@ -171,6 +179,13 @@ TELEGRAM_TIMEOUT=10        # HTTP timeout in seconds
 All conditions required to send: token configured **AND** `shipment.telegram_notifications = true` **AND** account config `enabled` + `notifications_enabled` **AND** relevant notify toggle (`notify_shipment_created`, `notify_status_changed`, `notify_checkpoint_added`). Telegram failures never affect the primary API response.
 
 **Notification journal:** every send attempt (sent / failed / skipped) is stored in `telegram_notification_logs` with a short `message_preview` (max 200 chars) and safe `error_message` (no bot token). Query via `GET /api/telegram/notifications`. Retry endpoint is **post-MVP** (not implemented).
+
+## Tracking numbers
+
+Auto-generated numbers use the format `LGX-YYYY-NNNN` (e.g. `LGX-2026-0562`).
+A persistent `tracking_number_counters` table stores the last sequence per calendar
+year so numbers are **monotonic** and are **not reused** when shipments are deleted.
+Demo seeders sync the counter from existing demo shipments after `ShipmentSeeder`.
 
 ## Finance amounts (MVP)
 

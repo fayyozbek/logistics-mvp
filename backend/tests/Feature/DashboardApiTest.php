@@ -76,4 +76,36 @@ class DashboardApiTest extends TestCase
             $summary['receivable'],
         );
     }
+
+    public function test_dashboard_filters_summary_by_date_range(): void
+    {
+        $all = $this->getJson('/api/dashboard')->assertOk()->json('summary');
+
+        $filtered = $this->getJson('/api/dashboard?date_from=2026-04-01&date_to=2026-04-30')
+            ->assertOk()
+            ->json('summary');
+
+        $this->assertLessThanOrEqual($all['monthlyTurnover'], $filtered['monthlyTurnover']);
+        $this->assertGreaterThan(0, $filtered['monthlyTurnover']);
+    }
+
+    public function test_dashboard_empty_date_range_returns_zero_summary(): void
+    {
+        $summary = $this->getJson('/api/dashboard?date_from=2030-01-01&date_to=2030-01-31')
+            ->assertOk()
+            ->json('summary');
+
+        $this->assertSame(0, $summary['monthlyTurnover']);
+        $this->assertSame(0, $summary['totalPaid']);
+        $this->assertSame(0, $summary['activeShipments']);
+        $this->assertSame(0, $summary['completedShipments']);
+        $this->assertSame(0, $summary['receivable']);
+        $this->assertSame([], $this->getJson('/api/dashboard?date_from=2030-01-01&date_to=2030-01-31')->json('charts.moneyByMonth'));
+    }
+
+    public function test_dashboard_rejects_invalid_date_range(): void
+    {
+        $this->getJson('/api/dashboard?date_from=2026-05-10&date_to=2026-04-01')
+            ->assertStatus(422);
+    }
 }

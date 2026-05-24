@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             ClientSeeder::class,
             ManagerSeeder::class,
             ShipmentSeeder::class,
+            TrackingNumberCounterSeeder::class,
             FinanceRecordSeeder::class,
             TelegramSettingSeeder::class,
             UserSeeder::class,

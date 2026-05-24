@@ -44,6 +44,12 @@ export interface DashboardData {
   };
 }
 
+export interface DashboardQuery {
+  dateFrom?: string;
+  dateTo?: string;
+  chartPeriod?: 'week' | 'month' | 'year';
+}
+
 export interface ShipmentsResponse {
   shipments: Shipment[];
 }
@@ -80,6 +86,11 @@ export interface CheckpointResponse {
   checkpoint: CheckPoint;
 }
 
+export interface DeleteCheckpointResponse {
+  message: string;
+  checkpointId: string;
+}
+
 export interface CreateShipmentPayload {
   clientId: number;
   managerId?: number;
@@ -88,7 +99,9 @@ export interface CreateShipmentPayload {
   destination: string;
   cargo?: string;
   weight?: string;
+  weightUnit?: string;
   volume?: string;
+  volumeUnit?: string;
   estimatedDelivery?: string;
   telegramNotifications?: boolean;
   trackingNumber?: string;
@@ -100,10 +113,67 @@ export interface UpdateShipmentStatusPayload {
   note?: string;
 }
 
+export interface UpdateShipmentPayload {
+  clientId?: number;
+  managerId?: number | null;
+  type?: TransportType;
+  origin?: string;
+  destination?: string;
+  cargo?: string;
+  weight?: string;
+  weightUnit?: string;
+  volume?: string;
+  volumeUnit?: string;
+  plannedPickup?: string;
+  estimatedDelivery?: string;
+  notes?: string;
+  telegramNotifications?: boolean;
+}
+
+export interface DeleteShipmentResponse {
+  message: string;
+  shipmentId: string;
+}
+
 export type ApiValidationErrors = Record<string, string[]>;
 
 export interface TrackingResponse {
   shipments: Shipment[];
+}
+
+export interface ClientsResponse {
+  clients: Client[];
+}
+
+export interface ClientResponse {
+  client: Client;
+}
+
+export interface CreateClientPayload {
+  company: string;
+  name?: string;
+  contact?: string;
+  email?: string;
+  phone?: string;
+  country?: string;
+  city?: string;
+  address?: string;
+}
+
+export interface UpdateClientPayload {
+  company?: string;
+  name?: string;
+  contact?: string;
+  email?: string;
+  phone?: string;
+  country?: string;
+  city?: string;
+  address?: string;
+}
+
+export interface DeleteClientResponse {
+  message: string;
+  clientId: string;
 }
 
 export interface ManagersResponse {
@@ -112,61 +182,60 @@ export interface ManagersResponse {
   shipments: Shipment[];
 }
 
-export interface ClientsResponse {
-  clients: Client[];
-}
-
 export interface ManagerResponse {
   manager: Manager;
 }
 
-export interface ClientResponse {
-  client: Client;
-}
-
 export interface CreateManagerPayload {
   name: string;
-  avatar?: string;
   email?: string;
   phone?: string;
   telegramId?: string;
   region?: string;
+  role?: string;
+  department?: string;
+  avatar?: string;
 }
 
 export interface UpdateManagerPayload {
   name?: string;
-  avatar?: string;
   email?: string;
   phone?: string;
   telegramId?: string;
   region?: string;
+  role?: string;
+  department?: string;
+  avatar?: string;
 }
 
-export interface CreateClientPayload {
-  company: string;
-  contact?: string;
-  contactName?: string;
-  email?: string;
-  phone?: string;
-  country?: string;
-}
-
-export interface UpdateClientPayload {
-  company?: string;
-  contact?: string;
-  contactName?: string;
-  email?: string;
-  phone?: string;
-  country?: string;
-}
-
-export interface DeleteEntityResponse {
+export interface DeleteManagerResponse {
   message: string;
+  managerId: string;
 }
 
 export interface FinanceResponse {
   financeRecords: FinanceRecord[];
   clients: Client[];
+}
+
+export interface FinanceReportMonthStat {
+  month: string;
+  revenue: number;
+  paid: number;
+  invoiceCount: number;
+}
+
+export interface FinanceReportSummary {
+  totalAmount: number;
+  paidAmount: number;
+  outstandingAmount: number;
+  overdueAmount: number;
+  countByStatus: Record<FinanceRecord['status'], number>;
+  revenueByMonth: FinanceReportMonthStat[];
+}
+
+export interface FinanceReportResponse {
+  report: FinanceReportSummary;
 }
 
 export interface UpdateFinanceStatusPayload {

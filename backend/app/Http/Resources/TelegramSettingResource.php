@@ -2,10 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\TelegramSetting;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\TelegramSetting */
+/** @mixin TelegramSetting */
 class TelegramSettingResource extends JsonResource
 {
     /**

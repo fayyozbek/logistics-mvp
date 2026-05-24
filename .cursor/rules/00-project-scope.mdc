@@ -1,0 +1,42 @@
+---
+description: Logistics MVP+ product scope and boundaries
+alwaysApply: true
+---
+
+# Project scope (MVP+)
+
+## Product
+
+Operational logistics dashboard: shipments, tracking checkpoints, managers, partners/clients, finance, export, Telegram settings, dashboard analytics.
+
+## Stack
+
+| Layer | Tech |
+|-------|------|
+| Frontend | React + Vite (`src/`) |
+| Backend | Laravel API (`backend/`) |
+| Local DB | SQLite |
+| Production DB | PostgreSQL on Render |
+| Hosting | Vercel (frontend), Render (backend) |
+
+## Preserve unless task says otherwise
+
+- Dashboard-style UI; simple, modern, Russian labels.
+- Existing navigation and page structure in `src/`.
+- API JSON response shapes and field naming (camelCase in JSON).
+
+## Out of scope (unless task explicitly requests)
+
+- Auth, JWT, roles, permissions (Users page is post-MVP).
+- Payment gateways, invoicing integrations beyond current finance UI.
+- Real Telegram message sending (settings UI only).
+- Full redesign, new theme, parallel UI trees (`reference/`, `client-logistics-ui/`).
+- Copying UI to another repo.
+
+## Approach
+
+- Incremental, task-scoped diffs.
+- Feature branches → local QA → PR → merge → deploy → production QA.
+- Mock data in `src/data/` only when API is not configured; never mask failures when `VITE_API_BASE_URL` is set.
+
+See `docs/MVP_PLUS_SCOPE.md`, `docs/AI_WORKFLOW.md`, `.cursor/README.md`.

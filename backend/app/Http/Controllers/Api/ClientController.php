@@ -7,23 +7,56 @@ use App\Http\Requests\StoreClientRequest;
 use App\Http\Requests\UpdateClientRequest;
 use App\Http\Resources\ClientResource;
 use App\Models\Client;
+use App\Support\MapsValidatedAttributes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Partner/client directory for shipment creation (MVP: Client model).
+ */
 class ClientController extends Controller
 {
+    use MapsValidatedAttributes;
+
+    private const UPDATE_FIELD_MAP = [
+        'company' => 'company',
+        'contact' => 'contact',
+        'email' => 'email',
+        'phone' => 'phone',
+        'country' => 'country',
+        'city' => 'city',
+        'address' => 'address',
+    ];
+
     public function index(): JsonResponse
     {
-        $clients = Client::query()->orderBy('company')->get();
-
         return response()->json([
-            'clients' => ClientResource::collection($clients)->resolve(),
+            'clients' => ClientResource::collection(
+                Client::query()->orderBy('company')->get(),
+            )->resolve(),
+        ]);
+    }
+
+    public function show(Client $client): JsonResponse
+    {
+        return response()->json([
+            'client' => (new ClientResource($client))->resolve(),
         ]);
     }
 
     public function store(StoreClientRequest $request): JsonResponse
     {
-        $client = Client::query()->create($this->mapClientAttributes($request->validated()));
+        $validated = $request->validated();
+
+        $client = Client::query()->create([
+            'company' => $validated['company'],
+            'contact' => $validated['contact'],
+            'email' => $validated['email'] ?? '',
+            'phone' => $validated['phone'] ?? null,
+            'country' => $validated['country'] ?? null,
+            'city' => $validated['city'] ?? null,
+            'address' => $validated['address'] ?? null,
+        ]);
 
         return response()->json([
             'client' => (new ClientResource($client))->resolve(),
@@ -32,7 +65,7 @@ class ClientController extends Controller
 
     public function update(UpdateClientRequest $request, Client $client): JsonResponse
     {
-        $client->update($this->mapClientAttributes($request->validated(), onlyProvided: true));
+        $client->update($this->mapValidatedAttributes($request->validated(), self::UPDATE_FIELD_MAP));
 
         return response()->json([
             'client' => (new ClientResource($client->fresh()))->resolve(),
@@ -41,49 +74,24 @@ class ClientController extends Controller
 
     public function destroy(Client $client): JsonResponse
     {
-        if ($client->isReferenced()) {
+        if ($client->shipments()->exists()) {
             throw ValidationException::withMessages([
-                'client' => ['Client is linked to shipments or finance records and cannot be deleted.'],
+                'client' => ['Cannot delete partner/client while shipments reference this record.'],
             ]);
         }
 
+        if ($client->financeRecords()->exists()) {
+            throw ValidationException::withMessages([
+                'client' => ['Cannot delete partner/client while finance records reference this record.'],
+            ]);
+        }
+
+        $clientId = (string) $client->id;
         $client->delete();
 
         return response()->json([
-            'message' => 'Client deleted.',
+            'message' => 'Partner/client deleted.',
+            'clientId' => $clientId,
         ]);
-    }
-
-    /**
-     * @param  array<string, mixed>  $validated
-     * @return array<string, mixed>
-     */
-    private function mapClientAttributes(array $validated, bool $onlyProvided = false): array
-    {
-        $attributes = [];
-
-        if (! $onlyProvided || array_key_exists('company', $validated)) {
-            $attributes['company'] = $validated['company'] ?? null;
-        }
-
-        if (! $onlyProvided || array_key_exists('contact', $validated) || array_key_exists('contactName', $validated)) {
-            $attributes['contact'] = $validated['contact'] ?? $validated['contactName'] ?? ($onlyProvided ? null : '');
-        }
-
-        foreach (['email', 'phone', 'country'] as $field) {
-            if (! $onlyProvided || array_key_exists($field, $validated)) {
-                $attributes[$field] = $validated[$field] ?? ($onlyProvided ? null : null);
-            }
-        }
-
-        if (! $onlyProvided) {
-            $attributes['contact'] ??= '';
-            $attributes['email'] ??= '';
-        }
-
-        return array_filter(
-            $attributes,
-            fn ($value) => $value !== null,
-        );
     }
 }

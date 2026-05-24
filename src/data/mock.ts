@@ -20,6 +20,8 @@ export interface Manager {
   phone: string;
   telegramId: string;
   region: string;
+  role?: string;
+  department?: string;
   activeShipments: number;
 }
 
@@ -30,6 +32,8 @@ export interface Client {
   email: string;
   phone: string;
   country: string;
+  city?: string;
+  address?: string;
 }
 
 export interface FinanceRecord {
@@ -56,9 +60,13 @@ export interface Shipment {
   destination: string;
   cargo: string;
   weight: string;
+  weightUnit?: string;
   volume: string;
+  volumeUnit?: string;
   createdAt: string;
+  plannedPickup?: string;
   estimatedDelivery: string;
+  notes?: string;
   checkpoints: CheckPoint[];
   financeId: string;
   telegramNotifications: boolean;

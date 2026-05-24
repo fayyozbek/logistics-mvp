@@ -29,8 +29,10 @@ class CreateShipmentApiTest extends TestCase
             'origin' => 'Алматы',
             'destination' => 'Ташкент',
             'cargo' => 'Электроника',
-            'weight' => '1 200 кг',
-            'volume' => '8 м³',
+            'weight' => '1200',
+            'weightUnit' => 'kg',
+            'volume' => '8',
+            'volumeUnit' => 'm3',
             'estimatedDelivery' => '2026-06-15',
             'telegramNotifications' => true,
             'checkpoints' => [

@@ -2,12 +2,15 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ValidatesApiInput;
 use App\Models\FinanceRecord;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class UpdateFinanceStatusRequest extends FormRequest
 {
+    use ValidatesApiInput;
+
     public function authorize(): bool
     {
         return true;

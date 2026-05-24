@@ -1,0 +1,36 @@
+---
+description: React UI conventions and visible feedback
+alwaysApply: true
+---
+
+# Frontend (React + Vite)
+
+## Preserve
+
+- Current visual style, layout, sidebar, Russian copy.
+- Inline/CSS patterns already used in `src/` (no full redesign).
+
+## Data and IDs
+
+- Use entity `id` from API responses for PATCH/DELETE paths.
+- Never hardcode demo IDs in write flows.
+- Refresh list/detail state after successful create/update/delete.
+
+## Errors and feedback
+
+- Show visible validation (form errors, toasts).
+- Do not silently swallow API 422/404/500.
+- `requestWithMockFallback` must not hide failures when API is configured.
+
+## Responsive
+
+- Keep mobile/tablet layouts usable (`useMediaQuery`, existing CSS).
+- No severe horizontal overflow on forms/modals/tables.
+
+## Verify
+
+```bash
+npm run build
+```
+
+Run `npm run lint` when touching ESLint-covered files.

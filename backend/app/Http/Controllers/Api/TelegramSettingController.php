@@ -23,7 +23,7 @@ class TelegramSettingController extends Controller
 
         $shipments = Shipment::query()
             ->where('telegram_notifications', true)
-            ->with(['client', 'manager'])
+            ->withSummaryRelations()
             ->orderByDesc('created_at')
             ->get();
 

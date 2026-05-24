@@ -3,115 +3,30 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\FinanceRecord;
-use App\Models\Manager;
-use App\Models\Shipment;
+use App\Services\DashboardMetricsBuilder;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function index(): JsonResponse
+    public function __construct(
+        private readonly DashboardMetricsBuilder $metrics,
+    ) {}
+
+    public function index(Request $request): JsonResponse
     {
-        $financeQuery = FinanceRecord::query()->whereHas('shipment');
-
-        $totalRevenue = (float) (clone $financeQuery)->sum('total_amount');
-        $totalPaid = (float) (clone $financeQuery)->sum('paid_amount');
-        $receivable = $totalRevenue - $totalPaid;
-
-        $activeShipments = Shipment::query()
-            ->whereIn('status', ['planned', 'in_transit', 'at_checkpoint', 'delayed'])
-            ->count();
-
-        $completedShipments = Shipment::query()->where('status', 'delivered')->count();
-
-        $transportShare = Shipment::query()
-            ->select('transport_type', DB::raw('count(*) as total'))
-            ->groupBy('transport_type')
-            ->get()
-            ->map(fn ($row) => [
-                'name' => match ($row->transport_type) {
-                    'auto' => 'Авто',
-                    'air' => 'Авиа',
-                    'sea' => 'Морской',
-                    'intermodal' => 'Интермодал',
-                    default => $row->transport_type,
-                },
-                'value' => (int) $row->total,
-                'color' => match ($row->transport_type) {
-                    'auto' => '#3B82F6',
-                    'air' => '#8B5CF6',
-                    'sea' => '#06B6D4',
-                    'intermodal' => '#10B981',
-                    default => '#94A3B8',
-                },
-            ])
-            ->values();
-
-        $invoicePeriodSql = $this->invoicePeriodSql();
-
-        $monthlyStats = FinanceRecord::query()
-            ->whereHas('shipment')
-            ->selectRaw("{$invoicePeriodSql} as period")
-            ->selectRaw('count(*) as shipments')
-            ->selectRaw('sum(total_amount) as revenue')
-            ->whereNotNull('invoice_date')
-            ->groupBy(DB::raw($invoicePeriodSql))
-            ->orderBy(DB::raw($invoicePeriodSql))
-            ->get()
-            ->map(fn ($row) => [
-                'month' => $row->period,
-                'shipments' => (int) $row->shipments,
-                'revenue' => (float) $row->revenue,
-            ]);
-
-        $managers = Manager::query()
-            ->withCount([
-                'shipments as active_shipments_count' => fn ($query) => $query->whereIn('status', ['planned', 'in_transit', 'at_checkpoint', 'delayed']),
-            ])
-            ->orderBy('name')
-            ->get()
-            ->map(fn ($manager) => [
-                'name' => $manager->name,
-                'activeShipments' => (int) $manager->active_shipments_count,
-            ]);
-
-        return response()->json([
-            'summary' => [
-                'monthlyTurnover' => $totalRevenue,
-                'totalPaid' => $totalPaid,
-                'activeShipments' => $activeShipments,
-                'completedShipments' => $completedShipments,
-                'receivable' => $receivable,
-            ],
-            'monthlyStats' => $monthlyStats,
-            'transportShare' => $transportShare,
-            'managers' => $managers,
-            'charts' => [
-                'moneyByMonth' => [
-                    ['month' => 'Апр', 'turnover' => 212000, 'paid' => 166000, 'shipments' => 64, 'active' => 14],
-                    ['month' => 'Май', 'turnover' => (int) $totalRevenue, 'paid' => (int) $totalPaid, 'shipments' => Shipment::count(), 'active' => $activeShipments],
-                ],
-                'directionShare' => [
-                    ['name' => 'Китай', 'value' => 36, 'color' => '#0B4CB8'],
-                    ['name' => 'Турция', 'value' => 22, 'color' => '#2563EB'],
-                    ['name' => 'Европа', 'value' => 18, 'color' => '#60A5FA'],
-                    ['name' => 'СНГ', 'value' => 14, 'color' => '#93C5FD'],
-                    ['name' => 'ОАЭ', 'value' => 10, 'color' => '#CBD5E1'],
-                ],
-            ],
+        $validated = $request->validate([
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
+            'chart_period' => ['nullable', 'in:week,month,year'],
         ]);
-    }
 
-    /**
-     * SQL expression for grouping finance records by YYYY-MM (driver-specific).
-     */
-    private function invoicePeriodSql(): string
-    {
-        return match (DB::connection()->getDriverName()) {
-            'pgsql' => "to_char(invoice_date, 'YYYY-MM')",
-            'sqlite' => "strftime('%Y-%m', invoice_date)",
-            default => "strftime('%Y-%m', invoice_date)",
-        };
+        return response()->json(
+            $this->metrics->build(
+                $validated['date_from'] ?? null,
+                $validated['date_to'] ?? null,
+                $validated['chart_period'] ?? 'month',
+            ),
+        );
     }
 }

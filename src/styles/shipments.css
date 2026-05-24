@@ -1,0 +1,335 @@
+.shipments-page {
+  padding: 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.shipments-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.shipments-filter-group {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  background: #fff;
+  border-radius: 10px;
+  padding: 4px;
+  border: 1px solid #e2e8f0;
+  max-width: 100%;
+}
+
+.shipments-toolbar-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.shipments-layout {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.shipments-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.shipments-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px 22px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.shipments-card-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.shipments-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.shipments-card-meta {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.shipments-detail {
+  width: 340px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 22px;
+  border: 1px solid #e2e8f0;
+  align-self: flex-start;
+  position: sticky;
+  top: 20px;
+  flex-shrink: 0;
+}
+
+.shipments-detail-backdrop {
+  display: none;
+}
+
+.shipments-form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.shipments-create-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.shipments-form-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.48);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  backdrop-filter: blur(3px);
+  padding: 16px;
+}
+
+.shipments-create-modal {
+  background: #fff;
+  border-radius: 14px;
+  width: 560px;
+  max-width: min(560px, calc(100vw - 32px));
+  max-height: min(92vh, 100dvh);
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.shipments-form-header {
+  flex-shrink: 0;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.shipments-form-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shipments-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.shipments-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  padding-top: 8px;
+}
+
+.shipments-edit-form {
+  margin-bottom: 18px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.shipments-edit-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.quantity-unit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.shipments-form-body [role='listbox'],
+.shipments-edit-form [role='listbox'] {
+  z-index: 1200;
+}
+
+@media (max-width: 1023px) {
+  .shipments-layout {
+    flex-direction: column;
+  }
+
+  .shipments-detail--drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 0;
+    top: 0;
+    align-self: stretch;
+    overflow-y: auto;
+    box-shadow: none;
+  }
+
+  .shipments-detail-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 899;
+    border: none;
+    padding: 0;
+    margin: 0;
+    background: rgba(15, 23, 42, 0.45);
+    cursor: pointer;
+  }
+}
+
+@media (max-width: 767px) {
+  .shipments-page {
+    padding: 16px;
+  }
+
+  .shipments-toolbar-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .shipments-toolbar-actions button {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+    min-height: 40px;
+  }
+
+  .shipments-filter-group button {
+    padding: 8px 12px;
+    min-height: 36px;
+  }
+
+  .shipments-card {
+    padding: 14px 16px 12px;
+  }
+
+  .shipments-card-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .shipments-card-meta {
+    text-align: left;
+    width: 100%;
+    padding-top: 8px;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .shipments-form-grid-2,
+  .shipments-create-form-grid,
+  .quantity-unit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shipments-form-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .shipments-create-modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: min(96dvh, 100%);
+    border-radius: 16px 16px 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+  }
+
+  .shipments-form-header {
+    padding: 16px;
+  }
+
+  .shipments-form-body {
+    padding: 16px;
+  }
+
+  .shipments-form-actions {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .shipments-form-actions button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .shipments-form-header button {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+  }
+
+  .shipments-form-body input,
+  .shipments-form-body select,
+  .shipments-form-body textarea,
+  .shipments-edit-form input,
+  .shipments-edit-form select,
+  .shipments-edit-form textarea,
+  .quantity-unit-grid input,
+  .quantity-unit-grid select {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 430px) {
+  .shipments-form-header,
+  .shipments-form-body {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+@media (max-width: 430px) {
+  .shipments-page {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .shipments-toolbar {
+    gap: 8px;
+  }
+
+  .shipments-toolbar-actions button {
+    flex: 1 1 100%;
+  }
+}

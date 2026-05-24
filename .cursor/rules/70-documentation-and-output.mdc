@@ -1,0 +1,34 @@
+---
+description: Task output format and review vs implement modes
+alwaysApply: true
+---
+
+# Documentation and agent output
+
+## Implement tasks
+
+Return:
+
+1. Changed files (paths).
+2. Short summary (what/why).
+3. Commands executed.
+4. Validation results (build, tests).
+5. Commit hash if committed.
+6. Risks/assumptions if any.
+
+Keep diffs minimal; no drive-by refactors.
+
+## Review tasks
+
+- Do not modify files unless the task says Implement.
+- Return findings, matrices, PASS/FAIL, recommendations.
+
+## Failed validation
+
+- Do not commit.
+- Report failures and proposed fix.
+
+## Docs-only tasks
+
+- May touch `docs/`, `.cursor/`, `AGENTS.md`, rules/skills only.
+- Do not change `src/`, `backend/`, lockfiles unless scoped.

@@ -2,10 +2,11 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Shipment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\Shipment */
+/** @mixin Shipment */
 class ShipmentResource extends JsonResource
 {
     /**
@@ -24,9 +25,13 @@ class ShipmentResource extends JsonResource
             'destination' => $this->destination,
             'cargo' => $this->cargo,
             'weight' => $this->weight,
+            'weightUnit' => $this->weight_unit ?? ($this->weight ? 'kg' : null),
             'volume' => $this->volume,
+            'volumeUnit' => $this->volume_unit ?? ($this->volume ? 'm3' : null),
             'createdAt' => $this->created_at?->format('Y-m-d'),
+            'plannedPickup' => $this->planned_pickup?->format('Y-m-d'),
             'estimatedDelivery' => $this->estimated_delivery?->format('Y-m-d'),
+            'notes' => $this->notes,
             'financeId' => $this->financeRecord ? (string) $this->financeRecord->id : null,
             'telegramNotifications' => (bool) $this->telegram_notifications,
             'checkpoints' => CheckpointResource::collection($this->whenLoaded('checkpoints')),

@@ -100,7 +100,7 @@ class ManagerClientCrudApiTest extends TestCase
     {
         $this->actingAsManager();
 
-        $this->getJson('/api/managers')
+        $this->getJson('/api/managers/overview')
             ->assertOk()
             ->assertJsonStructure([
                 'managers' => [
@@ -176,7 +176,7 @@ class ManagerClientCrudApiTest extends TestCase
 
         $this->deleteJson("/api/clients/{$client->id}")
             ->assertOk()
-            ->assertJsonPath('message', 'Client deleted.');
+            ->assertJsonPath('message', 'Partner/client deleted.');
 
         $this->assertDatabaseMissing('clients', ['id' => $client->id]);
     }

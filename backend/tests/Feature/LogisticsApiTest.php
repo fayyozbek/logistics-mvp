@@ -101,11 +101,11 @@ class LogisticsApiTest extends TestCase
         $this->assertNotEmpty($first['client']['company']);
     }
 
-    public function test_managers_endpoint(): void
+    public function test_managers_overview_endpoint(): void
     {
         $this->actingAsOperator();
 
-        $this->getJson('/api/managers')
+        $this->getJson('/api/managers/overview')
             ->assertOk()
             ->assertJsonStructure([
                 'managers',
