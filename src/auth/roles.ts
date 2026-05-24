@@ -9,6 +9,17 @@ export const roleLabels: Record<UserRole, string> = {
   viewer: 'Наблюдатель',
 };
 
+export type ApiAction =
+  | 'shipment.create'
+  | 'shipment.delete'
+  | 'shipment.updateStatus'
+  | 'checkpoint.create'
+  | 'checkpoint.update'
+  | 'finance.updateStatus'
+  | 'telegram.updateSettings'
+  | 'telegram.testMessage'
+  | 'telegram.viewJournal';
+
 const pageAccess: Record<Page, UserRole[]> = {
   dashboard: ['admin', 'manager', 'operator', 'finance', 'viewer'],
   shipments: ['admin', 'manager', 'operator', 'finance', 'viewer'],
@@ -17,12 +28,28 @@ const pageAccess: Record<Page, UserRole[]> = {
   finance: ['admin', 'manager', 'operator', 'finance', 'viewer'],
   telegram: ['admin', 'manager', 'operator', 'finance'],
   users: ['admin'],
-  archive: ['admin', 'manager', 'operator', 'finance', 'viewer'],
+  archive: ['admin', 'manager'],
   settings: ['admin'],
+};
+
+const actionAccess: Record<ApiAction, UserRole[]> = {
+  'shipment.create': ['admin', 'manager'],
+  'shipment.delete': ['admin', 'manager'],
+  'shipment.updateStatus': ['admin', 'manager', 'operator'],
+  'checkpoint.create': ['admin', 'manager', 'operator'],
+  'checkpoint.update': ['admin', 'manager', 'operator'],
+  'finance.updateStatus': ['admin', 'finance'],
+  'telegram.updateSettings': ['admin'],
+  'telegram.testMessage': ['admin'],
+  'telegram.viewJournal': ['admin', 'manager'],
 };
 
 export function canAccessPage(role: UserRole, page: Page): boolean {
   return pageAccess[page]?.includes(role) ?? false;
+}
+
+export function canPerformAction(role: UserRole, action: ApiAction): boolean {
+  return actionAccess[action]?.includes(role) ?? false;
 }
 
 export function filterNavPages(role: UserRole, pages: Page[]): Page[] {

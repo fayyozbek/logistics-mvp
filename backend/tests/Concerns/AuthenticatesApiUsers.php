@@ -29,8 +29,23 @@ trait AuthenticatesApiUsers
         return $this->actingAsRole(UserRole::Admin);
     }
 
+    protected function actingAsManager(): User
+    {
+        return $this->actingAsRole(UserRole::Manager);
+    }
+
+    protected function actingAsOperator(): User
+    {
+        return $this->actingAsRole(UserRole::Operator);
+    }
+
     protected function actingAsFinance(): User
     {
         return $this->actingAsRole(UserRole::Finance);
+    }
+
+    protected function actingAsViewer(): User
+    {
+        return $this->actingAsRole(UserRole::Viewer);
     }
 }

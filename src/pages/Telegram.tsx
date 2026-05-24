@@ -13,6 +13,7 @@ import type {
   TelegramNotificationSettings,
   TelegramStatus,
 } from '../types/api';
+import { usePermissions } from '../hooks/usePermissions';
 import type { Shipment } from '../data/mock';
 import ApiLoadErrorBanner from '../components/ApiLoadErrorBanner';
 
@@ -192,6 +193,10 @@ const defaultBotStatus: TelegramStatus = {
 };
 
 export default function Telegram() {
+  const { can } = usePermissions();
+  const canEditSettings = can('telegram.updateSettings');
+  const canSendTest = can('telegram.testMessage');
+  const canViewJournal = can('telegram.viewJournal');
   const [loading, setLoading] = useState(true);
   const [tgShipments, setTgShipments] = useState<Shipment[]>([]);
   const [telegramChatId, setTelegramChatId] = useState('');
@@ -265,10 +270,10 @@ export default function Telegram() {
   }, []);
 
   useEffect(() => {
-    if (!loading) {
+    if (!loading && canViewJournal) {
       void loadJournal();
     }
-  }, [loading, loadJournal]);
+  }, [loading, loadJournal, canViewJournal]);
 
   const buildPayload = () => ({
     telegramChatId: telegramChatId || null,
@@ -495,7 +500,7 @@ export default function Telegram() {
                 value={telegramChatId}
                 onChange={(e) => setTelegramChatId(e.target.value)}
                 placeholder="-100xxxxxxxxxxxxx"
-                disabled={submitting}
+                disabled={submitting || !canEditSettings}
                 style={{ ...inputStyle, fontFamily: 'monospace' }}
               />
               <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4 }}>ID чата, группы или канала для ваших уведомлений</div>
@@ -507,7 +512,7 @@ export default function Telegram() {
                 value={telegramUsername}
                 onChange={(e) => setTelegramUsername(e.target.value)}
                 placeholder="@username"
-                disabled={submitting}
+                disabled={submitting || !canEditSettings}
                 style={inputStyle}
               />
             </div>
@@ -518,7 +523,7 @@ export default function Telegram() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Например: Отдел логистики"
-                disabled={submitting}
+                disabled={submitting || !canEditSettings}
                 style={inputStyle}
               />
             </div>
@@ -528,7 +533,7 @@ export default function Telegram() {
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>Уведомления включены</div>
                 <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2 }}>Разрешить отправку в ваш чат</div>
               </div>
-              <Toggle on={enabled} disabled={submitting} onToggle={() => setEnabled((v) => !v)} />
+              <Toggle on={enabled} disabled={submitting || !canEditSettings} onToggle={() => setEnabled((v) => !v)} />
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}>
@@ -536,9 +541,10 @@ export default function Telegram() {
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>Автоуведомления</div>
                 <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2 }}>События по грузам и маршруту</div>
               </div>
-              <Toggle on={notificationsEnabled} disabled={submitting} onToggle={() => setNotificationsEnabled((v) => !v)} />
+              <Toggle on={notificationsEnabled} disabled={submitting || !canEditSettings} onToggle={() => setNotificationsEnabled((v) => !v)} />
             </div>
 
+            {canEditSettings && (
             <button
               type="button"
               disabled={submitting}
@@ -575,8 +581,9 @@ export default function Telegram() {
               )}
               {submitting ? 'Сохранение...' : 'Сохранить настройки'}
             </button>
-          </div>
+            )}
 
+          {canSendTest && (
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Тестовое сообщение</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -633,6 +640,8 @@ export default function Telegram() {
             {testSuccess && <div style={{ fontSize: 11, color: '#10B981', marginTop: 6, fontWeight: 600 }}>{testSuccess}</div>}
             {testError && <div style={{ fontSize: 11, color: '#EF4444', marginTop: 6 }}>⚠ {testError}</div>}
           </div>
+          )}
+          </div>
         </div>
 
         {/* Event toggles */}
@@ -672,7 +681,7 @@ export default function Telegram() {
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>{pref.label}</div>
                     <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>{pref.desc}</div>
                   </div>
-                  <Toggle on={value} disabled={submitting} onToggle={() => setValue((v) => !v)} />
+                  <Toggle on={value} disabled={submitting || !canEditSettings} onToggle={() => setValue((v) => !v)} />
                 </div>
               );
             })}
@@ -724,6 +733,7 @@ export default function Telegram() {
       </div>
 
       {/* Journal */}
+      {canViewJournal && (
       <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Журнал уведомлений</div>
@@ -852,6 +862,7 @@ export default function Telegram() {
           </div>
         )}
       </div>
+      )}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );

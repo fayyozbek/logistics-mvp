@@ -2,7 +2,8 @@
 
 namespace App\Http\Middleware;
 
-use App\Enums\UserRole;
+use App\Models\User;
+use App\Support\RolePermissions;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -31,9 +32,7 @@ class EnsureUserHasRole
             ->values()
             ->all();
 
-        $userRole = $user->role instanceof UserRole ? $user->role->value : (string) $user->role;
-
-        if (! in_array($userRole, $allowed, true)) {
+        if (! RolePermissions::allows($user, $allowed)) {
             return response()->json(['message' => 'This action is unauthorized.'], 403);
         }
 

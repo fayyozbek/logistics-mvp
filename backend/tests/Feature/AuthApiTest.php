@@ -129,6 +129,17 @@ class AuthApiTest extends TestCase
     {
         Sanctum::actingAs(User::query()->where('email', 'finance@example.com')->firstOrFail());
 
-        $this->deleteJson('/api/shipments/1')->assertForbidden();
+        $this->deleteJson('/api/shipments/1')
+            ->assertForbidden()
+            ->assertJson(['message' => 'This action is unauthorized.']);
+    }
+
+    public function test_viewer_cannot_delete_shipment(): void
+    {
+        Sanctum::actingAs(User::query()->where('email', 'viewer@example.com')->firstOrFail());
+
+        $this->deleteJson('/api/shipments/1')
+            ->assertForbidden()
+            ->assertJson(['message' => 'This action is unauthorized.']);
     }
 }

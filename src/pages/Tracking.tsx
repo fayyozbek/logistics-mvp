@@ -3,6 +3,7 @@ import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, Search, Se
 import { clients, managers, type CheckPoint, type Shipment } from '../data/mock';
 import { addShipmentCheckpoint, ApiError, getApiErrorMessage, getTrackingData, updateCheckpoint } from '../api';
 import ApiLoadErrorBanner from '../components/ApiLoadErrorBanner';
+import { usePermissions } from '../hooks/usePermissions';
 
 const checkpointFieldLabels: Record<string, string> = {
   city: 'Город',
@@ -306,6 +307,9 @@ function WorldMap({ selected }: { selected: Shipment }) {
 }
 
 export default function Tracking() {
+  const { can } = usePermissions();
+  const canCreateCheckpoint = can('checkpoint.create');
+  const canUpdateCheckpoint = can('checkpoint.update');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [allShipments, setAllShipments] = useState<Shipment[]>([]);
@@ -577,6 +581,7 @@ export default function Tracking() {
                   </div>
                 </div>
               </div>
+              {canCreateCheckpoint && (
               <button
                 type="button"
                 onClick={() => {
@@ -589,6 +594,7 @@ export default function Tracking() {
                 <Plus size={15} />
                 Добавить точку
               </button>
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 18 }}>
@@ -649,6 +655,7 @@ export default function Tracking() {
                     <div style={{ paddingBottom: 20 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ fontSize: 14, color: '#111827', fontWeight: 950 }}>{checkpoint.city}, {checkpoint.country}</div>
+                        {canUpdateCheckpoint ? (
                         <select
                           value={checkpoint.status}
                           disabled={checkpointUpdatingId === checkpoint.id}
@@ -668,6 +675,18 @@ export default function Tracking() {
                           <option value="current">Текущая</option>
                           <option value="passed">Пройдена</option>
                         </select>
+                        ) : (
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: 999,
+                            background: isPassed ? '#D1FAE5' : isCurrent ? '#DBEAFE' : '#F1F5F9',
+                            color: isPassed ? '#047857' : isCurrent ? '#1D4ED8' : '#64748B',
+                            fontSize: 10,
+                            fontWeight: 900,
+                          }}>
+                            {checkpoint.status === 'passed' ? 'Пройдена' : checkpoint.status === 'current' ? 'Текущая' : 'Плановая'}
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>{checkpoint.address}</div>
                       {checkpoint.note && (
@@ -705,6 +724,7 @@ export default function Tracking() {
               })}
             </div>
 
+            {canCreateCheckpoint && (
             <button
               type="button"
               onClick={() => {
@@ -717,6 +737,7 @@ export default function Tracking() {
               <Plus size={16} />
               Добавить новую точку маршрута
             </button>
+            )}
           </div>
         </section>
       </div>

@@ -10,6 +10,7 @@ use App\Models\TelegramNotificationSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Tests\Concerns\AuthenticatesApiUsers;
 use Tests\TestCase;
 
 /**
@@ -18,6 +19,7 @@ use Tests\TestCase;
  */
 class TelegramEventNotificationsTest extends TestCase
 {
+    use AuthenticatesApiUsers;
     use RefreshDatabase;
 
     private int $clientId;
@@ -28,6 +30,9 @@ class TelegramEventNotificationsTest extends TestCase
         parent::setUp();
 
         config(['telegram.bot_token' => null, 'telegram.default_chat_id' => null]);
+
+        $this->seed(\Database\Seeders\UserSeeder::class);
+        $this->actingAsManager();
 
         $this->clientId  = Client::factory()->create()->id;
         $this->managerId = Manager::factory()->create()->id;

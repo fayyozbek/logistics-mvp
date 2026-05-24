@@ -3,6 +3,7 @@ import type { Client, Manager, Shipment, ShipmentStatus, TransportType } from '.
 import { ApiError, createShipment, deleteShipment, getApiErrorMessage, getManagers, getShipments, updateShipmentStatus } from '../api';
 import type { CreateShipmentPayload } from '../types/api';
 import ApiLoadErrorBanner from '../components/ApiLoadErrorBanner';
+import { usePermissions } from '../hooks/usePermissions';
 
 const statusColors: Record<string, string> = {
   planned: '#F59E0B', in_transit: '#3B82F6', at_checkpoint: '#8B5CF6', delivered: '#10B981', delayed: '#EF4444',
@@ -167,6 +168,10 @@ function pluralPoints(n: number): string {
 }
 
 export default function Shipments() {
+  const { can } = usePermissions();
+  const canCreate = can('shipment.create');
+  const canUpdateStatus = can('shipment.updateStatus');
+  const canDelete = can('shipment.delete');
   const [loading, setLoading] = useState(true);
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -424,6 +429,7 @@ export default function Shipments() {
           ))}
         </div>
 
+        {canCreate && (
         <div style={{ marginLeft: 'auto' }}>
           <button
             type="button"
@@ -438,6 +444,7 @@ export default function Shipments() {
             Новый груз
           </button>
         </div>
+        )}
       </div>
 
       {/* List + Detail */}
@@ -533,12 +540,12 @@ export default function Shipments() {
                           role={isSelected ? 'button' : undefined}
                           tabIndex={isSelected ? 0 : undefined}
                           onClick={(event) => {
-                            if (!isSelected || statusUpdating) return;
+                            if (!isSelected || statusUpdating || !canUpdateStatus) return;
                             event.stopPropagation();
                             void handleStatusUpdate(step);
                           }}
                           onKeyDown={(event) => {
-                            if (!isSelected || statusUpdating) return;
+                            if (!isSelected || statusUpdating || !canUpdateStatus) return;
                             if (event.key === 'Enter' || event.key === ' ') {
                               event.preventDefault();
                               event.stopPropagation();
@@ -550,7 +557,7 @@ export default function Shipments() {
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: i === 0 ? 'flex-start' : i === stepKeys.length - 1 ? 'flex-end' : 'center',
-                            cursor: isSelected && !statusUpdating ? 'pointer' : 'default',
+                            cursor: isSelected && !statusUpdating && canUpdateStatus ? 'pointer' : 'default',
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
@@ -635,6 +642,7 @@ export default function Shipments() {
               ))}
             </div>
 
+            {canUpdateStatus && (
             <div style={{ marginBottom: 18, padding: '14px', borderRadius: 10, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Обновить статус</div>
 
@@ -691,8 +699,10 @@ export default function Shipments() {
                 {statusUpdating ? 'Сохранение...' : 'Сохранить статус'}
               </button>
             </div>
+            )}
 
-            <div style={{ marginBottom: 18, paddingTop: 14, borderTop: '1px solid #F1F5F9' }}>
+            {canDelete && (
+            <div style={{ marginBottom: 18, paddingTop: canUpdateStatus ? 0 : 14, borderTop: canUpdateStatus ? 'none' : '1px solid #F1F5F9' }}>
               {archiveErrors.length > 0 && (
                 <div style={{ padding: '8px 10px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 11, marginBottom: 10 }}>
                   {archiveErrors.map((error) => <div key={error}>{error}</div>)}
@@ -717,6 +727,7 @@ export default function Shipments() {
                 {archiving ? 'Архивация...' : 'Архивировать груз'}
               </button>
             </div>
+            )}
 
             {/* Route timeline */}
             <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 12 }}>

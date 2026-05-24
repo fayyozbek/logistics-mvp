@@ -3,6 +3,7 @@ import { type Client, type FinanceRecord } from '../data/mock';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { ApiError, getApiErrorMessage, getFinance, updateFinanceStatus } from '../api';
 import ApiLoadErrorBanner from '../components/ApiLoadErrorBanner';
+import { usePermissions } from '../hooks/usePermissions';
 
 const statusConfig = {
   paid: { label: 'Оплачен', color: '#10B981', bg: '#F0FDF4' },
@@ -25,6 +26,8 @@ function formatFieldErrors(errors: Record<string, string[]>): string[] {
 }
 
 export default function Finance() {
+  const { can } = usePermissions();
+  const canUpdateStatus = can('finance.updateStatus');
   const [loading, setLoading] = useState(true);
   const [financeRecords, setFinanceRecords] = useState<FinanceRecord[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -231,6 +234,7 @@ export default function Finance() {
                               </div>
                               <div style={{ marginTop: 10 }}>
                                 <div style={{ fontSize: 10, color: '#64748B', fontWeight: 700, marginBottom: 4 }}>Статус счёта</div>
+                                {canUpdateStatus ? (
                                 <select
                                   value={f.status}
                                   disabled={isUpdating}
@@ -250,10 +254,13 @@ export default function Finance() {
                                     <option key={status} value={status}>{statusConfig[status].label}</option>
                                   ))}
                                 </select>
+                                ) : (
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</span>
+                                )}
                               </div>
                             </div>
                             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                              {f.status !== 'paid' && (
+                              {canUpdateStatus && f.status !== 'paid' && (
                                 <button
                                   type="button"
                                   disabled={isUpdating}
