@@ -95,4 +95,19 @@ class CreateShipmentApiTest extends TestCase
 
         $this->assertSame(6, Shipment::query()->count());
     }
+
+    public function test_create_shipment_rejects_negative_weight(): void
+    {
+        $this->postJson('/api/shipments', [
+            'clientId' => 1,
+            'type' => 'auto',
+            'origin' => 'Алматы',
+            'destination' => 'Ташкент',
+            'weight' => '-999',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['weight']);
+
+        $this->assertSame(6, Shipment::query()->count());
+    }
 }

@@ -154,4 +154,40 @@ class AuthApiTest extends TestCase
             ->assertForbidden()
             ->assertJson(['message' => 'This action is unauthorized.']);
     }
+
+    public function test_login_is_rate_limited_after_repeated_failures(): void
+    {
+        config(['auth.login_rate_limit' => 3]);
+
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $this->postJson('/api/auth/login', [
+                'email' => 'admin@example.com',
+                'password' => 'wrong-password',
+            ])->assertUnprocessable();
+        }
+
+        $this->postJson('/api/auth/login', [
+            'email' => 'admin@example.com',
+            'password' => 'wrong-password',
+        ])->assertTooManyRequests();
+    }
+
+    public function test_expired_token_is_rejected(): void
+    {
+        config(['sanctum.expiration' => 1]);
+
+        $login = $this->postJson('/api/auth/login', [
+            'email' => 'admin@example.com',
+            'password' => UserSeeder::DEMO_PASSWORD,
+        ])->assertOk();
+
+        $token = $login->json('token');
+
+        $this->travel(2)->minutes();
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($token)
+            ->getJson('/api/auth/me')
+            ->assertUnauthorized();
+    }
 }

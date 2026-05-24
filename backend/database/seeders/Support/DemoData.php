@@ -328,7 +328,7 @@ final class DemoData
     public static function telegramSettings(): array
     {
         return [
-            'bot_token' => 'demo-token-logistix-notify',
+            'bot_token' => null,
             'chat_id' => '-1001234567890',
             'connected' => true,
             'event_flags' => [

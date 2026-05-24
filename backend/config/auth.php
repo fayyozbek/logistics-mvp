@@ -114,4 +114,15 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Login Rate Limit
+    |--------------------------------------------------------------------------
+    |
+    | Maximum login attempts per minute for each email and IP combination.
+    |
+    */
+
+    'login_rate_limit' => env('LOGIN_RATE_LIMIT', 5),
+
 ];
