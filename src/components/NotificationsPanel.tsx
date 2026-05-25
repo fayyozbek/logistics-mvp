@@ -1,226 +1,133 @@
-import type { ReactNode } from 'react';
-import { Bell, CheckCircle2, FolderKanban, PackageCheck, UserPlus, X } from 'lucide-react';
-import { managers } from '../data/mock';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Bell, CheckCircle2, FolderKanban, PackageCheck, Send, X } from 'lucide-react';
+import { getApiErrorMessage, getTelegramNotifications, isApiConfigured } from '../api';
+import { usePermissions } from '../hooks/usePermissions';
+import type { TelegramNotificationEntry } from '../types/api';
 
-export interface NotificationItem {
+interface DemoNotificationItem {
   id: string;
-  type: 'task' | 'shipment' | 'user' | 'finance';
+  type: 'task' | 'shipment' | 'finance';
   title: string;
   description: string;
-  managerId: string;
   time: string;
   day: 'today' | 'yesterday';
-  unread: boolean;
-  priority: 'normal' | 'high' | 'urgent';
 }
 
-export const taskNotifications: NotificationItem[] = [
+const demoNotifications: DemoNotificationItem[] = [
   {
-    id: 'n1',
+    id: 'demo-1',
     type: 'task',
-    title: 'Новая задача по маршруту',
-    description: 'Проверить документы LGX-2026-0498 перед вылетом в FRA',
-    managerId: 'm2',
+    title: 'Пример задачи (демо)',
+    description: 'Демо-уведомление без подключённого API',
     time: '19:22',
     day: 'today',
-    unread: true,
-    priority: 'urgent',
   },
   {
-    id: 'n2',
+    id: 'demo-2',
     type: 'shipment',
-    title: 'Новая точка добавлена',
-    description: 'Актобе, терминал А-17 добавлен в LGX-2026-0387',
-    managerId: 'm1',
+    title: 'Пример груза (демо)',
+    description: 'Реальные уведомления приходят из журнала Telegram',
     time: '18:47',
     day: 'today',
-    unread: true,
-    priority: 'high',
-  },
-  {
-    id: 'n3',
-    type: 'finance',
-    title: 'Запрос на счёт',
-    description: 'KazExport LLP запросил счёт по перевозке Алматы → Дубай',
-    managerId: 'm2',
-    time: '17:10',
-    day: 'today',
-    unread: true,
-    priority: 'normal',
-  },
-  {
-    id: 'n4',
-    type: 'task',
-    title: 'Задача менеджеру',
-    description: 'Связаться с Global Trade GmbH по времени разгрузки',
-    managerId: 'm4',
-    time: '15:35',
-    day: 'today',
-    unread: false,
-    priority: 'normal',
-  },
-  {
-    id: 'n5',
-    type: 'shipment',
-    title: 'Новый груз в работе',
-    description: 'Silk Road Cargo: Шанхай → Актау, морская перевозка',
-    managerId: 'm3',
-    time: '22:07',
-    day: 'yesterday',
-    unread: true,
-    priority: 'high',
-  },
-  {
-    id: 'n6',
-    type: 'user',
-    title: 'Новый сотрудник',
-    description: 'Анна Белова добавлена как менеджер направления СНГ',
-    managerId: 'm4',
-    time: '20:58',
-    day: 'yesterday',
-    unread: true,
-    priority: 'normal',
-  },
-  {
-    id: 'n7',
-    type: 'task',
-    title: 'Проверка груза',
-    description: 'Рустам Нуров назначил проверку веса по LGX-2026-0512',
-    managerId: 'm3',
-    time: '20:41',
-    day: 'yesterday',
-    unread: false,
-    priority: 'normal',
   },
 ];
 
-const typeMeta: Record<NotificationItem['type'], { color: string; bg: string; icon: ReactNode }> = {
+const typeMeta: Record<string, { color: string; bg: string; icon: ReactNode }> = {
   task: { color: '#2563EB', bg: '#DBEAFE', icon: <FolderKanban size={17} /> },
   shipment: { color: '#059669', bg: '#D1FAE5', icon: <PackageCheck size={17} /> },
-  user: { color: '#7C3AED', bg: '#EDE9FE', icon: <UserPlus size={17} /> },
+  shipment_created: { color: '#059669', bg: '#D1FAE5', icon: <PackageCheck size={17} /> },
+  status_changed: { color: '#2563EB', bg: '#DBEAFE', icon: <FolderKanban size={17} /> },
+  checkpoint_added: { color: '#7C3AED', bg: '#EDE9FE', icon: <Send size={17} /> },
   finance: { color: '#B45309', bg: '#FEF3C7', icon: <CheckCircle2 size={17} /> },
+  test_message: { color: '#64748B', bg: '#F1F5F9', icon: <Send size={17} /> },
 };
 
-const priorityMeta: Record<NotificationItem['priority'], { label: string; color: string; bg: string }> = {
-  normal: { label: 'Обычная', color: '#64748B', bg: '#F1F5F9' },
-  high: { label: 'Важная', color: '#B45309', bg: '#FEF3C7' },
-  urgent: { label: 'Срочная', color: '#DC2626', bg: '#FEE2E2' },
+const eventTypeLabels: Record<string, string> = {
+  shipment_created: 'Создан груз',
+  status_changed: 'Статус изменён',
+  checkpoint_added: 'Добавлена точка',
+  test_message: 'Тестовое сообщение',
 };
+
+function formatNotificationTime(value: string | null): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+function notificationTitle(entry: TelegramNotificationEntry): string {
+  return eventTypeLabels[entry.eventType] ?? entry.eventType;
+}
+
+function notificationStatusLabel(status: TelegramNotificationEntry['status']): string {
+  if (status === 'sent') return 'Отправлено';
+  if (status === 'failed') return 'Ошибка';
+  return 'Пропущено';
+}
+
+export function useNotificationBadgeCount(): number {
+  const apiMode = isApiConfigured();
+  const { can } = usePermissions();
+  const canViewJournal = can('telegram.viewJournal');
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!apiMode) {
+      setCount(demoNotifications.length);
+      return;
+    }
+
+    if (!canViewJournal) {
+      setCount(0);
+      return;
+    }
+
+    getTelegramNotifications({ limit: 50 })
+      .then(({ notifications }) => {
+        setCount(notifications.filter((item) => item.status === 'sent').length);
+      })
+      .catch(() => setCount(0));
+  }, [apiMode, canViewJournal]);
+
+  return count;
+}
 
 interface NotificationsPanelProps {
   open: boolean;
   onClose: () => void;
 }
 
-function ManagerAvatar({ managerId }: { managerId: string }) {
-  const manager = managers.find((item) => item.id === managerId);
-  return (
-    <div style={{
-      width: 30,
-      height: 30,
-      borderRadius: '50%',
-      background: '#ECFDF5',
-      color: '#047857',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: 10,
-      fontWeight: 900,
-      flexShrink: 0,
-    }}>
-      {manager?.avatar ?? 'M'}
-    </div>
-  );
-}
-
 export default function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
-  const unreadCount = taskNotifications.filter((item) => item.unread).length;
-  const today = taskNotifications.filter((item) => item.day === 'today');
-  const yesterday = taskNotifications.filter((item) => item.day === 'yesterday');
+  const apiMode = isApiConfigured();
+  const { can } = usePermissions();
+  const canViewJournal = can('telegram.viewJournal');
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [journalEntries, setJournalEntries] = useState<TelegramNotificationEntry[]>([]);
+
+  useEffect(() => {
+    if (!open || !apiMode || !canViewJournal) {
+      return;
+    }
+
+    setLoading(true);
+    setLoadError('');
+
+    getTelegramNotifications({ limit: 50 })
+      .then(({ notifications }) => setJournalEntries(notifications))
+      .catch((error) => {
+        setLoadError(getApiErrorMessage(error, 'Не удалось загрузить журнал Telegram.'));
+        setJournalEntries([]);
+      })
+      .finally(() => setLoading(false));
+  }, [open, apiMode, canViewJournal]);
 
   if (!open) return null;
 
-  const renderGroup = (title: string, items: NotificationItem[]) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{
-        fontSize: 11,
-        color: '#94A3B8',
-        fontWeight: 900,
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        padding: '0 4px',
-      }}>
-        {title}
-      </div>
-      {items.map((item) => {
-        const type = typeMeta[item.type];
-        const priority = priorityMeta[item.priority];
-        const manager = managers.find((entry) => entry.id === item.managerId);
-
-        return (
-          <div key={item.id} style={{
-            background: item.unread ? '#FFFBF5' : '#fff',
-            border: `1px solid ${item.unread ? '#FED7AA' : '#EEF2FF'}`,
-            borderRadius: 14,
-            padding: '13px 14px',
-            display: 'flex',
-            gap: 12,
-            position: 'relative',
-          }}>
-            <div style={{
-              width: 42,
-              height: 42,
-              borderRadius: 13,
-              background: type.bg,
-              color: type.color,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}>
-              {type.icon}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                <div style={{ fontSize: 13, color: '#0F172A', fontWeight: 900 }}>{item.title}</div>
-                <div style={{ fontSize: 11, color: '#94A3B8', flexShrink: 0 }}>{item.time}</div>
-              </div>
-              <div style={{ fontSize: 12, color: '#64748B', marginTop: 3, lineHeight: 1.35 }}>{item.description}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-                <ManagerAvatar managerId={item.managerId} />
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 11, color: '#334155', fontWeight: 800 }}>{manager?.name}</div>
-                  <div style={{ fontSize: 10, color: '#94A3B8' }}>{manager?.telegramId}</div>
-                </div>
-                <span style={{
-                  marginLeft: 'auto',
-                  padding: '3px 8px',
-                  borderRadius: 999,
-                  background: priority.bg,
-                  color: priority.color,
-                  fontSize: 10,
-                  fontWeight: 900,
-                }}>
-                  {priority.label}
-                </span>
-              </div>
-            </div>
-            {item.unread && (
-              <div style={{
-                position: 'absolute',
-                right: 12,
-                top: 39,
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                background: '#D97706',
-              }} />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
+  const demoMode = !apiMode;
+  const placeholderMode = apiMode && !canViewJournal;
+  const journalMode = apiMode && canViewJournal;
 
   return (
     <div style={{
@@ -250,7 +157,11 @@ export default function NotificationsPanel({ open, onClose }: NotificationsPanel
                 </div>
                 <div>
                   <div style={{ fontSize: 24, color: '#0F172A', fontWeight: 900, letterSpacing: -0.6 }}>Уведомления</div>
-                  <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>{unreadCount} непрочитанных задач</div>
+                  <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>
+                    {journalMode && `${journalEntries.length} записей журнала Telegram`}
+                    {demoMode && 'Демо-режим без API'}
+                    {placeholderMode && 'Журнал Telegram'}
+                  </div>
                 </div>
               </div>
             </div>
@@ -261,37 +172,120 @@ export default function NotificationsPanel({ open, onClose }: NotificationsPanel
               <X size={18} />
             </button>
           </div>
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-            <button style={{ padding: '8px 12px', borderRadius: 10, border: 'none', background: '#ECFDF5', color: '#047857', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
-              Прочитать все
-            </button>
-            <button style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid #FEE2E2', background: '#fff', color: '#DC2626', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}>
-              Очистить
-            </button>
-          </div>
         </div>
 
-        <div style={{ padding: '18px 20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 22 }}>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 8,
-          }}>
-            {[
-              { label: 'Новые', value: unreadCount, color: '#D97706' },
-              { label: 'Срочные', value: taskNotifications.filter((item) => item.priority === 'urgent').length, color: '#DC2626' },
-              { label: 'Менеджеры', value: new Set(taskNotifications.map((item) => item.managerId)).size, color: '#2563EB' },
-            ].map((stat) => (
-              <div key={stat.label} style={{ background: '#F8FAFC', border: '1px solid #EEF2FF', borderRadius: 12, padding: '11px 12px' }}>
-                <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800 }}>{stat.label}</div>
-                <div style={{ fontSize: 20, color: stat.color, fontWeight: 900, marginTop: 4 }}>{stat.value}</div>
-              </div>
-            ))}
-          </div>
+        <div style={{ padding: '18px 20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {demoMode && (
+            <div style={{ padding: '10px 12px', borderRadius: 10, background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E', fontSize: 12, fontWeight: 600 }}>
+              Демо-данные. Подключите API для журнала Telegram-уведомлений.
+            </div>
+          )}
 
-          {renderGroup('Сегодня', today)}
-          {renderGroup('Вчера', yesterday)}
+          {placeholderMode && (
+            <div style={{ padding: '16px', borderRadius: 12, background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#64748B', fontSize: 13, lineHeight: 1.45 }}>
+              Журнал Telegram доступен администратору и менеджеру. Для вашей роли показываются только настройки бота на странице «Telegram-бот».
+            </div>
+          )}
+
+          {journalMode && loading && (
+            <div style={{ fontSize: 13, color: '#94A3B8' }}>Загрузка журнала…</div>
+          )}
+
+          {journalMode && loadError && (
+            <div style={{ padding: '10px 12px', borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 12 }}>
+              {loadError}
+            </div>
+          )}
+
+          {journalMode && !loading && !loadError && journalEntries.length === 0 && (
+            <div style={{ padding: '16px', borderRadius: 12, background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#64748B', fontSize: 13 }}>
+              Записей в журнале пока нет. Отправьте тестовое сообщение или выполните действие с грузом.
+            </div>
+          )}
+
+          {journalMode && journalEntries.map((entry) => {
+            const type = typeMeta[entry.eventType] ?? typeMeta.test_message;
+            return (
+              <div key={entry.id} style={{
+                background: '#fff',
+                border: '1px solid #EEF2FF',
+                borderRadius: 14,
+                padding: '13px 14px',
+                display: 'flex',
+                gap: 12,
+              }}>
+                <div style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 13,
+                  background: type.bg,
+                  color: type.color,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  {type.icon}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ fontSize: 13, color: '#0F172A', fontWeight: 900 }}>{notificationTitle(entry)}</div>
+                    <div style={{ fontSize: 11, color: '#94A3B8', flexShrink: 0 }}>{formatNotificationTime(entry.sentAt ?? entry.createdAt)}</div>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748B', marginTop: 3, lineHeight: 1.35 }}>
+                    {entry.messagePreview ?? '—'}
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    <span style={{
+                      padding: '3px 8px',
+                      borderRadius: 999,
+                      background: entry.status === 'sent' ? '#D1FAE5' : entry.status === 'failed' ? '#FEE2E2' : '#F1F5F9',
+                      color: entry.status === 'sent' ? '#047857' : entry.status === 'failed' ? '#B91C1C' : '#64748B',
+                      fontSize: 10,
+                      fontWeight: 900,
+                    }}>
+                      {notificationStatusLabel(entry.status)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {demoMode && demoNotifications.map((item) => {
+            const type = typeMeta[item.type];
+            return (
+              <div key={item.id} style={{
+                background: '#FFFBF5',
+                border: '1px solid #FED7AA',
+                borderRadius: 14,
+                padding: '13px 14px',
+                display: 'flex',
+                gap: 12,
+              }}>
+                <div style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 13,
+                  background: type.bg,
+                  color: type.color,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  {type.icon}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ fontSize: 13, color: '#0F172A', fontWeight: 900 }}>{item.title}</div>
+                    <div style={{ fontSize: 11, color: '#94A3B8', flexShrink: 0 }}>{item.time}</div>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748B', marginTop: 3, lineHeight: 1.35 }}>{item.description}</div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </aside>
     </div>

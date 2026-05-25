@@ -6,6 +6,7 @@ import FormErrorList from '../components/FormErrorList';
 import InlineConfirm from '../components/InlineConfirm';
 import PageLoading from '../components/PageLoading';
 import { useToast } from '../components/ToastProvider';
+import { usePermissions } from '../hooks/usePermissions';
 import { formatFieldErrors, showApiMutationError } from '../utils/apiErrors';
 import { hasRequiredStrings } from '../utils/formValidation';
 import type { CreateClientPayload, UpdateClientPayload } from '../types/api';
@@ -79,6 +80,10 @@ function formToUpdatePayload(form: ClientFormState): UpdateClientPayload {
 }
 
 export default function Clients() {
+  const { can } = usePermissions();
+  const canCreate = can('client.create');
+  const canUpdate = can('client.update');
+  const canDelete = can('client.delete');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
@@ -312,6 +317,7 @@ export default function Clients() {
         <div style={{ fontSize: 13, color: '#64748B' }}>
           Партнёры / клиенты: <strong style={{ color: '#0F172A' }}>{clients.length}</strong>
         </div>
+        {canCreate && (
         <button
           type="button"
           onClick={openCreateForm}
@@ -322,6 +328,7 @@ export default function Clients() {
         >
           + Добавить партнёра
         </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
@@ -374,7 +381,9 @@ export default function Clients() {
 
             <FormErrorList errors={formErrors} />
 
+            {(canUpdate || canDelete) && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              {canUpdate && (
               <button
                 type="button"
                 onClick={() => {
@@ -392,6 +401,8 @@ export default function Clients() {
               >
                 Редактировать
               </button>
+              )}
+              {canDelete && (
               <button
                 type="button"
                 onClick={() => { setShowDeleteConfirm(true); setEditMode(false); setFormErrors([]); }}
@@ -403,7 +414,9 @@ export default function Clients() {
               >
                 Удалить
               </button>
+              )}
             </div>
+            )}
 
             {showDeleteConfirm ? (
               <InlineConfirm

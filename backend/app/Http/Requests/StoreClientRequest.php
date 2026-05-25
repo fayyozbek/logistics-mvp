@@ -22,6 +22,10 @@ class StoreClientRequest extends FormRequest
             $merge['contact'] = $this->input('name');
         }
 
+        if ($this->has('contactName') && ! $this->has('contact')) {
+            $merge['contact'] = $this->input('contactName');
+        }
+
         if ($merge !== []) {
             $this->merge($merge);
         }
@@ -35,7 +39,7 @@ class StoreClientRequest extends FormRequest
         return [
             'company' => ['required', 'string', 'max:255'],
             'name' => ['sometimes', 'string', 'max:255'],
-            'contact' => ['required_without:name', 'string', 'max:255'],
+            'contact' => ['required_without_all:name,contactName', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:64'],
             'country' => ['nullable', 'string', 'max:255'],

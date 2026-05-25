@@ -256,26 +256,93 @@ export interface TelegramEventFlags {
   docs?: boolean;
 }
 
-export interface TelegramSettings {
+/** Per-account Telegram notification settings (no bot token). */
+export interface TelegramNotificationSettings {
   id: string;
-  botToken: string | null;
-  chatId: string | null;
-  connected: boolean;
-  eventFlags: TelegramEventFlags;
+  displayName: string | null;
+  telegramChatId: string | null;
+  telegramUsername: string | null;
+  enabled: boolean;
+  notificationsEnabled: boolean;
+  notifyShipmentCreated: boolean;
+  notifyStatusChanged: boolean;
+  notifyCheckpointAdded: boolean;
+  lastTestedAt: string | null;
+  lastTestStatus: string | null;
 }
 
+/** @deprecated Use TelegramNotificationSettings */
+export type TelegramSettings = TelegramNotificationSettings;
+
 export interface TelegramSettingsResponse {
-  settings: TelegramSettings | null;
+  settings: TelegramNotificationSettings | null;
   shipments: Shipment[];
 }
 
 export interface UpdateTelegramSettingsPayload {
-  botToken?: string;
+  displayName?: string | null;
+  telegramChatId?: string | null;
+  telegramUsername?: string | null;
+  enabled?: boolean;
+  notificationsEnabled?: boolean;
+  notifyShipmentCreated?: boolean;
+  notifyStatusChanged?: boolean;
+  notifyCheckpointAdded?: boolean;
+  /** Legacy alias mapped by backend */
   chatId?: string;
   connected?: boolean;
-  eventFlags?: TelegramEventFlags;
 }
 
 export interface UpdateTelegramSettingsResponse {
-  settings: TelegramSettings;
+  settings: TelegramNotificationSettings;
+}
+
+export interface TelegramStatus {
+  configured: boolean;
+  enabled: boolean;
+  hasChatId: boolean;
+  notificationsEnabled: boolean;
+  botTokenSource: 'env' | null;
+  botUsername?: string | null;
+}
+
+export interface TelegramNotificationEntry {
+  id: string;
+  eventType: string;
+  status: 'sent' | 'failed' | 'skipped';
+  relatedType: string | null;
+  relatedId: string | null;
+  chatId: string | null;
+  messagePreview: string | null;
+  telegramMessageId: string | null;
+  errorMessage: string | null;
+  sentAt: string | null;
+  createdAt: string | null;
+}
+
+export interface TelegramNotificationsResponse {
+  notifications: TelegramNotificationEntry[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+
+export interface TelegramNotificationsQuery {
+  status?: string;
+  event_type?: string;
+  limit?: number;
+  page?: number;
+}
+
+export interface SendTestMessagePayload {
+  chatId?: string;
+  message?: string;
+}
+
+export interface SendTestMessageResponse {
+  success: boolean;
+  message: string;
+  telegram_message_id: number | null;
 }

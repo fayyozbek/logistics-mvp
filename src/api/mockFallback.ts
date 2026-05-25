@@ -8,6 +8,7 @@ import {
 } from '../data/mock';
 import { buildFinanceReport } from '../utils/financeReport';
 import type {
+  ClientsResponse,
   DashboardData,
   DashboardQuery,
   FinanceReportResponse,
@@ -16,7 +17,6 @@ import type {
   ShipmentResponse,
   ShipmentsResponse,
   TelegramSettingsResponse,
-  ClientsResponse,
   TrackingResponse,
 } from '../types/api';
 
@@ -140,18 +140,16 @@ export function getTelegramSettingsMock(): TelegramSettingsResponse {
   return {
     settings: {
       id: 'tg1',
-      botToken: '••••••••••••',
-      chatId: '-1001234567890',
-      connected: true,
-      eventFlags: {
-        departure: true,
-        checkpoint: true,
-        customs: true,
-        delay: true,
-        delivery: true,
-        payment: false,
-        docs: false,
-      },
+      displayName: 'Default Demo',
+      telegramChatId: '-1001234567890',
+      telegramUsername: 'LogistixNotifyBot',
+      enabled: true,
+      notificationsEnabled: true,
+      notifyShipmentCreated: true,
+      notifyStatusChanged: true,
+      notifyCheckpointAdded: true,
+      lastTestedAt: null,
+      lastTestStatus: null,
     },
     shipments: shipments.filter((shipment) => shipment.telegramNotifications),
   };

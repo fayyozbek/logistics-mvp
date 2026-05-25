@@ -22,6 +22,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(prepend: [
             SetApiLocale::class,
         ]);
+
+        $middleware->alias([
+            'role' => \App\Http\Middleware\EnsureUserHasRole::class,
+        ]);
+
+        $middleware->redirectGuestsTo(function (Request $request): ?string {
+            return $request->is('api/*') ? null : '/login';
+        });
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (ValidationException $exception, Request $request): ?Response {

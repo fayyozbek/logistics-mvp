@@ -9,6 +9,7 @@ use App\Http\Resources\CheckpointResource;
 use App\Models\Checkpoint;
 use App\Models\Shipment;
 use App\Services\CheckpointSequenceService;
+use App\Services\TelegramBotService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,7 @@ class CheckpointController extends Controller
 {
     public function __construct(
         private readonly CheckpointSequenceService $checkpointSequenceService,
+        private readonly TelegramBotService $telegram,
     ) {}
 
     public function store(StoreCheckpointRequest $request, Shipment $shipment): JsonResponse
@@ -27,6 +29,10 @@ class CheckpointController extends Controller
         $checkpoint = DB::transaction(
             fn () => $this->checkpointSequenceService->insert($shipment, $validated, $insertAfter),
         );
+
+        if ($this->telegram->shouldNotifyForShipment($shipment, 'checkpoint')) {
+            $this->telegram->sendCheckpointAddedNotification($shipment, $checkpoint);
+        }
 
         return response()->json([
             'checkpoint' => (new CheckpointResource($checkpoint))->resolve(),

@@ -16,17 +16,6 @@ class Shipment extends Model
     /** @use HasFactory<ShipmentFactory> */
     use HasFactory, SoftDeletes;
 
-    protected static function booted(): void
-    {
-        static::deleting(function (Shipment $shipment): void {
-            if ($shipment->isForceDeleting()) {
-                return;
-            }
-
-            $shipment->checkpoints()->delete();
-        });
-    }
-
     public const STATUSES = [
         'planned',
         'in_transit',

@@ -6,16 +6,19 @@ use App\Models\Checkpoint;
 use App\Models\Shipment;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesApiUsers;
 use Tests\TestCase;
 
 class CheckpointApiTest extends TestCase
 {
+    use AuthenticatesApiUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(DatabaseSeeder::class);
+        $this->actingAsOperator();
     }
 
     public function test_can_add_checkpoint(): void

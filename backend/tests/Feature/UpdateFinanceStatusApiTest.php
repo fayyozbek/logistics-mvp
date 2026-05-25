@@ -5,16 +5,19 @@ namespace Tests\Feature;
 use App\Models\FinanceRecord;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesApiUsers;
 use Tests\TestCase;
 
 class UpdateFinanceStatusApiTest extends TestCase
 {
+    use AuthenticatesApiUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(DatabaseSeeder::class);
+        $this->actingAsFinance();
     }
 
     public function test_can_update_finance_record_status(): void

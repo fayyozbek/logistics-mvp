@@ -5,16 +5,19 @@ namespace Tests\Feature;
 use App\Models\Shipment;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesApiUsers;
 use Tests\TestCase;
 
 class UpdateShipmentStatusApiTest extends TestCase
 {
+    use AuthenticatesApiUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(DatabaseSeeder::class);
+        $this->actingAsOperator();
     }
 
     public function test_can_update_shipment_status(): void

@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateShipmentStatusRequest;
 use App\Http\Resources\ShipmentResource;
 use App\Models\Checkpoint;
 use App\Models\Shipment;
+use App\Services\TelegramBotService;
 use App\Services\TrackingNumberGenerator;
 use App\Support\MapsValidatedAttributes;
 use Carbon\Carbon;
@@ -39,6 +40,7 @@ class ShipmentController extends Controller
 
     public function __construct(
         private readonly TrackingNumberGenerator $trackingNumberGenerator,
+        private readonly TelegramBotService $telegram,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -79,7 +81,7 @@ class ShipmentController extends Controller
         });
 
         return response()->json([
-            'message' => 'Shipment deleted.',
+            'message' => 'Shipment archived.',
             'shipmentId' => (string) $shipment->id,
         ]);
     }
@@ -87,8 +89,10 @@ class ShipmentController extends Controller
     public function updateStatus(UpdateShipmentStatusRequest $request, Shipment $shipment): JsonResponse
     {
         $validated = $request->validated();
+        $oldStatus = $shipment->status;
+        $newStatus = $validated['status'];
 
-        $shipment->update(['status' => $validated['status']]);
+        $shipment->update(['status' => $newStatus]);
 
         if (! empty($validated['note'])) {
             $checkpoint = $shipment->checkpoints()
@@ -102,7 +106,21 @@ class ShipmentController extends Controller
             }
         }
 
-        return $this->shipmentResponse($this->loadShipmentDetails($shipment));
+        $shipment = $this->loadShipmentDetails($shipment);
+
+        $eventFlag = match ($newStatus) {
+            'in_transit' => 'departure',
+            'at_checkpoint' => 'checkpoint',
+            'delivered' => 'delivery',
+            'delayed' => 'delay',
+            default => null,
+        };
+
+        if ($eventFlag !== null && $this->telegram->shouldNotifyForShipment($shipment, $eventFlag)) {
+            $this->telegram->sendShipmentStatusChangedNotification($shipment, $oldStatus, $newStatus);
+        }
+
+        return $this->shipmentResponse($shipment);
     }
 
     public function store(StoreShipmentRequest $request): JsonResponse
@@ -132,7 +150,13 @@ class ShipmentController extends Controller
             return $shipment;
         });
 
-        return $this->shipmentResponse($this->loadShipmentDetails($shipment), 201);
+        $shipment = $this->loadShipmentDetails($shipment);
+
+        if ($this->telegram->shouldNotifyForShipment($shipment, 'departure')) {
+            $this->telegram->sendShipmentCreatedNotification($shipment);
+        }
+
+        return $this->shipmentResponse($shipment, 201);
     }
 
     private function loadShipmentDetails(Shipment $shipment): Shipment

@@ -5,31 +5,37 @@ import type {
   ClientResponse,
   ClientsResponse,
   CreateClientPayload,
+  CreateManagerPayload,
   CreateShipmentPayload,
   DeleteClientResponse,
   DashboardData,
   DashboardQuery,
+  DeleteManagerResponse,
+  DeleteShipmentResponse,
   FinanceRecordResponse,
   FinanceReportResponse,
   FinanceResponse,
-  UpdateFinanceStatusPayload,
-  CreateManagerPayload,
-  DeleteManagerResponse,
   ManagerResponse,
   ManagersResponse,
+  SendTestMessagePayload,
+  SendTestMessageResponse,
   ShipmentResponse,
   ShipmentsResponse,
+  TelegramNotificationsQuery,
+  TelegramNotificationsResponse,
   TelegramSettingsResponse,
-  UpdateTelegramSettingsPayload,
-  UpdateTelegramSettingsResponse,
+  TelegramStatus,
   TrackingResponse,
-  DeleteShipmentResponse,
-  UpdateClientPayload,
-  UpdateManagerPayload,
   UpdateCheckpointPayload,
+  UpdateClientPayload,
+  UpdateFinanceStatusPayload,
+  UpdateManagerPayload,
   UpdateShipmentPayload,
   UpdateShipmentStatusPayload,
+  UpdateTelegramSettingsPayload,
+  UpdateTelegramSettingsResponse,
 } from '../types/api';
+import { ApiError } from './client';
 import {
   apiNotConfiguredError,
   deleteJson,
@@ -181,6 +187,54 @@ export function updateTelegramSettings(
   payload: UpdateTelegramSettingsPayload,
 ): Promise<UpdateTelegramSettingsResponse> {
   return configuredPatch('Обновление настроек Telegram', '/telegram/settings', payload);
+}
+
+const defaultTelegramStatus: TelegramStatus = {
+  configured: false,
+  enabled: false,
+  hasChatId: false,
+  notificationsEnabled: false,
+  botTokenSource: null,
+};
+
+export function getTelegramStatus(): Promise<TelegramStatus> {
+  return requestWithMockFallback('/telegram/status', () => defaultTelegramStatus);
+}
+
+export function sendTelegramTestMessage(
+  payload?: SendTestMessagePayload,
+): Promise<SendTestMessageResponse> {
+  if (!isApiConfigured()) {
+    return Promise.reject(
+      new ApiError('Отправка тестового сообщения доступна только при подключённом API (VITE_API_BASE_URL).', 0),
+    );
+  }
+
+  return postJson<SendTestMessageResponse>('/telegram/test-message', payload ?? {});
+}
+
+const emptyNotificationsResponse: TelegramNotificationsResponse = {
+  notifications: [],
+  meta: { page: 1, limit: 50, total: 0 },
+};
+
+export function getTelegramNotifications(
+  query: TelegramNotificationsQuery = {},
+): Promise<TelegramNotificationsResponse> {
+  if (!isApiConfigured()) {
+    return Promise.resolve(emptyNotificationsResponse);
+  }
+
+  const params = new URLSearchParams();
+  if (query.status) params.set('status', query.status);
+  if (query.event_type) params.set('event_type', query.event_type);
+  if (query.limit) params.set('limit', String(query.limit));
+  if (query.page) params.set('page', String(query.page));
+
+  const qs = params.toString();
+  const path = qs ? `/telegram/notifications?${qs}` : '/telegram/notifications';
+
+  return requestWithMockFallback(path, () => emptyNotificationsResponse);
 }
 
 export function createShipment(payload: CreateShipmentPayload): Promise<ShipmentResponse> {

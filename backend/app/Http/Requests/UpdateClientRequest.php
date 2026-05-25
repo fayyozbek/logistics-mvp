@@ -22,6 +22,10 @@ class UpdateClientRequest extends FormRequest
             $merge['contact'] = $this->input('name');
         }
 
+        if ($this->has('contactName') && ! $this->has('contact')) {
+            $merge['contact'] = $this->input('contactName');
+        }
+
         if ($merge !== []) {
             $this->merge($merge);
         }

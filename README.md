@@ -228,6 +228,9 @@ Open your Vercel URL — the app should load live data from the Render API.
 | `backend/` | Laravel JSON API |
 | `docs/` | Project documentation |
 | `docs/DEMO_SCRIPT.md` | Stakeholder demo script (production URLs) |
+| `docs/TELEGRAM_BOT_SCOPE.md` | Telegram bot MVP scope (settings, sends, webhook) |
+| `docs/TELEGRAM_ACCOUNT_ARCHITECTURE.md` | Telegram architecture: one global bot token, per-user/account chat settings and notification journal |
+| `docs/AUTH_ROLES_SCOPE.md` | Auth approach (Sanctum), roles, permission matrix, API/frontend protection scope |
 | `docs/MVP_PLUS_SCOPE.md` | MVP+ client demo scope, QA matrix, implementation order |
 | `.env.example` | Frontend environment template |
 | `backend/.env.example` | Backend environment template |

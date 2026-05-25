@@ -31,4 +31,10 @@ class Client extends Model
     {
         return $this->hasMany(FinanceRecord::class);
     }
+
+    public function isReferenced(): bool
+    {
+        return $this->shipments()->withTrashed()->exists()
+            || $this->financeRecords()->exists();
+    }
 }

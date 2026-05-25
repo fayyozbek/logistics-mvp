@@ -1,6 +1,9 @@
+import DemoPrototypeBanner from '../components/DemoPrototypeBanner';
+
 export default function Settings() {
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <DemoPrototypeBanner message="Прототип настроек компании. Сохранение через API будет добавлено позже." />
       <div style={{ background: '#fff', borderRadius: 12, padding: '24px', border: '1px solid #E2E8F0', maxWidth: 600 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 18 }}>Профиль компании</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

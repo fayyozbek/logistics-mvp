@@ -27,6 +27,7 @@ import { formatFieldErrors, showApiMutationError } from '../utils/apiErrors';
 import { validateShipmentFormFields } from '../utils/formValidation';
 import { pluralPoints, shipmentStatusBg, shipmentStatusColors, shipmentStatusLabels } from '../utils/shipmentLabels';
 import { useToast } from '../components/ToastProvider';
+import { usePermissions } from '../hooks/usePermissions';
 import type { CreateShipmentPayload, UpdateShipmentPayload } from '../types/api';
 
 function TruckIcon() {
@@ -212,6 +213,12 @@ const fieldLabels: Record<string, string> = {
 };
 
 export default function Shipments() {
+  const { can } = usePermissions();
+  const canCreate = can('shipment.create');
+  const canReadManagers = can('manager.read');
+  const canReadClients = can('client.read');
+  const canUpdateStatus = can('shipment.updateStatus');
+  const canDelete = can('shipment.delete');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [shipments, setShipments] = useState<Shipment[]>([]);
@@ -434,7 +441,10 @@ export default function Shipments() {
   const openCreateForm = () => {
     setCreateForm(emptyCreateForm);
     setFormErrors([]);
-    void Promise.all([refreshClients(), refreshManagers()]);
+    void Promise.all([
+      ...(canReadClients ? [refreshClients()] : []),
+      ...(canReadManagers ? [refreshManagers()] : []),
+    ]);
     setShowCreateForm(true);
   };
 
@@ -579,7 +589,9 @@ export default function Shipments() {
               }}>×</button>
             </div>
 
+            {(canUpdateStatus || canDelete) && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              {canUpdateStatus && (
               <button
                 type="button"
                 onClick={openEditForm}
@@ -593,6 +605,8 @@ export default function Shipments() {
               >
                 Редактировать
               </button>
+              )}
+              {canDelete && (
               <button
                 type="button"
                 onClick={() => {
@@ -610,7 +624,9 @@ export default function Shipments() {
               >
                 Удалить
               </button>
+              )}
             </div>
+            )}
 
             {showDeleteConfirm && (
               <div style={{ marginBottom: 14, padding: '12px', borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA' }}>
@@ -827,6 +843,7 @@ export default function Shipments() {
             </div>
             )}
 
+            {canUpdateStatus && (
             <div style={{ marginBottom: 18, padding: '14px', borderRadius: 10, background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Обновить статус</div>
 
@@ -879,6 +896,7 @@ export default function Shipments() {
                 {statusUpdating ? 'Сохранение...' : 'Сохранить статус'}
               </button>
             </div>
+            )}
 
             <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 12 }}>
               Маршрут · {pluralPoints(selected.checkpoints.length)}
@@ -975,6 +993,7 @@ export default function Shipments() {
           >
             {exporting ? 'Экспорт...' : 'Экспорт грузов'}
           </button>
+          {canCreate && (
           <button
             type="button"
             onClick={openCreateForm}
@@ -987,6 +1006,7 @@ export default function Shipments() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/></svg>
             Новый груз
           </button>
+          )}
         </div>
       </div>
 

@@ -5,16 +5,19 @@ namespace Tests\Feature;
 use App\Models\Shipment;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesApiUsers;
 use Tests\TestCase;
 
 class CreateShipmentApiTest extends TestCase
 {
+    use AuthenticatesApiUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(DatabaseSeeder::class);
+        $this->actingAsManager();
     }
 
     public function test_can_create_shipment(): void
@@ -91,6 +94,21 @@ class CreateShipmentApiTest extends TestCase
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['clientId', 'type', 'origin', 'destination']);
+
+        $this->assertSame(6, Shipment::query()->count());
+    }
+
+    public function test_create_shipment_rejects_negative_weight(): void
+    {
+        $this->postJson('/api/shipments', [
+            'clientId' => 1,
+            'type' => 'auto',
+            'origin' => 'Алматы',
+            'destination' => 'Ташкент',
+            'weight' => '-999',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['weight']);
 
         $this->assertSame(6, Shipment::query()->count());
     }

@@ -4,16 +4,19 @@ namespace Tests\Feature;
 
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesApiUsers;
 use Tests\TestCase;
 
 class LogisticsApiTest extends TestCase
 {
+    use AuthenticatesApiUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(DatabaseSeeder::class);
+        $this->actingAsViewer();
     }
 
     public function test_dashboard_endpoint(): void
@@ -47,6 +50,8 @@ class LogisticsApiTest extends TestCase
                         'type',
                         'status',
                         'clientId',
+                        'client' => ['id', 'company'],
+                        'manager',
                         'checkpoints',
                     ],
                 ],
@@ -74,11 +79,32 @@ class LogisticsApiTest extends TestCase
     {
         $this->getJson('/api/tracking')
             ->assertOk()
-            ->assertJsonStructure(['shipments']);
+            ->assertJsonStructure([
+                'shipments' => [
+                    '*' => [
+                        'trackingNumber',
+                        'client' => ['id', 'company'],
+                        'manager',
+                        'checkpoints',
+                    ],
+                ],
+            ]);
     }
 
-    public function test_managers_endpoint(): void
+    public function test_tracking_endpoint_includes_client_and_manager_names(): void
     {
+        $response = $this->getJson('/api/tracking')->assertOk();
+        $first = $response->json('shipments.0');
+
+        $this->assertIsArray($first);
+        $this->assertArrayHasKey('company', $first['client']);
+        $this->assertNotEmpty($first['client']['company']);
+    }
+
+    public function test_managers_overview_endpoint(): void
+    {
+        $this->actingAsOperator();
+
         $this->getJson('/api/managers/overview')
             ->assertOk()
             ->assertJsonStructure([
@@ -109,13 +135,18 @@ class LogisticsApiTest extends TestCase
 
     public function test_telegram_settings_endpoint(): void
     {
+        $this->actingAsFinance();
+        $this->seed(\Database\Seeders\AccountTelegramSeeder::class);
+
         $this->getJson('/api/telegram/settings')
             ->assertOk()
             ->assertJsonStructure([
                 'settings' => [
-                    'chatId',
-                    'connected',
-                    'eventFlags',
+                    'id',
+                    'telegramChatId',
+                    'enabled',
+                    'notificationsEnabled',
+                    'notifyShipmentCreated',
                 ],
                 'shipments',
             ]);

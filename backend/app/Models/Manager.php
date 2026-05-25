@@ -34,4 +34,9 @@ class Manager extends Model
     {
         return $this->hasMany(Shipment::class);
     }
+
+    public function hasActiveShipments(): bool
+    {
+        return $this->shipments()->exists();
+    }
 }

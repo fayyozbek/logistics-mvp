@@ -6,6 +6,7 @@ import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 import PageLoading from '../components/PageLoading';
 import { showApiMutationError } from '../utils/apiErrors';
 import { useToast } from '../components/ToastProvider';
+import { usePermissions } from '../hooks/usePermissions';
 import type { FinanceReportSummary } from '../types/api';
 import { buildFinanceReport, formatReportMonthLabel } from '../utils/financeReport';
 import { formatMoneyUsd } from '../utils/numberFormat';
@@ -22,6 +23,8 @@ const statusFieldLabels: Record<string, string> = {
 };
 
 export default function Finance() {
+  const { can } = usePermissions();
+  const canUpdateStatus = can('finance.updateStatus');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [financeRecords, setFinanceRecords] = useState<FinanceRecord[]>([]);
@@ -291,6 +294,7 @@ export default function Finance() {
                               </div>
                               <div style={{ marginTop: 10 }}>
                                 <div style={{ fontSize: 10, color: '#64748B', fontWeight: 700, marginBottom: 4 }}>Статус счёта</div>
+                                {canUpdateStatus ? (
                                 <select
                                   value={f.status}
                                   disabled={isUpdating}
@@ -310,6 +314,9 @@ export default function Finance() {
                                     <option key={status} value={status}>{statusConfig[status].label}</option>
                                   ))}
                                 </select>
+                                ) : (
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</span>
+                                )}
                               </div>
                             </div>
                             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'flex-start' }}>

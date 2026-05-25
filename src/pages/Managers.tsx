@@ -6,6 +6,7 @@ import FormErrorList from '../components/FormErrorList';
 import InlineConfirm from '../components/InlineConfirm';
 import PageLoading from '../components/PageLoading';
 import { useToast } from '../components/ToastProvider';
+import { usePermissions } from '../hooks/usePermissions';
 import { formatFieldErrors, showApiMutationError } from '../utils/apiErrors';
 import { hasRequiredStrings } from '../utils/formValidation';
 import { shipmentStatusColors, shipmentStatusLabels } from '../utils/shipmentLabels';
@@ -78,6 +79,10 @@ function formToUpdatePayload(form: ManagerFormState): UpdateManagerPayload {
 }
 
 export default function Managers() {
+  const { can } = usePermissions();
+  const canCreate = can('manager.create');
+  const canUpdate = can('manager.update');
+  const canDelete = can('manager.delete');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [managers, setManagers] = useState<Manager[]>([]);
@@ -311,6 +316,7 @@ export default function Managers() {
         <div style={{ fontSize: 13, color: '#64748B' }}>
           Всего менеджеров: <strong style={{ color: '#0F172A' }}>{managers.length}</strong>
         </div>
+        {canCreate && (
         <button
           type="button"
           onClick={openCreateForm}
@@ -318,6 +324,7 @@ export default function Managers() {
         >
           + Добавить менеджера
         </button>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
@@ -387,7 +394,9 @@ export default function Managers() {
               <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{selected.name}</div>
               <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>ID: {selected.id}</div>
             </div>
+            {(canUpdate || canDelete) && (
             <div style={{ display: 'flex', gap: 8 }}>
+              {canUpdate && (
               <button
                 type="button"
                 onClick={() => {
@@ -404,6 +413,8 @@ export default function Managers() {
               >
                 Редактировать
               </button>
+              )}
+              {canDelete && (
               <button
                 type="button"
                 onClick={() => { setShowDeleteConfirm(true); setEditMode(false); setFormErrors([]); }}
@@ -415,7 +426,9 @@ export default function Managers() {
               >
                 Удалить
               </button>
+              )}
             </div>
+            )}
           </div>
 
           <FormErrorList errors={formErrors} />

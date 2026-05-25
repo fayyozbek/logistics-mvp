@@ -1,8 +1,13 @@
+import { LogOut } from 'lucide-react';
 import { type Page } from '../App';
+import { canAccessPage, roleLabels, userInitials } from '../auth/roles';
+import type { AuthUser } from '../types/auth';
 
 interface SidebarProps {
   currentPage: Page;
   onNavigate: (page: Page) => void;
+  user: AuthUser | null;
+  onLogout?: () => void;
   isMobile?: boolean;
   mobileOpen?: boolean;
   onClose?: () => void;
@@ -66,7 +71,27 @@ function NavButton({
   );
 }
 
-export default function Sidebar({ currentPage, onNavigate, isMobile = false, mobileOpen = false, onClose }: SidebarProps) {
+export default function Sidebar({
+  currentPage,
+  onNavigate,
+  user,
+  onLogout,
+  isMobile = false,
+  mobileOpen = false,
+  onClose,
+}: SidebarProps) {
+  const visibleNavItems = user
+    ? navItems.filter((item) => canAccessPage(user.role, item.id))
+    : navItems;
+
+  const visibleBottomItems = user
+    ? bottomItems.filter((item) => canAccessPage(user.role, item.id))
+    : bottomItems;
+
+  const displayName = user?.name ?? 'Демо';
+  const displayRole = user ? roleLabels[user.role] : 'Без API';
+  const initials = user ? userInitials(user.name) : 'ДМ';
+
   const handleNavigate = (page: Page) => {
     onNavigate(page);
     if (isMobile) onClose?.();
@@ -124,7 +149,7 @@ export default function Sidebar({ currentPage, onNavigate, isMobile = false, mob
           >
             НАВИГАЦИЯ
           </div>
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavButton
               key={item.id}
               item={item}
@@ -143,7 +168,7 @@ export default function Sidebar({ currentPage, onNavigate, isMobile = false, mob
             gap: 2,
           }}
         >
-          {bottomItems.map((item) => (
+          {visibleBottomItems.map((item) => (
             <NavButton
               key={item.id}
               item={item}
@@ -162,17 +187,44 @@ export default function Sidebar({ currentPage, onNavigate, isMobile = false, mob
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#fff',
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: 700,
+                flexShrink: 0,
               }}
             >
-              АД
+              {initials}
             </div>
-            <div>
-              <div style={{ color: '#E2E8F0', fontSize: 12, fontWeight: 600 }}>Админ</div>
-              <div style={{ color: '#64748B', fontSize: 10 }}>Суперадмин</div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ color: '#E2E8F0', fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {displayName}
+              </div>
+              <div style={{ color: '#64748B', fontSize: 10 }}>{displayRole}</div>
             </div>
           </div>
+          {onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginTop: 8,
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'transparent',
+                color: '#94A3B8',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+                width: '100%',
+              }}
+            >
+              <LogOut size={14} />
+              Выйти
+            </button>
+          )}
         </div>
       </aside>
     </>
