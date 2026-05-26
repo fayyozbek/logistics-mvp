@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, Check, CircleDollarSign, Clock3, MapPin, Plus, Search, Send, Trash2, X } from 'lucide-react';
-import { clients, managers, type CheckPoint, type Shipment } from '../data/mock';
+import type { CheckPoint, Shipment } from '../data/mock';
 import { addShipmentCheckpoint, deleteCheckpoint, getTrackingData, handleApiLoadFailure, updateCheckpoint } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 import PageLoading from '../components/PageLoading';
@@ -11,6 +11,7 @@ import { showApiMutationError } from '../utils/apiErrors';
 import { hasRequiredStrings } from '../utils/formValidation';
 import { pluralPoints } from '../utils/shipmentLabels';
 import { formatMoneyWithCurrency } from '../utils/shipmentPrice';
+import { shipmentClientCompany, shipmentManagerName } from '../utils/trackingLabels';
 
 const checkpointFieldLabels: Record<string, string> = {
   city: 'Город',
@@ -363,8 +364,6 @@ export default function Tracking() {
 
   if (!selected) return null;
 
-  const client = clients.find((item) => item.id === selected.clientId);
-  const manager = managers.find((item) => item.id === selected.managerId);
   const progress = progressPercent(selected.checkpoints);
   const servicePrice = selected.priceAmount ?? selected.financeRecord?.totalAmount ?? 0;
   const priceCurrency = selected.currency ?? selected.financeRecord?.currency ?? 'USD';
@@ -481,8 +480,6 @@ export default function Tracking() {
           </div>
 
           {results.map((shipment) => {
-            const shipmentClient = clients.find((item) => item.id === shipment.clientId);
-            const shipmentManager = managers.find((item) => item.id === shipment.managerId);
             const currentPoint = shipment.checkpoints.find((point) => point.status === 'current') || shipment.checkpoints[shipment.checkpoints.length - 1];
             const selectedCard = selected.id === shipment.id;
             const shipmentProgress = progressPercent(shipment.checkpoints);
@@ -522,11 +519,11 @@ export default function Tracking() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 13, position: 'relative', zIndex: 1 }}>
                   <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '8px 10px' }}>
                     <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800 }}>Клиент</div>
-                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 900, marginTop: 2 }}>{shipmentClient?.company}</div>
+                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 900, marginTop: 2 }}>{shipmentClientCompany(shipment)}</div>
                   </div>
                   <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '8px 10px' }}>
                     <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 800 }}>Менеджер</div>
-                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 900, marginTop: 2 }}>{shipmentManager?.name.split(' ').slice(0, 2).join(' ')}</div>
+                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 900, marginTop: 2 }}>{shipmentManagerName(shipment, true)}</div>
                   </div>
                 </div>
 
@@ -579,8 +576,8 @@ export default function Tracking() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 18 }}>
               {[
-                { label: 'Клиент', value: client?.company },
-                { label: 'Менеджер', value: manager?.name },
+                { label: 'Клиент', value: shipmentClientCompany(selected) },
+                { label: 'Менеджер', value: shipmentManagerName(selected) },
                 { label: 'Направление', value: `${selected.origin} → ${selected.destination}` },
                 { label: 'Прогресс', value: `${progress}%` },
               ].map((item) => (

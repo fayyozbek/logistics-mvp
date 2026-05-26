@@ -117,7 +117,13 @@ export function getShipmentMock(id: string): ShipmentResponse {
 }
 
 export function getTrackingDataMock(): TrackingResponse {
-  return { shipments };
+  return {
+    shipments: shipments.map((shipment) => ({
+      ...shipment,
+      client: clients.find((client) => client.id === shipment.clientId),
+      manager: managers.find((manager) => manager.id === shipment.managerId) ?? null,
+    })),
+  };
 }
 
 export function getClientsMock(): ClientsResponse {
