@@ -14,6 +14,14 @@ export {
 } from './client';
 export { login, logout, fetchMe } from './auth';
 export {
+  createUser,
+  deactivateUser,
+  deleteUser,
+  getUser,
+  getUsers,
+  updateUser,
+} from './users';
+export {
   addShipmentCheckpoint,
   createClient,
   createManager,

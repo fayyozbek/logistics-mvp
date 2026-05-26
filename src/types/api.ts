@@ -1,4 +1,5 @@
 import type { CheckPoint, Client, FinanceRecord, Manager, Shipment, ShipmentStatus, TransportType } from '../data/mock';
+import type { UserRole } from './auth';
 
 export interface DashboardSummary {
   monthlyTurnover: number;
@@ -345,4 +346,49 @@ export interface SendTestMessageResponse {
   success: boolean;
   message: string;
   telegram_message_id: number | null;
+}
+
+export interface ApiPlatformUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  accountId: string | null;
+}
+
+export interface UsersResponse {
+  users: ApiPlatformUser[];
+  meta: {
+    total: number;
+    limit: number;
+    returned: number;
+  };
+}
+
+export interface UserResponse {
+  user: ApiPlatformUser;
+}
+
+export interface CreateUserPayload {
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  accountId?: number | null;
+  isActive?: boolean;
+}
+
+export interface UpdateUserPayload {
+  name?: string;
+  email?: string;
+  password?: string;
+  role?: UserRole;
+  accountId?: number | null;
+  isActive?: boolean;
+}
+
+export interface DeactivateUserResponse {
+  message: string;
+  user: ApiPlatformUser;
 }
