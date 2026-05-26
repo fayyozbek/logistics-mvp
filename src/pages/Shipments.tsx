@@ -25,6 +25,15 @@ import FormErrorList from '../components/FormErrorList';
 import PageLoading from '../components/PageLoading';
 import { formatFieldErrors, showApiMutationError } from '../utils/apiErrors';
 import { validateShipmentFormFields } from '../utils/formValidation';
+import {
+  DEFAULT_SHIPMENT_CURRENCY,
+  formatMoneyWithCurrency,
+  formatPriceInputDisplay,
+  parsePriceAmountForPayload,
+  priceAmountToFormValue,
+  SHIPMENT_CURRENCIES,
+  validatePriceAmountField,
+} from '../utils/shipmentPrice';
 import { pluralPoints, shipmentStatusBg, shipmentStatusColors, shipmentStatusLabels } from '../utils/shipmentLabels';
 import { useToast } from '../components/ToastProvider';
 import { usePermissions } from '../hooks/usePermissions';
@@ -140,6 +149,8 @@ interface CreateFormState {
   volumeUnit: string;
   estimatedDelivery: string;
   telegramNotifications: boolean;
+  priceAmount: string;
+  currency: string;
 }
 
 const emptyCreateForm: CreateFormState = {
@@ -155,6 +166,8 @@ const emptyCreateForm: CreateFormState = {
   volumeUnit: DEFAULT_VOLUME_UNIT,
   estimatedDelivery: '',
   telegramNotifications: false,
+  priceAmount: '',
+  currency: DEFAULT_SHIPMENT_CURRENCY,
 };
 
 interface EditFormState {
@@ -172,6 +185,8 @@ interface EditFormState {
   estimatedDelivery: string;
   notes: string;
   telegramNotifications: boolean;
+  priceAmount: string;
+  currency: string;
 }
 
 function shipmentToEditForm(shipment: Shipment): EditFormState {
@@ -193,6 +208,8 @@ function shipmentToEditForm(shipment: Shipment): EditFormState {
     estimatedDelivery: shipment.estimatedDelivery ?? '',
     notes: shipment.notes ?? '',
     telegramNotifications: shipment.telegramNotifications,
+    priceAmount: priceAmountToFormValue(shipment.priceAmount),
+    currency: shipment.currency ?? DEFAULT_SHIPMENT_CURRENCY,
   };
 }
 
@@ -210,6 +227,8 @@ const fieldLabels: Record<string, string> = {
   estimatedDelivery: 'Плановая дата',
   status: 'Статус',
   note: 'Комментарий',
+  priceAmount: 'Стоимость перевозки',
+  currency: 'Валюта',
 };
 
 export default function Shipments() {
@@ -355,11 +374,14 @@ export default function Shipments() {
 
     const weightError = validateWeightField(editForm.weight, editForm.weightUnit);
     const volumeError = validateVolumeField(editForm.volume, editForm.volumeUnit);
-    if (weightError || volumeError) {
-      setEditErrors([weightError, volumeError].filter((msg): msg is string => Boolean(msg)));
+    const priceError = validatePriceAmountField(editForm.priceAmount, false);
+    if (weightError || volumeError || priceError) {
+      setEditErrors([weightError, volumeError, priceError].filter((msg): msg is string => Boolean(msg)));
       setEditSubmitting(false);
       return;
     }
+
+    const parsedPrice = parsePriceAmountForPayload(editForm.priceAmount);
 
     const payload: UpdateShipmentPayload = {
       clientId: Number(editForm.clientId),
@@ -374,6 +396,8 @@ export default function Shipments() {
       estimatedDelivery: editForm.estimatedDelivery || undefined,
       notes: editForm.notes.trim() || undefined,
       telegramNotifications: editForm.telegramNotifications,
+      priceAmount: parsedPrice ?? 0,
+      currency: editForm.currency,
     };
 
     try {
@@ -471,11 +495,14 @@ export default function Shipments() {
 
     const weightError = validateWeightField(createForm.weight, createForm.weightUnit);
     const volumeError = validateVolumeField(createForm.volume, createForm.volumeUnit);
-    if (weightError || volumeError) {
-      setFormErrors([weightError, volumeError].filter((msg): msg is string => Boolean(msg)));
+    const priceError = validatePriceAmountField(createForm.priceAmount, false);
+    if (weightError || volumeError || priceError) {
+      setFormErrors([weightError, volumeError, priceError].filter((msg): msg is string => Boolean(msg)));
       setSubmitting(false);
       return;
     }
+
+    const parsedPrice = parsePriceAmountForPayload(createForm.priceAmount);
 
     const payload: CreateShipmentPayload = {
       clientId: Number(createForm.clientId),
@@ -488,6 +515,8 @@ export default function Shipments() {
       ...buildVolumePayload(createForm.volume, createForm.volumeUnit),
       estimatedDelivery: createForm.estimatedDelivery || undefined,
       telegramNotifications: createForm.telegramNotifications,
+      priceAmount: parsedPrice ?? 0,
+      currency: createForm.currency,
     };
 
     if (payload.origin && payload.destination) {
@@ -795,6 +824,31 @@ export default function Shipments() {
                       style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none', resize: 'none', fontFamily: 'inherit' }}
                     />
                   </label>
+
+                  <label>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Стоимость перевозки</div>
+                    <input
+                      inputMode="decimal"
+                      value={editForm.priceAmount}
+                      onChange={(e) => setEditForm((f) => f && ({ ...f, priceAmount: formatPriceInputDisplay(e.target.value) }))}
+                      disabled={editSubmitting}
+                      placeholder="12 500"
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                    />
+                  </label>
+                  <label>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Валюта</div>
+                    <select
+                      value={editForm.currency}
+                      onChange={(e) => setEditForm((f) => f && ({ ...f, currency: e.target.value }))}
+                      disabled={editSubmitting}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
+                    >
+                      {SHIPMENT_CURRENCIES.map((code) => (
+                        <option key={code} value={code}>{code}</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
 
                 <div className="shipments-form-actions" style={{ marginTop: 12 }}>
@@ -828,6 +882,11 @@ export default function Shipments() {
                     .join(' · ') || undefined,
                 },
                 { icon: '📅', label: 'Плановая дата', value: selected.estimatedDelivery },
+                {
+                  icon: '💰',
+                  label: 'Стоимость перевозки',
+                  value: formatMoneyWithCurrency(selected.priceAmount ?? 0, selected.currency ?? 'USD'),
+                },
               ].filter(({ value }) => value).map(({ icon, label, value }) => (
                 <div key={label} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
@@ -1280,6 +1339,31 @@ export default function Shipments() {
                 quantityStyle={{ padding: '9px 12px', fontSize: 13, background: '#F8FAFC' }}
                 unitStyle={{ padding: '9px 12px', fontSize: 13, background: '#F8FAFC' }}
               />
+
+              <div className="shipments-create-form-grid">
+                <label>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Стоимость перевозки</div>
+                  <input
+                    inputMode="decimal"
+                    value={createForm.priceAmount}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, priceAmount: formatPriceInputDisplay(e.target.value) }))}
+                    placeholder="12 500"
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
+                  />
+                </label>
+                <label>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Валюта</div>
+                  <select
+                    value={createForm.currency}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, currency: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
+                  >
+                    {SHIPMENT_CURRENCIES.map((code) => (
+                      <option key={code} value={code}>{code}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
 
               <label>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Плановая дата доставки</div>

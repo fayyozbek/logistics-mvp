@@ -107,6 +107,8 @@ export interface CreateShipmentPayload {
   telegramNotifications?: boolean;
   trackingNumber?: string;
   checkpoints?: CreateShipmentCheckpointPayload[];
+  priceAmount?: number;
+  currency?: string;
 }
 
 export interface UpdateShipmentStatusPayload {
@@ -129,6 +131,8 @@ export interface UpdateShipmentPayload {
   estimatedDelivery?: string;
   notes?: string;
   telegramNotifications?: boolean;
+  priceAmount?: number;
+  currency?: string;
 }
 
 export interface DeleteShipmentResponse {

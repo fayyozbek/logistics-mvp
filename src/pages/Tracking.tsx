@@ -10,6 +10,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { showApiMutationError } from '../utils/apiErrors';
 import { hasRequiredStrings } from '../utils/formValidation';
 import { pluralPoints } from '../utils/shipmentLabels';
+import { formatMoneyWithCurrency } from '../utils/shipmentPrice';
 
 const checkpointFieldLabels: Record<string, string> = {
   city: 'Город',
@@ -365,6 +366,10 @@ export default function Tracking() {
   const client = clients.find((item) => item.id === selected.clientId);
   const manager = managers.find((item) => item.id === selected.managerId);
   const progress = progressPercent(selected.checkpoints);
+  const servicePrice = selected.priceAmount ?? selected.financeRecord?.totalAmount ?? 0;
+  const priceCurrency = selected.currency ?? selected.financeRecord?.currency ?? 'USD';
+  const paidAmount = selected.financeRecord?.paidAmount ?? 0;
+  const clientDebt = Math.max(0, servicePrice - paidAmount);
 
   const openAddModal = () => {
     setNewPoint(emptyPoint);
@@ -588,9 +593,9 @@ export default function Tracking() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 10 }}>
               {[
-                { label: 'Цена груза', value: '$10,000', color: '#111827', bg: '#F8FAFC' },
-                { label: 'Оплачено', value: '$5,000', color: '#059669', bg: '#ECFDF5' },
-                { label: 'Долг клиента', value: '$5,000', color: '#DC2626', bg: '#FEF2F2' },
+                { label: 'Стоимость перевозки', value: formatMoneyWithCurrency(servicePrice, priceCurrency), color: '#111827', bg: '#F8FAFC' },
+                { label: 'Оплачено', value: formatMoneyWithCurrency(paidAmount, priceCurrency), color: '#059669', bg: '#ECFDF5' },
+                { label: 'Долг клиента', value: formatMoneyWithCurrency(clientDebt, priceCurrency), color: '#DC2626', bg: '#FEF2F2' },
               ].map((item) => (
                 <div key={item.label} style={{ background: item.bg, border: '1px solid #EEF2F7', borderRadius: 12, padding: '12px 13px' }}>
                   <div style={{ fontSize: 10, color: '#94A3B8', fontWeight: 900, textTransform: 'uppercase' }}>{item.label}</div>

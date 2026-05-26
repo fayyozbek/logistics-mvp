@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\FinanceRecord;
+use App\Models\Shipment;
 use Database\Seeders\Support\DemoData;
 use Database\Seeders\Support\DemoSeedState;
 use Database\Seeders\Support\FinanceAmountRules;
@@ -29,6 +30,13 @@ class FinanceRecordSeeder extends Seeder
                 ['shipment_id' => $payload['shipment_id']],
                 $payload,
             );
+
+            Shipment::query()
+                ->where('id', $payload['shipment_id'])
+                ->update([
+                    'price_amount' => $payload['total_amount'],
+                    'currency' => $payload['currency'],
+                ]);
         }
     }
 }

@@ -10,6 +10,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import type { FinanceReportSummary } from '../types/api';
 import { buildFinanceReport, formatReportMonthLabel } from '../utils/financeReport';
 import { formatMoneyUsd } from '../utils/numberFormat';
+import { formatMoneyWithCurrency } from '../utils/shipmentPrice';
 
 const statusConfig = {
   paid: { label: 'Оплачен', color: '#10B981', bg: '#F0FDF4' },
@@ -260,8 +261,8 @@ export default function Finance() {
                         <div style={{ fontSize: 10, color: '#94A3B8' }}>{client?.contact}</div>
                       </td>
                       <td style={{ padding: '10px 10px', color: '#64748B', fontSize: 11 }}>{f.shipmentId.replace('s', 'LGX-0')}</td>
-                      <td style={{ padding: '10px 10px', fontWeight: 700, color: '#0F172A' }}>{formatMoneyUsd(f.totalAmount)}</td>
-                      <td style={{ padding: '10px 10px', color: '#10B981', fontWeight: 600 }}>{formatMoneyUsd(f.paidAmount)}</td>
+                      <td style={{ padding: '10px 10px', fontWeight: 700, color: '#0F172A' }}>{formatMoneyWithCurrency(f.totalAmount, f.currency)}</td>
+                      <td style={{ padding: '10px 10px', color: '#10B981', fontWeight: 600 }}>{formatMoneyWithCurrency(f.paidAmount, f.currency)}</td>
                       <td style={{ padding: '10px 10px', color: debt > 0 ? '#EF4444' : '#94A3B8', fontWeight: debt > 0 ? 700 : 400 }}>
                         {debt > 0 ? formatMoneyUsd(debt) : '—'}
                       </td>
@@ -290,7 +291,7 @@ export default function Finance() {
                                 <div style={{ width: `${(f.paidAmount / f.totalAmount) * 100}%`, height: '100%', background: s.color, borderRadius: 3 }} />
                               </div>
                               <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4 }}>
-                                {Math.round(f.paidAmount / f.totalAmount * 100)}% оплачено · {formatMoneyUsd(f.totalAmount - f.paidAmount)} остаток
+                                {Math.round(f.paidAmount / f.totalAmount * 100)}% оплачено · {formatMoneyWithCurrency(f.totalAmount - f.paidAmount, f.currency)} остаток
                               </div>
                               <div style={{ marginTop: 10 }}>
                                 <div style={{ fontSize: 10, color: '#64748B', fontWeight: 700, marginBottom: 4 }}>Статус счёта</div>

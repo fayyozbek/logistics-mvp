@@ -2,13 +2,16 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ShipmentPriceRules;
 use App\Http\Requests\Concerns\ShipmentQuantityRules;
 use App\Http\Requests\Concerns\ValidatesApiInput;
+use App\Support\ShipmentCurrencies;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreShipmentRequest extends FormRequest
 {
+    use ShipmentPriceRules;
     use ShipmentQuantityRules;
     use ValidatesApiInput;
 
@@ -30,6 +33,10 @@ class StoreShipmentRequest extends FormRequest
         }
 
         $this->prepareShipmentQuantityDefaults();
+
+        if (! $this->has('currency')) {
+            $this->merge(['currency' => ShipmentCurrencies::DEFAULT]);
+        }
     }
 
     /**
@@ -48,6 +55,7 @@ class StoreShipmentRequest extends FormRequest
             'cargo' => ['nullable', 'string', 'max:255'],
             'cargoName' => ['sometimes', 'nullable', 'string', 'max:255'],
             ...$this->shipmentQuantityRules(),
+            ...$this->shipmentPriceRules(),
             'estimatedDelivery' => ['nullable', 'date'],
             'telegramNotifications' => ['sometimes', 'boolean'],
             'checkpoints' => ['sometimes', 'array'],

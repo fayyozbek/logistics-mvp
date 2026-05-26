@@ -67,8 +67,11 @@ export interface Shipment {
   plannedPickup?: string;
   estimatedDelivery: string;
   notes?: string;
+  priceAmount?: number;
+  currency?: string;
   checkpoints: CheckPoint[];
   financeId: string;
+  financeRecord?: FinanceRecord;
   telegramNotifications: boolean;
   client?: Client;
   manager?: Manager | null;

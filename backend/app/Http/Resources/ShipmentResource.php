@@ -32,6 +32,8 @@ class ShipmentResource extends JsonResource
             'plannedPickup' => $this->planned_pickup?->format('Y-m-d'),
             'estimatedDelivery' => $this->estimated_delivery?->format('Y-m-d'),
             'notes' => $this->notes,
+            'priceAmount' => (float) ($this->price_amount ?? 0),
+            'currency' => $this->currency ?? 'USD',
             'financeId' => $this->financeRecord ? (string) $this->financeRecord->id : null,
             'telegramNotifications' => (bool) $this->telegram_notifications,
             'checkpoints' => CheckpointResource::collection($this->whenLoaded('checkpoints')),
