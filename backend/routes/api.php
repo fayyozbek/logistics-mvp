@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\ShipmentController;
 use App\Http\Controllers\Api\TelegramNotificationController;
 use App\Http\Controllers\Api\TelegramSettingController;
 use App\Http\Controllers\Api\TrackingController;
+use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\HealthController;
 use Illuminate\Support\Facades\Route;
 
@@ -64,6 +65,11 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::middleware('role:admin')->group(function () {
+        Route::get('/users', [UserController::class, 'index']);
+        Route::post('/users', [UserController::class, 'store']);
+        Route::get('/users/{user}', [UserController::class, 'show']);
+        Route::patch('/users/{user}', [UserController::class, 'update']);
+        Route::delete('/users/{user}', [UserController::class, 'destroy']);
         Route::post('/managers', [ManagerController::class, 'store']);
         Route::patch('/managers/{manager}', [ManagerController::class, 'update']);
         Route::delete('/managers/{manager}', [ManagerController::class, 'destroy']);

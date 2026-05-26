@@ -220,7 +220,7 @@ Legend: **R** = read/list/show, **C** = create, **U** = update, **D** = delete/a
 | GET | `/api/telegram/notifications` | manager+ |
 | GET | `/api/export/shipments.csv` | admin, finance *(planned)* |
 | GET | `/api/export/finance.csv` | admin, finance *(planned)* |
-| CRUD | `/api/users/*` | admin *(planned)* |
+| CRUD | `/api/users/*` | admin *(implemented)* |
 | CRUD | `/api/clients/*` | manager+ for CU, admin for D *(planned)* |
 
 **Note:** `finance+` means role `finance` or `admin`. `operator+` means `operator`, `manager`, or `admin`. Implement via Laravel policies or a single `EnsureUserHasRole` middleware with permission map.
