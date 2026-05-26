@@ -57,6 +57,7 @@ function NavButton({
         transition: 'all 0.15s',
         textAlign: 'left',
         width: '100%',
+        flexShrink: 0,
       }}
       onMouseEnter={(e) => {
         if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)';
@@ -65,7 +66,7 @@ function NavButton({
         if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
       }}
     >
-      <span style={{ fontSize: 14, width: 18, textAlign: 'center' }}>{item.icon}</span>
+      <span style={{ fontSize: 14, width: 18, textAlign: 'center', flexShrink: 0 }}>{item.icon}</span>
       {item.label}
     </button>
   );
@@ -110,7 +111,7 @@ export default function Sidebar({
         />
       )}
       <aside className={sidebarClass} aria-label="Навигация" aria-hidden={isMobile && !mobileOpen}>
-        <div style={{ padding: '28px 24px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="app-sidebar__header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
               style={{
@@ -124,31 +125,20 @@ export default function Sidebar({
                 fontSize: 16,
                 color: '#fff',
                 fontWeight: 700,
+                flexShrink: 0,
               }}
             >
               L
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{ color: '#fff', fontSize: 15, fontWeight: 700, letterSpacing: 0.5 }}>LOGISTIX</div>
               <div style={{ color: '#64748B', fontSize: 10, letterSpacing: 1 }}>B2B PLATFORM</div>
             </div>
           </div>
         </div>
 
-        <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
-          <div
-            style={{
-              fontSize: 10,
-              color: '#475569',
-              letterSpacing: 1,
-              fontWeight: 600,
-              paddingLeft: 12,
-              paddingBottom: 8,
-              paddingTop: 4,
-            }}
-          >
-            НАВИГАЦИЯ
-          </div>
+        <nav className="app-sidebar__nav sidebar-nav-scroll" aria-label="Разделы приложения">
+          <div className="app-sidebar__nav-label">НАВИГАЦИЯ</div>
           {visibleNavItems.map((item) => (
             <NavButton
               key={item.id}
@@ -159,15 +149,7 @@ export default function Sidebar({
           ))}
         </nav>
 
-        <div
-          style={{
-            padding: '12px 12px 20px',
-            borderTop: '1px solid rgba(255,255,255,0.07)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-          }}
-        >
+        <div className="app-sidebar__footer">
           {visibleBottomItems.map((item) => (
             <NavButton
               key={item.id}
@@ -176,7 +158,7 @@ export default function Sidebar({
               onClick={() => handleNavigate(item.id)}
             />
           ))}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 12px 0' }}>
+          <div className="app-sidebar__user-row">
             <div
               style={{
                 width: 32,
@@ -195,33 +177,24 @@ export default function Sidebar({
               {initials}
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ color: '#E2E8F0', fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div
+                style={{
+                  color: '#E2E8F0',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 {displayName}
               </div>
               <div style={{ color: '#64748B', fontSize: 10 }}>{displayRole}</div>
             </div>
           </div>
           {onLogout && (
-            <button
-              type="button"
-              onClick={onLogout}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                marginTop: 8,
-                padding: '8px 12px',
-                borderRadius: 8,
-                border: '1px solid rgba(255,255,255,0.1)',
-                background: 'transparent',
-                color: '#94A3B8',
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: 'pointer',
-                width: '100%',
-              }}
-            >
-              <LogOut size={14} />
+            <button type="button" className="app-sidebar__logout-btn" onClick={onLogout}>
+              <LogOut size={14} aria-hidden />
               Выйти
             </button>
           )}

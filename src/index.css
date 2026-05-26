@@ -25,10 +25,80 @@ body {
 
 .app-sidebar {
   width: 220px;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  min-height: 0;
   background: #1e293b;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.app-sidebar__header {
+  flex-shrink: 0;
+  padding: 28px 24px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.app-sidebar__nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-sidebar__nav-label {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #475569;
+  letter-spacing: 1px;
+  font-weight: 600;
+  padding-left: 12px;
+  padding-bottom: 8px;
+  padding-top: 4px;
+}
+
+.app-sidebar__footer {
+  flex-shrink: 0;
+  padding: 12px 12px max(20px, env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #1e293b;
+}
+
+.app-sidebar__user-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 0;
+  min-width: 0;
+}
+
+.app-sidebar__logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  width: 100%;
   flex-shrink: 0;
 }
 
@@ -94,7 +164,11 @@ body {
     left: 0;
     z-index: 1000;
     width: min(280px, 86vw);
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+    min-height: 0;
     box-shadow: 8px 0 32px rgba(15, 23, 42, 0.2);
     transform: translateX(-100%);
     transition: transform 0.2s ease;
