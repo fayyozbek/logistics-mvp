@@ -89,6 +89,7 @@ export default function Clients() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [selected, setSelected] = useState<Client | null>(null);
+  const selectedId = selected?.id;
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState<ClientFormState>(emptyForm);
@@ -116,14 +117,15 @@ export default function Clients() {
     setEditMode(false);
     setShowDeleteConfirm(false);
     setFormErrors([]);
-  }, [selected?.id]);
+  }, [selectedId]);
 
   useEffect(() => {
-    if (!selected) return;
-    const fresh = clients.find((c) => c.id === selected.id) ?? selected;
+    if (!selectedId) return;
+    const fresh = clients.find((c) => c.id === selectedId);
+    if (!fresh) return;
     setSelected(fresh);
     setForm((current) => (editMode ? current : clientToForm(fresh)));
-  }, [selected?.id, clients, editMode]);
+  }, [selectedId, clients, editMode]);
 
   const openCreateForm = () => {
     setCreateForm(emptyForm);

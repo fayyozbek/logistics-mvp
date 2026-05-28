@@ -89,6 +89,7 @@ export default function Managers() {
   const [managers, setManagers] = useState<Manager[]>([]);
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [selected, setSelected] = useState<Manager | null>(null);
+  const selectedId = selected?.id;
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState<ManagerFormState>(emptyForm);
@@ -117,14 +118,15 @@ export default function Managers() {
     setEditMode(false);
     setShowDeleteConfirm(false);
     setFormErrors([]);
-  }, [selected?.id]);
+  }, [selectedId]);
 
   useEffect(() => {
-    if (!selected) return;
-    const fresh = managers.find((m) => m.id === selected.id) ?? selected;
+    if (!selectedId) return;
+    const fresh = managers.find((m) => m.id === selectedId);
+    if (!fresh) return;
     setSelected(fresh);
     setForm((current) => (editMode ? current : managerToForm(fresh)));
-  }, [selected?.id, managers, editMode]);
+  }, [selectedId, managers, editMode]);
 
   const openCreateForm = () => {
     setCreateForm(emptyForm);

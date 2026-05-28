@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import '../styles/shipments.css';
 import { LocationAutocomplete } from '../components/LocationAutocomplete';
 import { useMediaQuery } from '../hooks/useMediaQuery';
@@ -252,6 +252,7 @@ export default function Shipments() {
   const [filter, setFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [selected, setSelected] = useState<Shipment | null>(null);
+  const lastSelectionSyncIdRef = useRef<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createForm, setCreateForm] = useState<CreateFormState>(emptyCreateForm);
   const [submitting, setSubmitting] = useState(false);
@@ -309,21 +310,28 @@ export default function Shipments() {
   }, [editMode, canReadClients, canReadManagers, clients.length, managers.length]);
 
   useEffect(() => {
-    if (selected) {
-      setStatusDraft(selected.status);
-      setStatusNote('');
-      setStatusUpdateErrors([]);
-      setEditMode(false);
-      setEditForm(shipmentToEditForm(selected));
-      setEditErrors([]);
-      setShowDeleteConfirm(false);
-      setDeleteErrors([]);
-    } else {
+    if (!selected) {
+      lastSelectionSyncIdRef.current = null;
       setEditMode(false);
       setEditForm(null);
       setShowDeleteConfirm(false);
+      return;
     }
-  }, [selected?.id]);
+
+    if (lastSelectionSyncIdRef.current === selected.id) {
+      return;
+    }
+
+    lastSelectionSyncIdRef.current = selected.id;
+    setStatusDraft(selected.status);
+    setStatusNote('');
+    setStatusUpdateErrors([]);
+    setEditMode(false);
+    setEditForm(shipmentToEditForm(selected));
+    setEditErrors([]);
+    setShowDeleteConfirm(false);
+    setDeleteErrors([]);
+  }, [selected]);
 
   const mergeShipment = (shipment: Shipment) => {
     setShipments((current) => current.map((item) => (item.id === shipment.id ? shipment : item)));
