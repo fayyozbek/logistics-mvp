@@ -26,6 +26,10 @@ class FinanceRecordResource extends JsonResource
             'status' => $this->status,
             'items' => $this->items ?? [],
             'client' => new ClientResource($this->whenLoaded('client')),
+            'shipment' => $this->whenLoaded('shipment', fn () => [
+                'id' => (string) $this->shipment->id,
+                'trackingNumber' => $this->shipment->tracking_number,
+            ]),
         ];
     }
 }

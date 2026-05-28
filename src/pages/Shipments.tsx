@@ -35,6 +35,12 @@ import {
   validatePriceAmountField,
 } from '../utils/shipmentPrice';
 import { pluralPoints, shipmentStatusBg, shipmentStatusColors, shipmentStatusLabels } from '../utils/shipmentLabels';
+import {
+  clientSelectOptions,
+  managerSelectOptions,
+  shipmentClientCompany,
+  shipmentManagerName,
+} from '../utils/trackingLabels';
 import { useToast } from '../components/ToastProvider';
 import { usePermissions } from '../hooks/usePermissions';
 import type { CreateShipmentPayload, UpdateShipmentPayload } from '../types/api';
@@ -275,7 +281,11 @@ export default function Shipments() {
   };
 
   useEffect(() => {
-    Promise.all([getShipments(), getManagers(), getClients()])
+    Promise.all([
+      getShipments(),
+      canReadManagers ? getManagers() : Promise.resolve({ managers: [] as Manager[] }),
+      canReadClients ? getClients() : Promise.resolve({ clients: [] as Client[] }),
+    ])
       .then(([shipmentsRes, managersRes, clientsRes]) => {
         setShipments(shipmentsRes.shipments);
         setManagers(managersRes.managers);
@@ -286,7 +296,17 @@ export default function Shipments() {
         setLoadError(handleApiLoadFailure(error).message);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [canReadManagers, canReadClients]);
+
+  useEffect(() => {
+    if (!editMode) return;
+    if (canReadClients && clients.length === 0) {
+      void refreshClients();
+    }
+    if (canReadManagers && managers.length === 0) {
+      void refreshManagers();
+    }
+  }, [editMode, canReadClients, canReadManagers, clients.length, managers.length]);
 
   useEffect(() => {
     if (selected) {
@@ -713,7 +733,9 @@ export default function Shipments() {
                       disabled={editSubmitting}
                       style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
                     >
-                      {clients.map((c) => <option key={c.id} value={c.id}>{c.company}</option>)}
+                      {clientSelectOptions(clients, selected?.client).map((c) => (
+                        <option key={c.id} value={c.id}>{c.company}</option>
+                      ))}
                     </select>
                   </label>
 
@@ -726,7 +748,9 @@ export default function Shipments() {
                       style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12, background: '#fff', outline: 'none' }}
                     >
                       <option value="">Не назначен</option>
-                      {managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      {managerSelectOptions(managers, selected?.manager ?? null).map((m) => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
                     </select>
                   </label>
 
@@ -871,8 +895,8 @@ export default function Shipments() {
             ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
               {[
-                { icon: '🏢', label: 'Клиент', value: clients.find(c => c.id === selected.clientId)?.company },
-                { icon: '👤', label: 'Менеджер', value: managers.find(m => m.id === selected.managerId)?.name },
+                { icon: '🏢', label: 'Клиент', value: shipmentClientCompany(selected) },
+                { icon: '👤', label: 'Менеджер', value: shipmentManagerName(selected) },
                 { icon: '📦', label: 'Груз', value: selected.cargo },
                 {
                   icon: '⚖',
@@ -1072,8 +1096,6 @@ export default function Shipments() {
       <div className="shipments-layout">
         <div className="shipments-list">
           {filtered.map(s => {
-            const client = clients.find(c => c.id === s.clientId);
-            const manager = managers.find(m => m.id === s.managerId);
             const isSelected = selected?.id === s.id;
             const stepIdx = s.status === 'delayed' ? 1 : Math.max(0, stepKeys.indexOf(s.status));
 
@@ -1128,9 +1150,9 @@ export default function Shipments() {
                   </div>
 
                   <div className="shipments-card-meta">
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{client?.company}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{shipmentClientCompany(s)}</div>
                     <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
-                      <span style={{ fontWeight: 500 }}>Менеджер:</span> {manager?.name.split(' ').slice(0, 2).join(' ')}
+                      <span style={{ fontWeight: 500 }}>Менеджер:</span> {shipmentManagerName(s, true)}
                     </div>
                     {(s.weight || s.volume) && (
                       <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }}>
@@ -1260,7 +1282,9 @@ export default function Shipments() {
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
                 >
                   <option value="">Выберите клиента</option>
-                  {clients.map((c) => <option key={c.id} value={c.id}>{c.company}</option>)}
+                  {clientSelectOptions(clients).map((c) => (
+                    <option key={c.id} value={c.id}>{c.company}</option>
+                  ))}
                 </select>
               </label>
 
@@ -1272,7 +1296,9 @@ export default function Shipments() {
                   style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
                 >
                   <option value="">Не назначен</option>
-                  {managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  {managerSelectOptions(managers).map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
                 </select>
               </label>
 

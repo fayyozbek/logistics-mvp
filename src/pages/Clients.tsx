@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import '../styles/clients.css';
 import type { Client } from '../data/mock';
 import { ApiError, createClient, deleteClient, getClients, handleApiLoadFailure, updateClient } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
@@ -233,7 +234,7 @@ export default function Clients() {
   }
 
   if (loading) {
-    return <PageLoading />;
+    return <PageLoading className="clients-page" />;
   }
 
   const renderFormFields = (
@@ -279,7 +280,7 @@ export default function Clients() {
           style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, background: '#F8FAFC', outline: 'none' }}
         />
       </label>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div className="clients-form-grid">
         <label>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 4 }}>Страна</div>
           <input
@@ -312,8 +313,8 @@ export default function Clients() {
   );
 
   return (
-    <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="clients-page">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ fontSize: 13, color: '#64748B' }}>
           Партнёры / клиенты: <strong style={{ color: '#0F172A' }}>{clients.length}</strong>
         </div>
@@ -331,8 +332,8 @@ export default function Clients() {
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="clients-layout">
+        <div className="clients-list">
           {clients.map((client) => {
             const isSelected = selected?.id === client.id;
             return (
@@ -340,15 +341,10 @@ export default function Clients() {
                 key={client.id}
                 type="button"
                 onClick={() => setSelected(isSelected ? null : client)}
+                className="clients-card"
                 style={{
-                  textAlign: 'left',
-                  background: '#fff',
-                  borderRadius: 14,
-                  padding: '16px 20px',
                   border: `1.5px solid ${isSelected ? '#3B82F6' : '#EEF2FF'}`,
-                  cursor: 'pointer',
                   boxShadow: isSelected ? '0 0 0 3px rgba(59,130,246,0.1)' : 'none',
-                  width: '100%',
                 }}
               >
                 <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>{client.company}</div>
@@ -362,10 +358,7 @@ export default function Clients() {
         </div>
 
         {selected && (
-          <div style={{
-            width: 360, background: '#fff', borderRadius: 14, padding: '22px',
-            border: '1px solid #E2E8F0', position: 'sticky', top: 20,
-          }}>
+          <div className="clients-detail">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: '#0F172A' }}>{selected.company}</div>
@@ -466,7 +459,7 @@ export default function Clients() {
           position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.48)', display: 'flex',
           alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(3px)', padding: 24,
         }}>
-          <div style={{ background: '#fff', borderRadius: 14, width: 480, maxWidth: '96vw', maxHeight: '92vh', overflowY: 'auto', border: '1px solid #E2E8F0' }}>
+          <div className="clients-modal">
             <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>Новый партнёр</div>
