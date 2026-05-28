@@ -393,7 +393,9 @@ export default function Managers() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{selected.name}</div>
-              <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>ID: {selected.id}</div>
+              <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
+                {[selected.region, selected.role, selected.department].filter(Boolean).join(' · ') || selected.email || '—'}
+              </div>
             </div>
             {(canUpdate || canDelete) && (
             <div style={{ display: 'flex', gap: 8 }}>
