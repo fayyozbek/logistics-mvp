@@ -45,23 +45,21 @@ cd backend && php artisan serve --host=127.0.0.1 --port=8000
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
-## API smoke (all expect 200 unless noted)
+## API smoke script
+
+After `php artisan serve` on port 8000:
+
+```bash
+bash scripts/local-regression-api.sh
+```
+
+Covers health, all demo-role logins, role 403 matrix, users CRUD, shipment price create, tracking names, validation 422, secrets grep, logout. Exits non-zero on failure.
+
+Manual spot-checks (optional):
 
 | Endpoint | Method |
 |----------|--------|
-| `/api/health` | GET |
-| `/api/dashboard` | GET |
-| `/api/shipments` | GET |
-| `/api/tracking` | GET |
-| `/api/clients` | GET |
-| `/api/managers/overview` | GET |
-| `/api/finance` | GET |
-| `/api/finance/report` | GET |
-| `/api/telegram/settings` | GET |
-| `/api/export/shipments.csv` | GET |
 | `/api/export/finance.csv` | GET |
-| Invalid POST `/api/shipments` `{}` | 422 |
-| GET `/api/shipments/99999` | 404 |
 
 ## UI CRUD matrix
 

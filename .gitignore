@@ -22,3 +22,10 @@ backend/storage/pail
 backend/database/*.sqlite
 backend/database/*.sqlite-journal
 docs/audit/
+
+# Local DB backups and dumps (never commit)
+backups/
+*.sql
+*.dump
+*.sqlite
+*.sqlite-journal
