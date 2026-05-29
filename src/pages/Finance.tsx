@@ -1,5 +1,6 @@
-import { Fragment, useEffect, useState } from 'react';
-import { type Client, type FinanceRecord } from '../data/mock';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import '../styles/finance.css';
+import { type FinanceRecord } from '../data/mock';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { exportFinanceCsv, getFinance, getFinanceReport, handleApiLoadFailure, isApiConfigured, updateFinanceStatus } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
@@ -10,6 +11,8 @@ import { usePermissions } from '../hooks/usePermissions';
 import type { FinanceReportSummary } from '../types/api';
 import { buildFinanceReport, formatReportMonthLabel } from '../utils/financeReport';
 import { formatMoneyUsd } from '../utils/numberFormat';
+import { formatMoneyWithCurrency } from '../utils/shipmentPrice';
+import { financeRecordClientCompany, financeRecordClientContact } from '../utils/trackingLabels';
 
 const statusConfig = {
   paid: { label: 'Оплачен', color: '#10B981', bg: '#F0FDF4' },
@@ -28,7 +31,6 @@ export default function Finance() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [financeRecords, setFinanceRecords] = useState<FinanceRecord[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -40,7 +42,6 @@ export default function Finance() {
     Promise.all([getFinance(), getFinanceReport()])
       .then(([finance, financeReport]) => {
         setFinanceRecords(finance.financeRecords);
-        setClients(finance.clients);
         setReport(financeReport.report);
         setLoadError(null);
       })
@@ -62,14 +63,21 @@ export default function Finance() {
 
   const filtered = financeRecords.filter(f => filter === 'all' || f.status === filter);
 
-  const clientData = clients.map(c => {
-    const recs = financeRecords.filter(f => f.clientId === c.id);
-    return {
-      name: c.company.split(' ')[0],
-      total: recs.reduce((s, f) => s + f.totalAmount, 0),
-      paid: recs.reduce((s, f) => s + f.paidAmount, 0),
-    };
-  }).filter(c => c.total > 0);
+  const clientData = useMemo(() => {
+    const totals = new Map<string, { name: string; total: number; paid: number }>();
+    for (const record of financeRecords) {
+      const company = financeRecordClientCompany(record);
+      const entry = totals.get(record.clientId) ?? {
+        name: company.split(' ')[0] || company,
+        total: 0,
+        paid: 0,
+      };
+      entry.total += record.totalAmount;
+      entry.paid += record.paidAmount;
+      totals.set(record.clientId, entry);
+    }
+    return [...totals.values()].filter((row) => row.total > 0);
+  }, [financeRecords]);
 
   const applyFinanceRecordUpdate = (updated: FinanceRecord) => {
     setFinanceRecords((records) => {
@@ -130,13 +138,12 @@ export default function Finance() {
   }
 
   if (loading) {
-    return <PageLoading padding="24px 28px" />;
+    return <PageLoading className="finance-page" />;
   }
 
   return (
-    <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Report summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+    <div className="finance-page">
+      <div className="finance-summary-grid">
         {[
           { label: 'Выставлено', value: formatMoneyUsd(totalRevenue), sub: `${financeRecords.length} счетов`, color: '#3B82F6' },
           { label: 'Оплачено', value: formatMoneyUsd(totalPaid), sub: `${paidPercent}% от выставленного`, color: '#10B981' },
@@ -198,12 +205,11 @@ export default function Finance() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16 }}>
-        {/* Table */}
-        <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+      <div className="finance-main-grid">
+        <div className="finance-table-panel">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Счета и платежи</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="finance-toolbar">
             <button
               type="button"
               onClick={() => void handleExportCsv()}
@@ -234,6 +240,7 @@ export default function Finance() {
             </div>
             </div>
           </div>
+          <div className="finance-table-scroll">
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #F1F5F9' }}>
@@ -244,7 +251,6 @@ export default function Finance() {
             </thead>
             <tbody>
               {filtered.map(f => {
-                const client = clients.find(c => c.id === f.clientId);
                 const s = statusConfig[f.status];
                 const debt = f.totalAmount - f.paidAmount;
                 const isUpdating = updatingId === f.id;
@@ -256,12 +262,14 @@ export default function Finance() {
                     >
                       <td style={{ padding: '10px 10px', fontWeight: 700, color: '#0F172A', fontFamily: 'monospace', fontSize: 11 }}>INV-{f.id.replace('f', '2026-00')}</td>
                       <td style={{ padding: '10px 10px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>{client?.company}</div>
-                        <div style={{ fontSize: 10, color: '#94A3B8' }}>{client?.contact}</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>{financeRecordClientCompany(f)}</div>
+                        {financeRecordClientContact(f) && (
+                          <div style={{ fontSize: 10, color: '#94A3B8' }}>{financeRecordClientContact(f)}</div>
+                        )}
                       </td>
-                      <td style={{ padding: '10px 10px', color: '#64748B', fontSize: 11 }}>{f.shipmentId.replace('s', 'LGX-0')}</td>
-                      <td style={{ padding: '10px 10px', fontWeight: 700, color: '#0F172A' }}>{formatMoneyUsd(f.totalAmount)}</td>
-                      <td style={{ padding: '10px 10px', color: '#10B981', fontWeight: 600 }}>{formatMoneyUsd(f.paidAmount)}</td>
+                      <td style={{ padding: '10px 10px', color: '#64748B', fontSize: 11 }}>{f.shipment?.trackingNumber ?? f.shipmentId}</td>
+                      <td style={{ padding: '10px 10px', fontWeight: 700, color: '#0F172A' }}>{formatMoneyWithCurrency(f.totalAmount, f.currency)}</td>
+                      <td style={{ padding: '10px 10px', color: '#10B981', fontWeight: 600 }}>{formatMoneyWithCurrency(f.paidAmount, f.currency)}</td>
                       <td style={{ padding: '10px 10px', color: debt > 0 ? '#EF4444' : '#94A3B8', fontWeight: debt > 0 ? 700 : 400 }}>
                         {debt > 0 ? formatMoneyUsd(debt) : '—'}
                       </td>
@@ -290,7 +298,7 @@ export default function Finance() {
                                 <div style={{ width: `${(f.paidAmount / f.totalAmount) * 100}%`, height: '100%', background: s.color, borderRadius: 3 }} />
                               </div>
                               <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4 }}>
-                                {Math.round(f.paidAmount / f.totalAmount * 100)}% оплачено · {formatMoneyUsd(f.totalAmount - f.paidAmount)} остаток
+                                {Math.round(f.paidAmount / f.totalAmount * 100)}% оплачено · {formatMoneyWithCurrency(f.totalAmount - f.paidAmount, f.currency)} остаток
                               </div>
                               <div style={{ marginTop: 10 }}>
                                 <div style={{ fontSize: 10, color: '#64748B', fontWeight: 700, marginBottom: 4 }}>Статус счёта</div>
@@ -362,10 +370,10 @@ export default function Finance() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
 
-        {/* Chart */}
-        <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0', alignSelf: 'flex-start' }}>
+        <div className="finance-chart-panel">
           <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>Долг по клиентам</div>
           <div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 16 }}>Выставлено vs Оплачено</div>
           <ResponsiveContainer width="100%" height={220}>
@@ -381,13 +389,12 @@ export default function Finance() {
           <div style={{ marginTop: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Клиенты с долгом</div>
             {financeRecords.filter(f => f.status === 'overdue' || f.status === 'partial').map(f => {
-              const client = clients.find(c => c.id === f.clientId);
               const debt = f.totalAmount - f.paidAmount;
               const s = statusConfig[f.status];
               return (
                 <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #F8FAFC' }}>
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#0F172A' }}>{client?.company}</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#0F172A' }}>{financeRecordClientCompany(f)}</div>
                     <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 20, background: s.bg, color: s.color }}>{s.label}</span>
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 800, color: '#EF4444' }}>−{formatMoneyUsd(debt).slice(1)}</div>

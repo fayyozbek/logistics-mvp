@@ -8,16 +8,19 @@ use App\Models\Manager;
 use App\Models\Shipment;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesApiUsers;
 use Tests\TestCase;
 
 class DeleteBehaviorTest extends TestCase
 {
+    use AuthenticatesApiUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(DatabaseSeeder::class);
+        $this->actingAsAdmin();
     }
 
     public function test_checkpoint_delete_does_not_remove_shipment(): void

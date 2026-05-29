@@ -9,8 +9,10 @@ use App\Http\Requests\UpdateShipmentStatusRequest;
 use App\Http\Resources\ShipmentResource;
 use App\Models\Checkpoint;
 use App\Models\Shipment;
+use App\Services\ShipmentFinanceSyncService;
 use App\Services\TelegramBotService;
 use App\Services\TrackingNumberGenerator;
+use App\Support\ShipmentCurrencies;
 use App\Support\MapsValidatedAttributes;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -36,11 +38,14 @@ class ShipmentController extends Controller
         'estimatedDelivery' => 'estimated_delivery',
         'notes' => 'notes',
         'telegramNotifications' => 'telegram_notifications',
+        'priceAmount' => 'price_amount',
+        'currency' => 'currency',
     ];
 
     public function __construct(
         private readonly TrackingNumberGenerator $trackingNumberGenerator,
         private readonly TelegramBotService $telegram,
+        private readonly ShipmentFinanceSyncService $shipmentFinanceSync,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -70,6 +75,7 @@ class ShipmentController extends Controller
     public function update(UpdateShipmentRequest $request, Shipment $shipment): JsonResponse
     {
         $shipment->update($this->mapValidatedAttributes($request->validated(), self::UPDATE_FIELD_MAP));
+        $this->shipmentFinanceSync->syncFromShipment($shipment->fresh());
 
         return $this->shipmentResponse($this->loadShipmentDetails($shipment));
     }
@@ -143,9 +149,12 @@ class ShipmentController extends Controller
                 'volume_unit' => isset($validated['volume']) ? ($validated['volumeUnit'] ?? 'm3') : null,
                 'estimated_delivery' => $validated['estimatedDelivery'] ?? null,
                 'telegram_notifications' => $validated['telegramNotifications'] ?? false,
+                'price_amount' => $validated['priceAmount'] ?? 0,
+                'currency' => $validated['currency'] ?? ShipmentCurrencies::DEFAULT,
             ]);
 
             $this->createCheckpointsFromPayload($shipment, $validated['checkpoints'] ?? []);
+            $this->shipmentFinanceSync->syncFromShipment($shipment);
 
             return $shipment;
         });

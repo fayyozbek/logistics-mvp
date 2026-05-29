@@ -84,6 +84,8 @@ class Shipment extends Model
         'planned_pickup',
         'telegram_notifications',
         'notes',
+        'price_amount',
+        'currency',
     ];
 
     protected function casts(): array
@@ -92,6 +94,7 @@ class Shipment extends Model
             'estimated_delivery' => 'date',
             'planned_pickup' => 'date',
             'telegram_notifications' => 'boolean',
+            'price_amount' => 'decimal:2',
         ];
     }
 

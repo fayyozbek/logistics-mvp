@@ -74,6 +74,18 @@ Each demo user has a separate `account_id` and `telegram_notification_settings` 
 
 All routes except `GET /api/health` and `POST /api/auth/login` require Sanctum auth. Role middleware applies per route group. See `docs/AUTH_ROLES_SCOPE.md`.
 
+### User management (admin only)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/users` | List users (`?limit=50`, max 100). Returns `users` + `meta`. |
+| POST | `/api/users` | Create user (`name`, `email`, `password`, `role`, optional `accountId`, `isActive`). |
+| GET | `/api/users/{id}` | Show user (no password hash). |
+| PATCH | `/api/users/{id}` | Update user fields; optional `password`; `isActive: false` deactivates. |
+| DELETE | `/api/users/{id}` | Deactivate user (`is_active=false`); revokes tokens. |
+
+Guards: admin cannot deactivate self; cannot deactivate the last active admin. Inactive users cannot log in.
+
 ## Endpoints
 
 | Method | Path | Description |

@@ -7,16 +7,19 @@ use App\Models\FinanceRecord;
 use App\Models\Shipment;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesApiUsers;
 use Tests\TestCase;
 
 class ShipmentCrudApiTest extends TestCase
 {
+    use AuthenticatesApiUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(DatabaseSeeder::class);
+        $this->actingAsManager();
     }
 
     public function test_can_update_shipment(): void
@@ -80,11 +83,12 @@ class ShipmentCrudApiTest extends TestCase
 
         $this->deleteJson("/api/shipments/{$shipmentId}")
             ->assertOk()
-            ->assertJsonPath('message', 'Shipment deleted.')
+            ->assertJsonPath('message', 'Shipment archived.')
             ->assertJsonPath('shipmentId', (string) $shipmentId);
 
         $this->assertSoftDeleted('shipments', ['id' => $shipmentId]);
-        $this->assertDatabaseMissing('checkpoints', ['shipment_id' => $shipmentId]);
+        $this->assertDatabaseHas('checkpoints', ['shipment_id' => $shipmentId]);
+        $this->assertSame($checkpointCount, Checkpoint::query()->where('shipment_id', $shipmentId)->count());
         $this->assertDatabaseHas('finance_records', ['id' => $financeId, 'shipment_id' => $shipmentId]);
     }
 

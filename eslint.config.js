@@ -18,5 +18,11 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // Existing data-fetch and selection-reset effects are intentional; rule is too strict for this codebase.
+      'react-hooks/set-state-in-effect': 'off',
+      // Hooks like useToast live beside providers; splitting files adds churn without UX benefit.
+      'react-refresh/only-export-components': 'off',
+    },
   },
 ])

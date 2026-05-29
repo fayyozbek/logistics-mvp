@@ -18,6 +18,8 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'role' => $this->role instanceof \App\Enums\UserRole ? $this->role->value : (string) $this->role,
+            'isActive' => (bool) $this->is_active,
+            'accountId' => $this->account_id !== null ? (string) $this->account_id : null,
         ];
     }
 }

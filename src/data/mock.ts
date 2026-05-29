@@ -47,6 +47,8 @@ export interface FinanceRecord {
   dueDate: string;
   status: 'paid' | 'partial' | 'unpaid' | 'overdue';
   items: { label: string; amount: number }[];
+  client?: Client;
+  shipment?: Pick<Shipment, 'id' | 'trackingNumber'>;
 }
 
 export interface Shipment {
@@ -67,8 +69,11 @@ export interface Shipment {
   plannedPickup?: string;
   estimatedDelivery: string;
   notes?: string;
+  priceAmount?: number;
+  currency?: string;
   checkpoints: CheckPoint[];
   financeId: string;
+  financeRecord?: FinanceRecord;
   telegramNotifications: boolean;
   client?: Client;
   manager?: Manager | null;

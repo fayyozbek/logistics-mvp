@@ -94,11 +94,20 @@ class LogisticsApiTest extends TestCase
     public function test_tracking_endpoint_includes_client_and_manager_names(): void
     {
         $response = $this->getJson('/api/tracking')->assertOk();
-        $first = $response->json('shipments.0');
 
-        $this->assertIsArray($first);
-        $this->assertArrayHasKey('company', $first['client']);
-        $this->assertNotEmpty($first['client']['company']);
+        $withManager = collect($response->json('shipments'))
+            ->first(fn (array $row) => ! empty($row['manager']['name'] ?? null));
+
+        $this->assertIsArray($withManager);
+        $this->assertSame('KazExport LLP', $withManager['client']['company']);
+        $this->assertNotEmpty($withManager['manager']['name']);
+
+        $withoutManager = collect($response->json('shipments'))
+            ->first(fn (array $row) => ($row['managerId'] ?? null) === null);
+
+        if ($withoutManager !== null) {
+            $this->assertNull($withoutManager['manager'] ?? null);
+        }
     }
 
     public function test_managers_overview_endpoint(): void

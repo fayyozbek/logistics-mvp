@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { type Client, type Manager, type Shipment } from '../data/mock';
+import { type Manager, type Shipment } from '../data/mock';
 import { ApiError, createManager, deleteManager, getManagers, handleApiLoadFailure, updateManager } from '../api';
 import ApiLoadErrorPanel from '../components/ApiLoadErrorPanel';
 import FormErrorList from '../components/FormErrorList';
@@ -10,6 +10,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { formatFieldErrors, showApiMutationError } from '../utils/apiErrors';
 import { hasRequiredStrings } from '../utils/formValidation';
 import { shipmentStatusColors, shipmentStatusLabels } from '../utils/shipmentLabels';
+import { shipmentClientCompany } from '../utils/trackingLabels';
 import type { CreateManagerPayload, UpdateManagerPayload } from '../types/api';
 
 interface ManagerFormState {
@@ -87,8 +88,8 @@ export default function Managers() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [managers, setManagers] = useState<Manager[]>([]);
   const [shipments, setShipments] = useState<Shipment[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
   const [selected, setSelected] = useState<Manager | null>(null);
+  const selectedId = selected?.id;
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState<ManagerFormState>(emptyForm);
@@ -100,10 +101,9 @@ export default function Managers() {
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
   const loadOverview = useCallback(async () => {
-    const { managers: m, shipments: s, clients: c } = await getManagers();
+    const { managers: m, shipments: s } = await getManagers();
     setManagers(m);
     setShipments(s);
-    setClients(c);
     return m;
   }, []);
 
@@ -118,14 +118,15 @@ export default function Managers() {
     setEditMode(false);
     setShowDeleteConfirm(false);
     setFormErrors([]);
-  }, [selected?.id]);
+  }, [selectedId]);
 
   useEffect(() => {
-    if (!selected) return;
-    const fresh = managers.find((m) => m.id === selected.id) ?? selected;
+    if (!selectedId) return;
+    const fresh = managers.find((m) => m.id === selectedId);
+    if (!fresh) return;
     setSelected(fresh);
     setForm((current) => (editMode ? current : managerToForm(fresh)));
-  }, [selected?.id, managers, editMode]);
+  }, [selectedId, managers, editMode]);
 
   const openCreateForm = () => {
     setCreateForm(emptyForm);
@@ -392,7 +393,9 @@ export default function Managers() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{selected.name}</div>
-              <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>ID: {selected.id}</div>
+              <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
+                {[selected.region, selected.role, selected.department].filter(Boolean).join(' · ') || selected.email || '—'}
+              </div>
             </div>
             {(canUpdate || canDelete) && (
             <div style={{ display: 'flex', gap: 8 }}>
@@ -468,13 +471,11 @@ export default function Managers() {
               </tr>
             </thead>
             <tbody>
-              {shipments.filter((s) => s.managerId === selected.id).map((s) => {
-                const client = clients.find((c) => c.id === s.clientId);
-                return (
+              {shipments.filter((s) => s.managerId === selected.id).map((s) => (
                   <tr key={s.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
                     <td style={{ padding: '9px 10px', fontWeight: 700, color: '#0F172A' }}>{s.trackingNumber}</td>
                     <td style={{ padding: '9px 10px' }}>{s.type === 'auto' ? '🚛' : s.type === 'air' ? '✈' : s.type === 'sea' ? '🚢' : '🔀'}</td>
-                    <td style={{ padding: '9px 10px', color: '#64748B' }}>{client?.company}</td>
+                    <td style={{ padding: '9px 10px', color: '#64748B' }}>{shipmentClientCompany(s)}</td>
                     <td style={{ padding: '9px 10px', color: '#64748B' }}>{s.origin}</td>
                     <td style={{ padding: '9px 10px', color: '#64748B' }}>{s.destination}</td>
                     <td style={{ padding: '9px 10px' }}>
@@ -484,8 +485,7 @@ export default function Managers() {
                     </td>
                     <td style={{ padding: '9px 10px', color: '#94A3B8' }}>{s.estimatedDelivery}</td>
                   </tr>
-                );
-              })}
+              ))}
             </tbody>
           </table>
         </div>

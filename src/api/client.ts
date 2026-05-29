@@ -155,6 +155,10 @@ export function requestJsonPublic<T>(path: string, options: RequestInit = {}): P
   return requestJson<T>(path, options, { skipAuth: true });
 }
 
+export function getJson<T>(path: string): Promise<T> {
+  return requestJson<T>(path);
+}
+
 export function postJson<T>(
   path: string,
   data: unknown,

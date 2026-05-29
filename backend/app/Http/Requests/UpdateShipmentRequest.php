@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ShipmentPriceRules;
 use App\Http\Requests\Concerns\ShipmentQuantityRules;
 use App\Http\Requests\Concerns\ValidatesApiInput;
 use Illuminate\Foundation\Http\FormRequest;
@@ -9,6 +10,7 @@ use Illuminate\Validation\Rule;
 
 class UpdateShipmentRequest extends FormRequest
 {
+    use ShipmentPriceRules;
     use ShipmentQuantityRules;
     use ValidatesApiInput;
 
@@ -50,6 +52,7 @@ class UpdateShipmentRequest extends FormRequest
             'cargo' => ['sometimes', 'nullable', 'string', 'max:255'],
             'cargoName' => ['sometimes', 'nullable', 'string', 'max:255'],
             ...$this->shipmentQuantityRules(sometimes: true),
+            ...$this->shipmentPriceRules(sometimes: true),
             'plannedPickup' => ['sometimes', 'nullable', 'date'],
             'estimatedDelivery' => ['sometimes', 'nullable', 'date'],
             'plannedDelivery' => ['sometimes', 'nullable', 'date'],

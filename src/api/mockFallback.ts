@@ -117,7 +117,13 @@ export function getShipmentMock(id: string): ShipmentResponse {
 }
 
 export function getTrackingDataMock(): TrackingResponse {
-  return { shipments };
+  return {
+    shipments: shipments.map((shipment) => ({
+      ...shipment,
+      client: clients.find((client) => client.id === shipment.clientId),
+      manager: managers.find((manager) => manager.id === shipment.managerId) ?? null,
+    })),
+  };
 }
 
 export function getClientsMock(): ClientsResponse {
@@ -125,11 +131,26 @@ export function getClientsMock(): ClientsResponse {
 }
 
 export function getManagersMock(): ManagersResponse {
-  return { managers, clients, shipments };
+  return {
+    managers,
+    clients,
+    shipments: shipments.map((shipment) => ({
+      ...shipment,
+      client: clients.find((client) => client.id === shipment.clientId),
+      manager: managers.find((manager) => manager.id === shipment.managerId) ?? null,
+    })),
+  };
 }
 
 export function getFinanceMock(): FinanceResponse {
-  return { financeRecords, clients };
+  return {
+    financeRecords: financeRecords.map((record) => ({
+      ...record,
+      client: clients.find((client) => client.id === record.clientId),
+      shipment: shipments.find((shipment) => shipment.id === record.shipmentId),
+    })),
+    clients,
+  };
 }
 
 export function getFinanceReportMock(): FinanceReportResponse {

@@ -23,7 +23,7 @@ class FinanceController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = FinanceRecord::query()
-            ->with('client')
+            ->with(['client', 'shipment' => fn ($query) => $query->withoutTrashed()])
             ->whereHas('shipment', fn ($query) => $query->withoutTrashed())
             ->orderByDesc('invoice_date');
 

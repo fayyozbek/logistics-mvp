@@ -5,16 +5,19 @@ namespace Tests\Feature;
 use App\Models\FinanceRecord;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesApiUsers;
 use Tests\TestCase;
 
 class FinanceReportApiTest extends TestCase
 {
+    use AuthenticatesApiUsers;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(DatabaseSeeder::class);
+        $this->actingAsViewer();
     }
 
     public function test_finance_report_endpoint_returns_summary(): void
