@@ -22,3 +22,4 @@ backend/storage/pail
 backend/database/*.sqlite
 backend/database/*.sqlite-journal
 docs/audit/
+backend/.env

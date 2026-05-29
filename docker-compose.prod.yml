@@ -1,0 +1,116 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: logistics-mvp-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - nginx
+    networks:
+      - logistics-mvp-network
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: logistics-mvp-nginx
+    restart: unless-stopped
+    ports:
+      - "80"
+    volumes:
+      - ./backend:/var/www/html:ro
+      - ./backend/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    networks:
+      - logistics-mvp-network
+
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    image: logistics-mvp-backend-app
+    container_name: logistics-mvp-app
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend/storage:/var/www/html/storage
+      - ./backend/bootstrap/cache:/var/www/html/bootstrap/cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - logistics-mvp-network
+
+  queue:
+    image: logistics-mvp-backend-app
+    container_name: logistics-mvp-queue
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=90
+    volumes:
+      - ./backend/storage:/var/www/html/storage
+      - ./backend/bootstrap/cache:/var/www/html/bootstrap/cache
+    depends_on:
+      - app
+      - redis
+      - postgres
+    networks:
+      - logistics-mvp-network
+
+  scheduler:
+    image: logistics-mvp-backend-app
+    container_name: logistics-mvp-scheduler
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    command: sh -lc "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"
+    volumes:
+      - ./backend/storage:/var/www/html/storage
+      - ./backend/bootstrap/cache:/var/www/html/bootstrap/cache
+    depends_on:
+      - app
+      - redis
+      - postgres
+    networks:
+      - logistics-mvp-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: logistics-mvp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - logistics_mvp_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - logistics-mvp-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: logistics-mvp-redis
+    restart: unless-stopped
+    networks:
+      - logistics-mvp-network
+
+volumes:
+  logistics_mvp_postgres_data:
+  caddy_data:
+  caddy_config:
+networks:
+  logistics-mvp-network:
+    name: logistics-mvp-network
