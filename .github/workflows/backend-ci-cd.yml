@@ -1,0 +1,80 @@
+name: Backend CI/CD
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - "docker-compose.prod.yml"
+      - "Caddyfile"
+      - "deploy-backend.sh"
+      - ".github/workflows/backend-ci-cd.yml"
+
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - "docker-compose.prod.yml"
+      - "Caddyfile"
+      - "deploy-backend.sh"
+      - ".github/workflows/backend-ci-cd.yml"
+
+jobs:
+  backend-ci:
+    name: Backend CI
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: pdo_pgsql, redis, zip, intl, bcmath, gd
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare test env
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Run backend tests
+        run: php artisan test
+
+  backend-deploy:
+    name: Deploy backend to DigitalOcean
+    runs-on: ubuntu-latest
+    needs: backend-ci
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Prepare SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DO_SSH_KEY }}" > ~/.ssh/do_deploy_key
+          chmod 600 ~/.ssh/do_deploy_key
+          ssh-keyscan -H "${{ secrets.DO_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Run deploy script on Droplet
+        run: |
+          ssh -i ~/.ssh/do_deploy_key \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            "${{ secrets.DO_USER }}@${{ secrets.DO_HOST }}" \
+            "cd /opt/mvp-platform/logistics-mvp && ./deploy-backend.sh"
+
+      - name: Public health check
+        run: |
+          curl -fsS "${{ secrets.BACKEND_HEALTH_URL }}"
