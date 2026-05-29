@@ -130,7 +130,11 @@ This document remains the contract for bot sends, env vars, endpoints, and produ
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/api/telegram/settings` | Load masked settings + shipments with `telegram_notifications: true` |
-| `PATCH` | `/api/telegram/settings` | Update `chatId`, `telegramUsername`, `connected`, `eventFlags` — **no `botToken`** |
+| `PATCH` | `/api/telegram/settings` | Update personal chat ID, username, toggles — **no `botToken`**; scoped to current user/account |
+| `GET` | `/api/telegram/notifications` | Own notification journal only (all authenticated roles) |
+| `POST` | `/api/telegram/test-message` | Test send to current user's chat ID (all authenticated roles) |
+
+**Personal settings (TELEGRAM-PERSONAL-SETTINGS-001):** Every authenticated role (`admin`, `manager`, `operator`, `finance`, `viewer`) may read/write **own** `telegram_notification_settings` and **own** journal rows. System `TELEGRAM_BOT_TOKEN` stays env-only; `botToken` in PATCH body is **prohibited** (422).
 
 ### 4.2 New (MVP)
 

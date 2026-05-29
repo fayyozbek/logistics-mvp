@@ -69,7 +69,7 @@ function notificationStatusLabel(status: TelegramNotificationEntry['status']): s
 export function useNotificationBadgeCount(): number {
   const apiMode = isApiConfigured();
   const { can } = usePermissions();
-  const canViewJournal = can('telegram.viewJournal');
+  const canViewJournal = can('telegram.notifications.read.self');
   const [count, setCount] = useState(0);
 
   useEffect(() => {
@@ -101,7 +101,7 @@ interface NotificationsPanelProps {
 export default function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
   const apiMode = isApiConfigured();
   const { can } = usePermissions();
-  const canViewJournal = can('telegram.viewJournal');
+  const canViewJournal = can('telegram.notifications.read.self');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [journalEntries, setJournalEntries] = useState<TelegramNotificationEntry[]>([]);

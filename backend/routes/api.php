@@ -53,13 +53,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/checkpoints/{checkpoint}', [CheckpointController::class, 'destroy']);
     });
 
-    Route::middleware('role:admin,manager,operator,finance')->group(function () {
+    Route::middleware('role:admin,manager,operator,finance,viewer')->group(function () {
         Route::get('/telegram/status', [TelegramSettingController::class, 'status']);
         Route::get('/telegram/settings', [TelegramSettingController::class, 'show']);
+        Route::patch('/telegram/settings', [TelegramSettingController::class, 'update']);
+        Route::post('/telegram/test-message', [TelegramSettingController::class, 'testMessage']);
+        Route::get('/telegram/notifications', [TelegramNotificationController::class, 'index']);
     });
 
     Route::middleware('role:admin,manager')->group(function () {
-        Route::get('/telegram/notifications', [TelegramNotificationController::class, 'index']);
         Route::post('/shipments', [ShipmentController::class, 'store']);
         Route::delete('/shipments/{shipment}', [ShipmentController::class, 'destroy']);
     });
@@ -74,8 +76,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/managers/{manager}', [ManagerController::class, 'update']);
         Route::delete('/managers/{manager}', [ManagerController::class, 'destroy']);
         Route::delete('/clients/{client}', [ClientController::class, 'destroy']);
-        Route::patch('/telegram/settings', [TelegramSettingController::class, 'update']);
-        Route::post('/telegram/test-message', [TelegramSettingController::class, 'testMessage']);
     });
 
     Route::middleware('role:admin,finance')->group(function () {

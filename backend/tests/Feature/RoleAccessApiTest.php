@@ -51,7 +51,7 @@ class RoleAccessApiTest extends TestCase
         }
     }
 
-    public function test_viewer_cannot_access_managers_or_telegram(): void
+    public function test_viewer_cannot_access_managers_but_can_read_own_telegram_settings(): void
     {
         $this->actingAsViewer();
 
@@ -59,9 +59,8 @@ class RoleAccessApiTest extends TestCase
             ->assertForbidden()
             ->assertJson(['message' => 'This action is unauthorized.']);
 
-        $this->getJson('/api/telegram/settings')
-            ->assertForbidden()
-            ->assertJson(['message' => 'This action is unauthorized.']);
+        $this->getJson('/api/telegram/settings')->assertOk();
+        $this->getJson('/api/telegram/notifications')->assertOk();
     }
 
     public function test_viewer_cannot_create_or_mutate_shipments(): void
@@ -121,7 +120,7 @@ class RoleAccessApiTest extends TestCase
         $this->deleteJson("/api/shipments/{$shipment->id}")->assertOk();
     }
 
-    public function test_manager_cannot_update_finance_status_or_telegram_settings(): void
+    public function test_manager_cannot_update_finance_status_but_can_update_own_telegram_settings(): void
     {
         $this->actingAsManager();
         $record = FinanceRecord::query()->firstOrFail();
@@ -130,8 +129,8 @@ class RoleAccessApiTest extends TestCase
             ->assertForbidden()
             ->assertJson(['message' => 'This action is unauthorized.']);
 
-        $this->patchJson('/api/telegram/settings', ['telegramChatId' => '-100'])
-            ->assertForbidden();
+        $this->patchJson('/api/telegram/settings', ['telegramChatId' => '-100-manager-role'])
+            ->assertOk();
     }
 
     public function test_finance_can_read_shipments_but_not_managers(): void
@@ -188,13 +187,13 @@ class RoleAccessApiTest extends TestCase
         $this->deleteJson("/api/shipments/{$shipment->id}")->assertForbidden();
     }
 
-    public function test_finance_cannot_read_telegram_notification_journal(): void
+    public function test_finance_can_read_own_telegram_notification_journal(): void
     {
         $this->actingAsFinance();
 
-        $this->getJson('/api/telegram/notifications')
-            ->assertForbidden()
-            ->assertJson(['message' => 'This action is unauthorized.']);
+        $this->getJson('/api/telegram/notifications')->assertOk();
+        $this->patchJson('/api/telegram/settings', ['telegramChatId' => '-100-finance-role'])
+            ->assertOk();
     }
 
     public function test_admin_can_access_all_current_endpoints(): void

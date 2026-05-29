@@ -16,9 +16,9 @@ export type ApiAction =
   | 'checkpoint.create'
   | 'checkpoint.update'
   | 'finance.updateStatus'
-  | 'telegram.updateSettings'
-  | 'telegram.testMessage'
-  | 'telegram.viewJournal'
+  | 'telegram.settings.read.self'
+  | 'telegram.settings.write.self'
+  | 'telegram.notifications.read.self'
   | 'manager.read'
   | 'manager.create'
   | 'manager.update'
@@ -35,7 +35,7 @@ const pageAccess: Record<Page, UserRole[]> = {
   managers: ['admin', 'manager', 'operator'],
   clients: ['admin', 'manager', 'operator', 'finance', 'viewer'],
   finance: ['admin', 'manager', 'operator', 'finance', 'viewer'],
-  telegram: ['admin', 'manager', 'operator', 'finance'],
+  telegram: ['admin', 'manager', 'operator', 'finance', 'viewer'],
   users: ['admin'],
   archive: ['admin', 'manager'],
   settings: ['admin'],
@@ -48,9 +48,9 @@ const actionAccess: Record<ApiAction, UserRole[]> = {
   'checkpoint.create': ['admin', 'manager', 'operator'],
   'checkpoint.update': ['admin', 'manager', 'operator'],
   'finance.updateStatus': ['admin', 'finance'],
-  'telegram.updateSettings': ['admin'],
-  'telegram.testMessage': ['admin'],
-  'telegram.viewJournal': ['admin', 'manager'],
+  'telegram.settings.read.self': ['admin', 'manager', 'operator', 'finance', 'viewer'],
+  'telegram.settings.write.self': ['admin', 'manager', 'operator', 'finance', 'viewer'],
+  'telegram.notifications.read.self': ['admin', 'manager', 'operator', 'finance', 'viewer'],
   'manager.read': ['admin', 'manager', 'operator'],
   'manager.create': ['admin'],
   'manager.update': ['admin'],

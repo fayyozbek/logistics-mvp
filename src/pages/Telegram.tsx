@@ -194,9 +194,9 @@ const defaultBotStatus: TelegramStatus = {
 
 export default function Telegram() {
   const { can } = usePermissions();
-  const canEditSettings = can('telegram.updateSettings');
-  const canSendTest = can('telegram.testMessage');
-  const canViewJournal = can('telegram.viewJournal');
+  const canEditSettings = can('telegram.settings.write.self');
+  const canSendTest = can('telegram.settings.write.self');
+  const canViewJournal = can('telegram.notifications.read.self');
   const [loading, setLoading] = useState(true);
   const [tgShipments, setTgShipments] = useState<Shipment[]>([]);
   const [telegramChatId, setTelegramChatId] = useState('');
@@ -488,14 +488,14 @@ export default function Telegram() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 16 }}>
         {/* Settings */}
         <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 14 }}>Настройки уведомлений</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', marginBottom: 14 }}>Ваши уведомления</div>
           <p style={{ fontSize: 11, color: '#94A3B8', margin: '0 0 14px', lineHeight: 1.45 }}>
-            Укажите чат для получения уведомлений. Токен системного бота настраивается только на сервере.
+            Системный бот настроен на сервере. Укажите ваш Telegram Chat ID и выберите события для личных уведомлений.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <div style={labelStyle}>Telegram Chat ID / Group ID</div>
+              <div style={labelStyle}>Ваш Telegram Chat ID</div>
               <input
                 value={telegramChatId}
                 onChange={(e) => setTelegramChatId(e.target.value)}
@@ -736,7 +736,7 @@ export default function Telegram() {
       {canViewJournal && (
       <div style={{ background: '#fff', borderRadius: 12, padding: '20px', border: '1px solid #E2E8F0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Журнал уведомлений</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Ваш журнал уведомлений</div>
           <button
             type="button"
             disabled={journalLoading}

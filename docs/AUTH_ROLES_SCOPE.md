@@ -213,11 +213,11 @@ Legend: **R** = read/list/show, **C** = create, **U** = update, **D** = delete/a
 | DELETE | `/api/clients/{id}` | admin |
 | GET | `/api/finance` | viewer+ |
 | PATCH | `/api/finance/{id}/status` | finance+ (admin override) |
-| GET | `/api/telegram/status` | operator+ |
-| GET | `/api/telegram/settings` | operator+ |
-| PATCH | `/api/telegram/settings` | admin |
-| POST | `/api/telegram/test-message` | admin |
-| GET | `/api/telegram/notifications` | manager+ |
+| GET | `/api/telegram/status` | all authenticated roles |
+| GET | `/api/telegram/settings` | all authenticated roles (own scope) |
+| PATCH | `/api/telegram/settings` | all authenticated roles (own scope) |
+| POST | `/api/telegram/test-message` | all authenticated roles (own chat) |
+| GET | `/api/telegram/notifications` | all authenticated roles (own journal) |
 | GET | `/api/export/shipments.csv` | admin, finance *(planned)* |
 | GET | `/api/export/finance.csv` | admin, finance *(planned)* |
 | CRUD | `/api/users/*` | admin *(implemented)* |
@@ -281,7 +281,7 @@ After login, store `{ token, user, role }` in auth context.
 | `tracking` | all authenticated | |
 | `managers` | admin, manager, operator | Hidden for finance, viewer |
 | `finance` | all except viewer* | *viewer: optional read-only finance — matrix says R; show read-only UI |
-| `telegram` | admin, manager, operator | finance/viewer: hide or read-only status only |
+| `telegram` | admin, manager, operator, finance, viewer | Each user manages own chat ID and toggles; journal scoped to self |
 | `users` | admin | Currently hidden from nav (static prototype); enable when API exists |
 | `archive` | admin, manager | Post-MVP / demo |
 | `settings` | admin | Post-MVP / demo |
