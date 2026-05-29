@@ -1,0 +1,5 @@
+api.168.144.136.0.sslip.io {
+    encode gzip
+
+    reverse_proxy nginx:80
+}
